@@ -1,0 +1,62 @@
+/* Our LoadingSpinner component - override all conflicting styles */
+.loading-spinner.battery-loading-spinner,
+.loading-spinner.battery-loading-spinner.size-small,
+.loading-spinner.battery-loading-spinner.size-medium,
+.loading-spinner.battery-loading-spinner.size-large {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  min-height: auto !important;
+  width: auto !important;
+  height: auto !important;
+  border: none !important;
+  border-radius: 0 !important;
+  animation: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 9999 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  font-size: inherit !important;
+}
+
+/* Ensure ALL child elements don't have spinning animations */
+.loading-spinner.battery-loading-spinner * {
+  animation: none !important;
+  animation-name: none !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+.loading-spinner.battery-loading-spinner .loading-message {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0;
+  font-weight: 500;
+}
+
+.loading-spinner.battery-loading-spinner.size-small .loading-message {
+  font-size: 0.8rem;
+}
+
+.loading-spinner.battery-loading-spinner.size-large .loading-message {
+  font-size: 1rem;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .loading-spinner.battery-loading-spinner {
+    background: transparent !important;
+  }
+  
+  .loading-message {
+    color: #a0aec0;
+  }
+}

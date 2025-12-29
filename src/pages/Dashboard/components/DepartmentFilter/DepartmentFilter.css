@@ -1,0 +1,50 @@
+.department-filter {
+  display: flex;
+  align-items: center;
+}
+
+.department-select {
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  background: white;
+  color: #333;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+  appearance: none;
+}
+
+.department-select:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 2px rgba(42, 82, 152, 0.1);
+}
+
+.department-select:hover {
+  border-color: #2a5298;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .department-select {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a0aec0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+  
+  .department-select:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
+  }
+  
+  .department-select:hover {
+    border-color: #4299e1;
+  }
+}

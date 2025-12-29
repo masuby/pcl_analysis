@@ -1,0 +1,95 @@
+.dashboard-view {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-header-content {
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.dashboard-title {
+  margin: 0 0 0.5rem 0;
+  color: #2a5298;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.dashboard-subtitle-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.admin-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(42, 82, 152, 0.05);
+  border: 1px solid rgba(42, 82, 152, 0.1);
+  border-radius: 6px;
+  color: #2a5298;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.admin-icon {
+  font-size: 1rem;
+}
+
+.dashboard-stats {
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.department-info {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: rgba(42, 82, 152, 0.05);
+  border-left: 3px solid #2a5298;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .dashboard-header-content {
+    border-bottom-color: #4a5568;
+  }
+  
+  .dashboard-title {
+    color: #63b3ed;
+  }
+  
+  .dashboard-subtitle {
+    color: #a0aec0;
+  }
+  
+  .admin-note {
+    background: rgba(99, 179, 237, 0.1);
+    border-color: rgba(99, 179, 237, 0.2);
+    color: #63b3ed;
+  }
+  
+  .dashboard-stats {
+    color: #a0aec0;
+  }
+  
+  .department-info {
+    background: rgba(99, 179, 237, 0.1);
+    border-left-color: #4299e1;
+  }
+}

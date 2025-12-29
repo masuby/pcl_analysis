@@ -1,0 +1,1428 @@
+/* ExcelViewer.css - Complete Styles */
+.excel-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+}
+
+/* ===== VIEWER HEADER ===== */
+.viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e1e5e9;
+  background: #f8f9fa;
+  flex-shrink: 0;
+  gap: 1rem;
+}
+
+/* Search & Filter Container */
+.search-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 100px;
+}
+
+/* Search Box */
+.search-box {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: 300px;
+  min-width: 200px;
+  border-radius: 8px;
+  padding: 0.25rem 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.search-box:focus-within {
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+}
+
+.search-icon {
+  color: #666;
+  font-size: 1rem;
+  margin-right: 0.5rem;
+  opacity: 0.7;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.85rem;
+  color: #333;
+  padding: 0;
+  background: transparent;
+  min-width: 0;
+}
+
+.clear-search {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  margin-left: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.clear-search:hover {
+  background: #f1f1f1;
+  color: #333;
+}
+
+/* Advanced Filter Toggle */
+.advanced-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  color: #666;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.advanced-filter-toggle:hover {
+  border-color: #2a5298;
+  color: #2a5298;
+}
+
+.advanced-filter-toggle.active {
+  background: rgba(42, 82, 152, 0.1);
+  border-color: #2a5298;
+  color: #2a5298;
+  font-weight: 500;
+}
+
+/* Filter Badges */
+.filter-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+  background: rgba(56, 161, 105, 0.1);
+  border: 1px solid rgba(56, 161, 105, 0.2);
+  border-radius: 12px;
+  color: #38a169;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.remove-filter {
+  background: rgba(56, 161, 105, 0.2);
+  border: none;
+  color: #38a169;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.125rem;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.remove-filter:hover {
+  background: rgba(56, 161, 105, 0.3);
+}
+
+/* Sheet Selector Container */
+.sheet-selector-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 100px;
+}
+
+.sheet-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sheet-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+}
+
+.sheet-dropdown {
+  flex: 1;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #333;
+  background: white;
+  cursor: pointer;
+  min-width: 0;
+  max-width: 250px;
+}
+
+.sheet-dropdown:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.pagination-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  color: #2a5298;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-button:hover:not(:disabled) {
+  background: rgba(42, 82, 152, 0.1);
+  border-color: #2a5298;
+}
+
+.pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  min-width: 80px;
+  text-align: center;
+}
+
+/* ===== ADVANCED FILTERS PANEL ===== */
+.advanced-filters-panel {
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  margin: 0.5rem 1rem;
+  padding: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideDown 0.3s ease;
+  z-index: 10;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.filters-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.filters-header h4 {
+  margin: 0;
+  color: #2a5298;
+  font-size: 1rem;
+}
+
+.close-filters {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-filters:hover {
+  background: #f1f1f1;
+  color: #333;
+}
+
+.column-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.column-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-input {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 2px rgba(42, 82, 152, 0.1);
+}
+
+.filters-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.clear-all-filters,
+.apply-filters {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-all-filters {
+  background: rgba(229, 62, 62, 0.1);
+  color: #e53e3e;
+}
+
+.clear-all-filters:hover {
+  background: rgba(229, 62, 62, 0.2);
+}
+
+.apply-filters {
+  background: #2a5298;
+  color: white;
+}
+
+.apply-filters:hover {
+  background: #1e3c72;
+}
+
+/* ===== SHEET TABS ===== */
+.sheet-tabs {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e1e5e9;
+  padding: 0.5rem 1rem;
+  flex-shrink: 0;
+}
+
+.tabs-container {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.tabs-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.tabs-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
+}
+
+.tabs-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
+}
+
+.tabs-container::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.sheet-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  color: #666;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sheet-tab:hover {
+  border-color: #2a5298;
+  color: #2a5298;
+  background: rgba(42, 82, 152, 0.05);
+}
+
+.sheet-tab.active {
+  background: #2a5298;
+  border-color: #2a5298;
+  color: white;
+}
+
+.tab-name {
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sheet-tab.active .tab-badge {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.tab-size {
+  font-size: 0.7rem;
+  color: #999;
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.sheet-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.sheet-total {
+  font-weight: 500;
+  color: #2a5298;
+}
+
+.sheet-types {
+  color: #999;
+}
+
+/* ===== CURRENT SHEET INFO ===== */
+.current-sheet-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e1e5e9;
+  flex-shrink: 0;
+}
+
+.sheet-details {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sheet-name {
+  font-weight: 600;
+  color: #2a5298;
+  font-size: 0.95rem;
+}
+
+.sheet-dimensions {
+  font-size: 0.85rem;
+  color: #666;
+  background: rgba(42, 82, 152, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.sheet-type {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filtered-count {
+  font-size: 0.85rem;
+  color: #666;
+  background: rgba(42, 82, 152, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.filter-active {
+  color: #38a169;
+  font-weight: 500;
+}
+
+.sheet-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sheet-nav,
+.clear-filters-button {
+  padding: 0.375rem 0.75rem;
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  color: #2a5298;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sheet-nav:hover:not(:disabled),
+.clear-filters-button:hover {
+  background: rgba(42, 82, 152, 0.1);
+  border-color: #2a5298;
+}
+
+.sheet-nav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.clear-filters-button {
+  background: rgba(229, 62, 62, 0.1);
+  border-color: rgba(229, 62, 62, 0.2);
+  color: #e53e3e;
+}
+
+.clear-filters-button:hover {
+  background: rgba(229, 62, 62, 0.2);
+  border-color: #e53e3e;
+}
+
+/* ===== EXCEL TABLE CONTAINER ===== */
+.excel-table-container {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  width: 100%;
+  max-width: none !important;
+}
+
+.excel-table-wrapper {
+  width: auto;
+  min-width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+/* Dynamic Table Layout */
+.excel-table {
+  width: auto !important;
+  min-width: 100% !important;
+  border-collapse: collapse;
+  table-layout: auto !important;
+}
+
+.excel-table th {
+  position: sticky;
+  top: 0;
+  background: #f8f9fa;
+  border-bottom: 2px solid #e1e5e9;
+  border-right: 1px solid #e1e5e9;
+  padding: 0;
+  z-index: 2;
+  min-width: 100px;
+  max-width: 600px;
+  width: auto;
+  position: relative;
+}
+
+.excel-table td {
+  border-bottom: 1px solid #e1e5e9;
+  border-right: 1px solid #e1e5e9;
+  padding: 0;
+  min-width: 100px;
+  max-width: 600px;
+  width: auto;
+}
+
+.header-cell {
+  padding: 0.75rem 0.5rem;
+  font-weight: 600;
+  color: #2a5298;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
+/* Column Header Actions */
+.column-header-actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 3;
+}
+
+.column-filter-btn {
+  background: rgba(42, 82, 152, 0.1);
+  border: none;
+  border-radius: 4px;
+  color: #2a5298;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.125rem 0.25rem;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.excel-table th:hover .column-filter-btn {
+  opacity: 1;
+}
+
+.column-filter-btn:hover {
+  background: rgba(42, 82, 152, 0.2);
+}
+
+/* Column Resizer */
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  background: transparent;
+  transition: background-color 0.2s;
+}
+
+.column-resizer:hover {
+  background-color: rgba(42, 82, 152, 0.3);
+}
+
+.column-resizer:active {
+  background-color: #2a5298;
+}
+
+.excel-table th:hover .column-resizer {
+  background-color: rgba(42, 82, 152, 0.1);
+}
+
+/* Data Cells */
+.data-cell {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+  color: #333;
+  white-space: normal !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+/* For very long content, show ellipsis on hover */
+.data-cell[title]:hover {
+  white-space: normal;
+  overflow: visible;
+  background: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  z-index: 10;
+  position: relative;
+}
+
+.empty-cell {
+  color: #999;
+  font-style: italic;
+}
+
+.formula-cell {
+  color: #805ad5;
+  font-style: italic;
+  background: rgba(128, 90, 213, 0.1);
+  padding: 0.125rem 0.25rem;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  display: inline-block;
+}
+
+/* Row Hover Effect */
+.excel-table tr:hover td {
+  background: rgba(42, 82, 152, 0.05);
+}
+
+/* Horizontal scroll indicator */
+.excel-table-wrapper::-webkit-scrollbar {
+  height: 10px;
+}
+
+.excel-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 5px;
+}
+
+.excel-table-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 5px;
+}
+
+.excel-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* ===== VIEWER FOOTER ===== */
+.viewer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e1e5e9;
+  background: #f8f9fa;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.summary {
+  font-size: 0.85rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sheet-indicator {
+  font-weight: 500;
+  color: #2a5298;
+}
+
+.search-indicator {
+  color: #38a169;
+  font-weight: 500;
+  background: rgba(56, 161, 105, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+}
+
+/* Navigation Buttons */
+.navigation {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.nav-button {
+  padding: 0.375rem 0.75rem;
+  background: white;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  color: #2a5298;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 70px;
+  white-space: nowrap;
+}
+
+.nav-button:hover:not(:disabled) {
+  background: rgba(42, 82, 152, 0.1);
+  border-color: #2a5298;
+}
+
+.nav-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nav-button.download-external {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+  border: 1px solid rgba(42, 82, 152, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.nav-button.download-external:hover {
+  background: rgba(42, 82, 152, 0.2);
+  border-color: #2a5298;
+}
+
+/* ===== LOADING STATE ===== */
+.excel-viewer.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.loading-spinner {
+  font-size: 2rem;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner + p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ===== ERROR STATE ===== */
+.excel-viewer.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  gap: 1rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.error-icon {
+  font-size: 2.5rem;
+  opacity: 0.5;
+}
+
+.excel-viewer.error h4 {
+  margin: 0;
+  color: #e53e3e;
+  font-size: 1.1rem;
+}
+
+.excel-viewer.error p {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.error-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.retry-button,
+.download-external-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 140px;
+}
+
+.retry-button {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+  border: 1px solid rgba(42, 82, 152, 0.2);
+}
+
+.retry-button:hover {
+  background: rgba(42, 82, 152, 0.2);
+  border-color: #2a5298;
+}
+
+.download-external-button {
+  background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.download-external-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(42, 82, 152, 0.3);
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1024px) {
+  .viewer-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .search-filter-container {
+    order: 2;
+  }
+  
+  .sheet-selector-container {
+    order: 1;
+    min-width: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .search-box {
+    max-width: none;
+  }
+  
+  .sheet-dropdown {
+    max-width: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .advanced-filters-panel {
+    margin: 0.5rem;
+    padding: 0.75rem;
+  }
+  
+  .column-filters {
+    grid-template-columns: 1fr;
+  }
+  
+  .current-sheet-info {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .sheet-details {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .sheet-actions {
+    justify-content: center;
+  }
+  
+  .viewer-footer {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .summary {
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .navigation {
+    justify-content: center;
+  }
+  
+  .error-actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 250px;
+  }
+  
+  .retry-button,
+  .download-external-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .excel-table th, .excel-table td {
+    min-width: 80px;
+    max-width: 300px;
+  }
+  
+  .header-cell {
+    font-size: 0.7rem;
+    padding: 0.5rem 0.25rem;
+  }
+  
+  .data-cell {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+  }
+  
+  .sheet-tabs {
+    padding: 0.5rem;
+  }
+  
+  .tabs-container {
+    gap: 0.125rem;
+  }
+  
+  .sheet-tab {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.7rem;
+  }
+  
+  .tab-name {
+    max-width: 80px;
+  }
+  
+  .current-sheet-info {
+    padding: 0.5rem;
+  }
+}
+
+/* ===== DARK MODE SUPPORT ===== */
+@media (prefers-color-scheme: dark) {
+  .excel-viewer {
+    background: #2d3748;
+  }
+  
+  .viewer-header,
+  .sheet-tabs,
+  .current-sheet-info,
+  .viewer-footer {
+    background: #4a5568;
+    border-color: #718096;
+  }
+  
+  /* Search & Filter */
+  .search-box {
+    background: #4a5568;
+    border-color: #718096;
+  }
+  
+  .search-input {
+    color: #e2e8f0;
+    background: transparent;
+  }
+
+  .search-icon {
+    color: #a0aec0;
+  }
+  
+  .clear-search {
+    color: #a0aec0;
+  }
+  
+  .clear-search:hover {
+    background: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .advanced-filter-toggle {
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+  }
+  
+  .advanced-filter-toggle:hover {
+    border-color: #4299e1;
+    color: #63b3ed;
+  }
+  
+  .advanced-filter-toggle.active {
+    background: rgba(66, 153, 225, 0.1);
+    border-color: #4299e1;
+    color: #63b3ed;
+  }
+  
+  .filter-badge {
+    background: rgba(72, 187, 120, 0.1);
+    border-color: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+  }
+  
+  .remove-filter {
+    background: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+  }
+  
+  .remove-filter:hover {
+    background: rgba(72, 187, 120, 0.3);
+  }
+  
+  /* Advanced Filters */
+  .advanced-filters-panel {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .filters-header h4 {
+    color: #63b3ed;
+  }
+  
+  .close-filters {
+    color: #a0aec0;
+  }
+  
+  .close-filters:hover {
+    background: #4a5568;
+    color: #e2e8f0;
+  }
+  
+  .filter-label {
+    color: #a0aec0;
+  }
+  
+  .filter-input {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+  }
+  
+  .filter-input:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
+  }
+  
+  .clear-all-filters {
+    background: rgba(252, 129, 129, 0.1);
+    color: #fc8181;
+  }
+  
+  .clear-all-filters:hover {
+    background: rgba(252, 129, 129, 0.2);
+  }
+  
+  .apply-filters {
+    background: #4299e1;
+    color: white;
+  }
+  
+  .apply-filters:hover {
+    background: #3182ce;
+  }
+  
+  /* Sheet Selector */
+  .sheet-label {
+    color: #a0aec0;
+  }
+  
+  .sheet-dropdown {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+  }
+  
+  .sheet-dropdown:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  }
+  
+  .pagination-button {
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+  }
+  
+  .pagination-button:hover:not(:disabled) {
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+  }
+  
+  .page-info {
+    color: #a0aec0;
+  }
+  
+  /* Sheet Tabs */
+  .sheet-tab {
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+  }
+  
+  .sheet-tab:hover {
+    border-color: #4299e1;
+    color: #63b3ed;
+    background: rgba(99, 179, 237, 0.1);
+  }
+  
+  .sheet-tab.active {
+    background: #4299e1;
+    border-color: #4299e1;
+    color: white;
+  }
+  
+  .tab-size {
+    color: #718096;
+  }
+  
+  .sheet-total {
+    color: #63b3ed;
+  }
+  
+  .sheet-types {
+    color: #718096;
+  }
+  
+  /* Current Sheet Info */
+  .sheet-name {
+    color: #63b3ed;
+  }
+  
+  .sheet-dimensions {
+    background: rgba(99, 179, 237, 0.1);
+    color: #a0aec0;
+  }
+  
+  .filtered-count {
+    background: rgba(99, 179, 237, 0.1);
+    color: #a0aec0;
+  }
+  
+  .filter-active {
+    color: #48bb78;
+  }
+  
+  .sheet-nav,
+  .clear-filters-button {
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+  }
+  
+  .sheet-nav:hover:not(:disabled),
+  .clear-filters-button:hover {
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+  }
+  
+  .clear-filters-button {
+    background: rgba(252, 129, 129, 0.1);
+    border-color: rgba(252, 129, 129, 0.2);
+    color: #fc8181;
+  }
+  
+  .clear-filters-button:hover {
+    background: rgba(252, 129, 129, 0.2);
+    border-color: #fc8181;
+  }
+  
+  /* Excel Table */
+  .excel-table th {
+    background: #4a5568;
+    border-bottom-color: #718096;
+    border-right-color: #718096;
+  }
+  
+  .excel-table td {
+    border-bottom-color: #718096;
+    border-right-color: #718096;
+  }
+  
+  .header-cell {
+    color: #63b3ed;
+  }
+  
+  .data-cell {
+    color: #e2e8f0;
+  }
+  
+  .empty-cell {
+    color: #718096;
+  }
+  
+  .formula-cell {
+    color: #9f7aea;
+    background: rgba(159, 122, 234, 0.1);
+  }
+  
+  .excel-table tr:hover td {
+    background: rgba(99, 179, 237, 0.1);
+  }
+  
+  .column-filter-btn {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+  }
+  
+  .column-filter-btn:hover {
+    background: rgba(99, 179, 237, 0.2);
+  }
+  
+  .column-resizer:hover {
+    background-color: rgba(99, 179, 237, 0.3);
+  }
+  
+  .column-resizer:active {
+    background-color: #4299e1;
+  }
+  
+  .excel-table th:hover .column-resizer {
+    background-color: rgba(99, 179, 237, 0.1);
+  }
+  
+  .data-cell[title]:hover {
+    background: #2d3748;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  }
+  
+  /* Footer */
+  .summary {
+    color: #a0aec0;
+  }
+  
+  .sheet-indicator {
+    color: #63b3ed;
+  }
+  
+  .search-indicator {
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+  }
+  
+  .nav-button {
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+  }
+  
+  .nav-button:hover:not(:disabled) {
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+  }
+  
+  .nav-button.download-external {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+    border-color: rgba(66, 153, 225, 0.2);
+  }
+  
+  .nav-button.download-external:hover {
+    background: rgba(99, 179, 237, 0.2);
+    border-color: #4299e1;
+  }
+  
+  /* Loading & Error States */
+  .excel-viewer.loading,
+  .excel-viewer.error {
+    color: #a0aec0;
+  }
+  
+  .excel-viewer.error h4 {
+    color: #fc8181;
+  }
+  
+  .retry-button {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+    border-color: rgba(66, 153, 225, 0.2);
+  }
+  
+  .retry-button:hover {
+    background: rgba(99, 179, 237, 0.2);
+    border-color: #4299e1;
+  }
+  
+  .download-external-button {
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+  }
+}
+
+/* ===== REDUCED MOTION ===== */
+@media (prefers-reduced-motion: reduce) {
+  .search-box,
+  .advanced-filter-toggle,
+  .clear-search,
+  .filter-input,
+  .clear-all-filters,
+  .apply-filters,
+  .sheet-tab,
+  .sheet-nav,
+  .clear-filters-button,
+  .nav-button,
+  .retry-button,
+  .download-external-button,
+  .pagination-button,
+  .column-filter-btn,
+  .column-resizer {
+    transition: none;
+  }
+  
+  .advanced-filters-panel {
+    animation: none;
+  }
+  
+  .download-external-button:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .loading-spinner {
+    animation: none;
+  }
+}
+
+
+
+

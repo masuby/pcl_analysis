@@ -1,0 +1,18 @@
+.date-picker {
+  position: relative;
+}
+
+.date-input {
+  padding: 8px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #333;
+  background: white;
+  cursor: pointer;
+}
+
+.date-input:focus {
+  outline: none;
+  border-color: #2a5298;
+}

@@ -1,0 +1,418 @@
+.report-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.empty-reports {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-reports p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Reports Container Layout */
+.reports-container {
+  display: flex;
+  height: 600px;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+/* Reports List Sidebar */
+.reports-list-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-list-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e1e5e9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-list-item:hover {
+  background: rgba(42, 82, 152, 0.05);
+}
+
+.report-list-item.selected {
+  background: rgba(42, 82, 152, 0.1);
+  border-left: 3px solid #2a5298;
+}
+
+.report-item-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.report-icon {
+  font-size: 1.25rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(42, 82, 152, 0.1);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.report-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.report-title {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-details {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.report-date,
+.report-size {
+  white-space: nowrap;
+}
+
+.report-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Department Badge */
+.department-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  min-width: 40px;
+}
+
+.action-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+}
+
+.action-button:hover {
+  background: rgba(42, 82, 152, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Excel Preview Area */
+.excel-preview-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #e1e5e9;
+  background: #f8f9fa;
+}
+
+.preview-title {
+  margin: 0;
+  color: #2a5298;
+  font-size: 1.1rem;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.preview-subtitle {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 400;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.preview-action-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.preview-action-button.download {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+}
+
+.preview-action-button.download:hover {
+  background: rgba(42, 82, 152, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Excel Viewer Container */
+.excel-viewer-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* No Preview States */
+.no-preview,
+.no-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #666;
+  text-align: center;
+  padding: 2rem;
+}
+
+.no-preview-icon,
+.no-selection-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-preview p,
+.no-selection p {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+}
+
+.download-fallback {
+  padding: 0.5rem 1rem;
+  background: rgba(42, 82, 152, 0.1);
+  border: 1px solid #2a5298;
+  border-radius: 6px;
+  color: #2a5298;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-fallback:hover {
+  background: rgba(42, 82, 152, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .reports-container {
+    height: 500px;
+  }
+  
+  .reports-list-sidebar {
+    width: 250px;
+  }
+}
+
+@media (max-width: 768px) {
+  .reports-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .reports-list-sidebar {
+    width: 100%;
+    height: 200px;
+    order: 2;
+  }
+  
+  .excel-preview-area {
+    order: 1;
+    height: 400px;
+  }
+}
+
+@media (max-width: 480px) {
+  .preview-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .preview-title {
+    font-size: 1rem;
+  }
+  
+  .preview-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  .action-button {
+    width: 24px;
+    height: 24px;
+    font-size: 0.8rem;
+  }
+  
+  .department-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+    min-width: 36px;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .reports-list-sidebar,
+  .excel-preview-area {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .report-list-item {
+    border-bottom-color: #4a5568;
+  }
+  
+  .report-list-item:hover {
+    background: rgba(99, 179, 237, 0.1);
+  }
+  
+  .report-list-item.selected {
+    background: rgba(99, 179, 237, 0.2);
+    border-left-color: #4299e1;
+  }
+  
+  .report-icon {
+    background: rgba(99, 179, 237, 0.1);
+  }
+  
+  .report-title {
+    color: #e2e8f0;
+  }
+  
+  .report-details {
+    color: #a0aec0;
+  }
+  
+  .preview-header {
+    background: #4a5568;
+    border-bottom-color: #718096;
+  }
+  
+  .preview-title {
+    color: #63b3ed;
+  }
+  
+  .preview-subtitle {
+    color: #a0aec0;
+  }
+  
+  .preview-action-button.download {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+  }
+  
+  .preview-action-button.download:hover {
+    background: rgba(99, 179, 237, 0.2);
+  }
+  
+  .action-button {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+  }
+  
+  .action-button:hover {
+    background: rgba(99, 179, 237, 0.2);
+  }
+  
+  .empty-reports,
+  .no-preview,
+  .no-selection {
+    color: #a0aec0;
+  }
+  
+  .download-fallback {
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+    color: #63b3ed;
+  }
+  
+  .download-fallback:hover {
+    background: rgba(99, 179, 237, 0.2);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .report-list-item,
+  .action-button,
+  .preview-action-button,
+  .download-fallback {
+    transition: none;
+  }
+  
+  .action-button:hover,
+  .preview-action-button:hover,
+  .download-fallback:hover {
+    transform: none;
+  }
+}
+

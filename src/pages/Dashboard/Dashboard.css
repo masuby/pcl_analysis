@@ -1,0 +1,84 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+}
+
+.dashboard-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: white;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0.75rem 0;
+}
+
+.header-lines {
+  position: relative;
+}
+
+.top-line {
+  height: 2px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    #e1e5e9 10%, 
+    #e1e5e9 90%, 
+    transparent 100%);
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.bottom-line {
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    #f0f0f0 10%, 
+    #f0f0f0 90%, 
+    transparent 100%);
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+  position: relative;
+  min-height: calc(100vh - 100px);
+}
+
+.no-dashboard-message {
+  text-align: center;
+  color: #666;
+  font-size: 0.9rem;
+  padding: 3rem;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .dashboard-header {
+    background: #2d3748;
+    border-bottom-color: #4a5568;
+  }
+  
+  .top-line {
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      #4a5568 10%, 
+      #4a5568 90%, 
+      transparent 100%);
+  }
+  
+  .bottom-line {
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      #4a5568 10%, 
+      #4a5568 90%, 
+      transparent 100%);
+  }
+  
+  .no-dashboard-message {
+    color: #a0aec0;
+  }
+}

@@ -1,0 +1,235 @@
+/* C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\SMESection\SMESection.css */
+.section-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e1e5e9;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.section-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.section-title {
+  margin: 0;
+  color: #2a5298;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-badge {
+  padding: 0.25rem 0.75rem;
+  background: #2a5298;
+  color: white;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.section-content {
+  padding: 1.25rem;
+}
+
+.section-container {
+  display: grid;
+  grid-template-columns: 2fr 1px 1fr;
+  gap: 1rem;
+  padding: 1rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #2a5298 #f0f0f0;
+}
+
+.section-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.section-container::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.section-container::-webkit-scrollbar-thumb {
+  background: #2a5298;
+  border-radius: 4px;
+}
+
+.section-container::-webkit-scrollbar-thumb:hover {
+  background: #1e3c72;
+}
+
+.vertical-divider {
+  background: #e1e5e9;
+}
+
+.chart-box, .analysis-box {
+  background: white;
+  padding: 1rem;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.chart-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #2a5298 #f0f0f0;
+  min-width: 520px;
+}
+
+.chart-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.chart-wrapper::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.chart-wrapper::-webkit-scrollbar-thumb {
+  background: #2a5298;
+  border-radius: 4px;
+}
+
+.chart-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #1e3c72;
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.controls select,
+.controls input[type="date"],
+.controls button {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  background: white;
+}
+
+.date-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.date-filters label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+.apply-btn, .refresh-btn, .reset-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #2a5298;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  background: #2a5298;
+  color: white;
+}
+
+.apply-btn:hover,
+.reset-btn:hover,
+.refresh-btn:hover {
+  background: white;
+  color: #2a5298;
+  transform: translateY(-1px);
+}
+
+/* Smaller text for analysis */
+.analysis-box {
+  font-size: 0.85rem;
+}
+
+.analysis-box h4 {
+  font-size: 0.95rem;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+}
+
+.stat-value {
+  font-size: 0.85rem;
+}
+
+.stat-value-primary {
+  font-size: 1rem;
+}
+
+/* Responsive stacking to avoid overlap on small screens */
+@media (max-width: 900px) {
+  .section-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.75rem;
+  }
+
+  .vertical-divider {
+    display: none;
+  }
+
+  .chart-box,
+  .analysis-box {
+    min-width: 100%;
+  }
+
+  .chart-wrapper {
+    min-width: 100%;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .section-card {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .section-header {
+    background: #4a5568;
+    border-bottom-color: #4a5568;
+  }
+  
+  .section-title {
+    color: #63b3ed;
+  }
+  
+  .section-badge {
+    background: #4299e1;
+  }
+  
+  .chart-box, .analysis-box {
+    background: #2d3748;
+  }
+  
+  .vertical-divider {
+    background: #4a5568;
+  }
+}
