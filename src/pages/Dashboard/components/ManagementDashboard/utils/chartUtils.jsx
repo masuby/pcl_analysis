@@ -133,7 +133,7 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
     window.matchMedia('(prefers-color-scheme: dark)').matches
   );
   
-  const axisTickColor = isDarkMode ? '#ffffff' : '#666';
+  const axisTickColor = isDarkMode ? '#ffffff' : '#2a5298';
   const legendTextColor = isDarkMode ? '#ffffff' : '#333';
 
   switch (type) {
@@ -148,11 +148,11 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <YAxis 
             tickFormatter={formatYAxisLabel}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ color: legendTextColor }} />
@@ -171,11 +171,11 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <YAxis 
             tickFormatter={formatYAxisLabel}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ color: legendTextColor }} />
@@ -266,11 +266,11 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <YAxis 
             tickFormatter={formatYAxisLabel}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ color: legendTextColor }} />
@@ -290,11 +290,11 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <YAxis 
             tickFormatter={formatYAxisLabel}
-            tick={{ fill: axisTickColor }}
+            tick={{ fill: axisTickColor, fontSize: 9 }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ color: legendTextColor }} />

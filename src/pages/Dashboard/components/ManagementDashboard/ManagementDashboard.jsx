@@ -2,11 +2,7 @@
 import './ManagementDashboard.css';
 import { useManagementData } from './hooks/useManagementData';
 import LoadingSpinner from '../../../../components/Common/Loading/LoadingSpinner';
-import CountrywiseSection from './components/CountrywiseSection/CountrywiseSection';
-import CSSection from './components/CSSection/CSSection';
-import LBFSection from './components/LBFSection/LBFSection';
-import SMESection from './components/SMESection/SMESection';
-import CSZANZIBARSection from './components/CSZANZIBARSection/CSZANZIBARSection';
+import UnifiedSection from './components/UnifiedSection/UnifiedSection';
 
 const ManagementDashboard = () => {
   const { parsedReports, loading, error } = useManagementData();
@@ -110,40 +106,15 @@ const ManagementDashboard = () => {
 
   return (
     <div className="dashboard-view">
-      {countrywiseData.length > 0 && (
-        <>
-          <CountrywiseSection data={countrywiseData} />
-          <hr />
-        </>
-      )}
-      {csData.length > 0 && (
-        <>
-          <CSSection data={csData} branchesData={csBranchesData} />
-          <hr />
-        </>
-      )}
-      {lbfData.length > 0 && (
-        <>
-          <LBFSection data={lbfData} branchesData={lbfBranchesData} />
-          <hr />
-        </>
-      )}
-      {smeData.length > 0 && (
-        <>
-          <SMESection data={smeData} />
-          <hr />
-        </>
-      )}
-      {zanzibarData.length > 0 && (
-        <CSZANZIBARSection data={zanzibarData} />
-      )}
-      {countrywiseData.length === 0 && csData.length === 0 && lbfData.length === 0 && smeData.length === 0 && zanzibarData.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-icon">📊</div>
-          <p>No data available for visualization</p>
-          <p className="empty-subtext">The uploaded reports may not contain the expected data structure</p>
-        </div>
-      )}
+      <UnifiedSection
+        countrywiseData={countrywiseData}
+        csData={csData}
+        csBranchesData={csBranchesData}
+        lbfData={lbfData}
+        lbfBranchesData={lbfBranchesData}
+        smeData={smeData}
+        zanzibarData={zanzibarData}
+      />
     </div>
   );
 };

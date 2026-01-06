@@ -118,7 +118,7 @@ export const getChartOptions = (config, data) => {
   const isDarkMode = document.documentElement.classList.contains('dark-mode') || 
                      window.matchMedia('(prefers-color-scheme: dark)').matches;
   
-  const axisTextColor = isDarkMode ? '#ffffff' : '#666';
+  const axisTextColor = isDarkMode ? '#ffffff' : '#2a5298';
   const legendTextColor = isDarkMode ? '#ffffff' : '#333';
   const titleColor = isDarkMode ? '#63b3ed' : '#2a5298';
   
@@ -159,7 +159,10 @@ export const getChartOptions = (config, data) => {
         },
         ticks: {
           color: axisTextColor,
-          maxRotation: 45
+          maxRotation: 45,
+          font: {
+            size: 9
+          }
         }
       },
       y: {
@@ -169,6 +172,9 @@ export const getChartOptions = (config, data) => {
         },
         ticks: {
           color: axisTextColor,
+          font: {
+            size: 9
+          },
           callback: function(value) {
             if (value >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M';
             if (value >= 1000) return '$' + (value / 1000).toFixed(1) + 'K';

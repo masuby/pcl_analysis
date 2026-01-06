@@ -24,3 +24,12 @@
     color: #ffffff !important;
   }
 }
+
+/* Global Chart Styles for Light Mode - Blue axis text and small font */
+.recharts-cartesian-axis-tick-value,
+.recharts-text,
+.recharts-label {
+  fill: #2a5298 !important;
+  color: #2a5298 !important;
+  font-size: 9px !important;
+}
