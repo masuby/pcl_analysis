@@ -114,6 +114,14 @@ export const generateChartConfig = (data, config) => {
 export const getChartOptions = (config, data) => {
   const { graphType, aggregation, calculation, column } = config;
   
+  // Check if dark mode is active
+  const isDarkMode = document.documentElement.classList.contains('dark-mode') || 
+                     window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  const axisTextColor = isDarkMode ? '#ffffff' : '#666';
+  const legendTextColor = isDarkMode ? '#ffffff' : '#333';
+  const titleColor = isDarkMode ? '#63b3ed' : '#2a5298';
+  
   const baseOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -121,7 +129,7 @@ export const getChartOptions = (config, data) => {
       legend: {
         position: 'top',
         labels: {
-          color: '#333',
+          color: legendTextColor,
           font: {
             size: 12
           }
@@ -130,7 +138,7 @@ export const getChartOptions = (config, data) => {
       title: {
         display: true,
         text: `${aggregation.charAt(0).toUpperCase() + aggregation.slice(1)} ${column} ${calculation.charAt(0).toUpperCase() + calculation.slice(1)}`,
-        color: '#2a5298',
+        color: titleColor,
         font: {
           size: 14,
           weight: '600'
@@ -150,17 +158,17 @@ export const getChartOptions = (config, data) => {
           display: false
         },
         ticks: {
-          color: '#666',
+          color: axisTextColor,
           maxRotation: 45
         }
       },
       y: {
         beginAtZero: true,
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)'
+          color: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
         },
         ticks: {
-          color: '#666',
+          color: axisTextColor,
           callback: function(value) {
             if (value >= 1000000) return '$' + (value / 1000000).toFixed(1) + 'M';
             if (value >= 1000) return '$' + (value / 1000).toFixed(1) + 'K';

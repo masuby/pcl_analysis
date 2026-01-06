@@ -56,6 +56,31 @@
 }
 
 /* Dark mode support */
+.dark-mode .dashboard-header {
+  background: #2d3748;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .top-line {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    #4a5568 10%, 
+    #4a5568 90%, 
+    transparent 100%);
+}
+
+.dark-mode .bottom-line {
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    #4a5568 10%, 
+    #4a5568 90%, 
+    transparent 100%);
+}
+
+.dark-mode .no-dashboard-message {
+  color: #a0aec0;
+}
+
 @media (prefers-color-scheme: dark) {
   .dashboard-header {
     background: #2d3748;

@@ -320,6 +320,188 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .reports-list-sidebar,
+
+  .dark-mode .excel-preview-area {
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+  }
+
+
+  
+  .dark-mode .report-list-item {
+
+  
+    border-bottom-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .report-list-item:hover {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .report-list-item.selected {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+    border-left-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .report-icon {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .report-title {
+
+  
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .report-details {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .preview-header {
+
+  
+    background: #4a5568;
+    border-bottom-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .preview-title {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .preview-subtitle {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .preview-action-button.download {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .preview-action-button.download:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .action-button {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .action-button:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .empty-reports,
+
+  
+  .dark-mode .no-preview,
+
+  
+  .dark-mode .no-selection {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .download-fallback {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .download-fallback:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .reports-list-sidebar,
   .excel-preview-area {
@@ -415,6 +597,8 @@
     transform: none;
   }
 }
+
+
 
 
 

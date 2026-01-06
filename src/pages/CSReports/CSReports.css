@@ -197,6 +197,113 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .cs-reports-page.compact {
+
+    background: #1a202c;
+
+  }
+
+
+
+  .dark-mode .top-action-bar {
+
+
+    background: #2d3748;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .action-icon {
+
+
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4a5568;
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .action-icon:hover:not(:disabled) {
+
+
+    background: rgba(99, 179, 237, 0.2);
+    border-color: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .reports-buttons.compact .report-button {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .reports-buttons.compact .report-button:hover:not(:disabled) {
+
+
+    border-color: #4299e1;
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .reports-buttons.compact .report-button.active {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    border-color: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .reports-content {
+
+
+    background: #2d3748;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .empty-state {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .no-results-message {
+
+
+    background: #4a5568;
+    color: #a0aec0;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .cs-reports-page.compact {
     background: #1a202c;

@@ -462,9 +462,213 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .crm-analysis-container {
+
+    background-color: #1a202c;
+    color: #e0e0e0;
+
+  }
+
+
+
+  .dark-mode .crm-header {
+
+
+    background-color: #2E75B6;
+
+
+  }
+
+
+
+  .dark-mode .section-title {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .section-title::after {
+
+
+    background: linear-gradient(90deg, transparent, #63b3ed, transparent);
+
+
+  }
+
+
+
+  .dark-mode .subsection-title {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .subsection-title::after {
+
+
+    background: linear-gradient(90deg, transparent, #63b3ed 40%, transparent);
+
+
+  }
+
+
+
+  .dark-mode .content p {
+
+
+    color: #e0e0e0;
+
+
+  }
+
+
+
+  .dark-mode .content p::before {
+
+
+    color: #e0e0e0;
+
+
+  }
+
+
+
+  .dark-mode .highlight::before {
+
+
+    background: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .stat-value,
+
+
+  .dark-mode .percentage-value,
+
+
+  .dark-mode .number-value {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .image-title {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .image-title::after {
+
+
+    background: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .data-table {
+
+
+    background: #2d2d2d;
+
+
+  }
+
+
+
+  .dark-mode .data-table thead {
+
+
+    background: #2E75B6;
+
+
+  }
+
+
+
+  .dark-mode .data-table tbody tr:nth-child(even) {
+
+
+    background-color: #333;
+
+
+  }
+
+
+
+  .dark-mode .data-table tbody tr:nth-child(odd) {
+
+
+    background-color: #2d2d2d;
+
+
+  }
+
+
+
+  .dark-mode .data-table td {
+
+
+    color: #e0e0e0;
+
+
+  }
+
+
+
+  .dark-mode .crm-footer {
+
+
+    color: #a0a0a0;
+
+
+  }
+
+
+
+  .dark-mode .crm-footer::before {
+
+
+    background: linear-gradient(90deg, transparent, #63b3ed, transparent);
+
+
+  }
+
+
+
+  .dark-mode .signature {
+
+
+    color: #e0e0e0;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .crm-analysis-container {
-    background-color: #1a1a1a;
+    background-color: #1a202c;
     color: #e0e0e0;
   }
 

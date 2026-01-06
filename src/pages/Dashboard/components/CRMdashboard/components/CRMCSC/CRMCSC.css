@@ -130,6 +130,70 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .report-date-header {
+
+    border-bottom-color: #4299e1;
+
+  }
+
+
+
+  .dark-mode .report-date-text {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .crm-loading-container .loading-message {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .crm-coming-soon h2 {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .coming-soon-subtext {
+
+
+    color: #a0aec0;
+
+
+  }
+
+  .dark-mode .date-selector {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+    background-image: none;
+    padding-left: 1rem;
+  }
+
+  .dark-mode .date-selector:hover {
+    border-color: #4299e1;
+  }
+
+  .dark-mode .date-selector:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.2);
+  }
+
 @media (prefers-color-scheme: dark) {
   .report-date-header {
     border-bottom-color: #4299e1;
@@ -149,6 +213,23 @@
 
   .coming-soon-subtext {
     color: #a0aec0;
+  }
+
+  .date-selector {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+    background-image: none;
+    padding-left: 1rem;
+  }
+
+  .date-selector:hover {
+    border-color: #4299e1;
+  }
+
+  .date-selector:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.2);
   }
 }
 

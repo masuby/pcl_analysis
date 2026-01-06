@@ -119,6 +119,43 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .toast.type-success {
+
+    background: linear-gradient(135deg, #2f855a 0%, #276749 100%);
+
+  }
+
+
+  
+  .dark-mode .toast.type-error {
+
+  
+    background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+
+  
+  }
+
+
+  
+  .dark-mode .toast.type-warning {
+
+  
+    background: linear-gradient(135deg, #b7791f 0%, #975a16 100%);
+
+  
+  }
+
+
+  
+  .dark-mode .toast.type-info {
+
+  
+    background: linear-gradient(135deg, #2b6cb0 0%, #2c5282 100%);
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .toast.type-success {
     background: linear-gradient(135deg, #2f855a 0%, #276749 100%);

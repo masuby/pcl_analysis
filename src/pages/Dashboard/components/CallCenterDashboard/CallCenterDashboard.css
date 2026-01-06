@@ -25,6 +25,34 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .dashboard-view h3 {
+
+    color: #63b3ed;
+
+  }
+
+
+  
+  .dark-mode .viewing-text {
+
+  
+    color: #a0aec0;
+    border-bottom-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .info-text {
+
+  
+    color: #718096;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .dashboard-view h3 {
     color: #63b3ed;

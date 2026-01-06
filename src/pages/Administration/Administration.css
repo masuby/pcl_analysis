@@ -233,15 +233,117 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .administration-page {
+
+    background: #1a202c;
+
+  }
+
+
+
+  .dark-mode .page-header h1 {
+    color: #63b3ed;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: #63b3ed;
+  }
+
+
+
+  .dark-mode .page-subtitle {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .admin-tabs {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .tab-button {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .tab-button:hover:not(:disabled):not(.active) {
+
+
+    border-color: #4299e1;
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .tab-button.active {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    border-color: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .admin-content {
+
+
+    background: #2d3748;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .coming-soon {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .coming-soon h2 {
+
+
+    color: #63b3ed;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .administration-page {
     background: #1a202c;
   }
 
   .page-header h1 {
-    background: linear-gradient(135deg, #63b3ed 0%, #4299e1 100%);
-    -webkit-background-text: text;
-    -webkit-text-fill-color: transparent;
+    color: #63b3ed;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: #63b3ed;
   }
 
   .page-subtitle {

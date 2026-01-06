@@ -691,6 +691,77 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .logout-modal {
+
+    background: #2d3748;
+    color: #e2e8f0;
+
+  }
+
+
+
+  .dark-mode .modal-body p {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .user-info-modal {
+
+
+    background: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .user-email-modal {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .modal-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .cancel-btn {
+
+
+    background: #4a5568;
+    color: #e2e8f0;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .cancel-btn:hover {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .logout-modal {
     background: #2d3748;

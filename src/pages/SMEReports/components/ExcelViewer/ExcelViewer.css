@@ -1042,6 +1042,774 @@
 }
 
 /* ===== DARK MODE SUPPORT ===== */
+
+  .dark-mode .excel-viewer {
+
+    background: #2d3748;
+
+  }
+
+
+  
+  .dark-mode .viewer-header,
+
+  
+  .dark-mode .sheet-tabs,
+
+  
+  .dark-mode .current-sheet-info,
+
+  
+  .dark-mode .viewer-footer {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode /* Search & Filter */
+  .search-box {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .search-input {
+
+  
+    color: #e2e8f0;
+    background: transparent;
+
+  
+  }
+
+
+
+  .dark-mode .search-icon {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+  
+  .dark-mode .clear-search {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .clear-search:hover {
+
+  
+    background: #4a5568;
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .advanced-filter-toggle {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .advanced-filter-toggle:hover {
+
+  
+    border-color: #4299e1;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .advanced-filter-toggle.active {
+
+  
+    background: rgba(66, 153, 225, 0.1);
+    border-color: #4299e1;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .filter-badge {
+
+  
+    background: rgba(72, 187, 120, 0.1);
+    border-color: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+
+  
+  }
+
+
+  
+  .dark-mode .remove-filter {
+
+  
+    background: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+
+  
+  }
+
+
+  
+  .dark-mode .remove-filter:hover {
+
+  
+    background: rgba(72, 187, 120, 0.3);
+
+  
+  }
+
+
+  
+  .dark-mode /* Advanced Filters */
+  .advanced-filters-panel {
+
+  
+    background: #2d3748;
+    border-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .filters-header h4 {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .close-filters {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .close-filters:hover {
+
+  
+    background: #4a5568;
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .filter-label {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .filter-input {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .filter-input:focus {
+
+  
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .clear-all-filters {
+
+  
+    background: rgba(252, 129, 129, 0.1);
+    color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode .clear-all-filters:hover {
+
+  
+    background: rgba(252, 129, 129, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .apply-filters {
+
+  
+    background: #4299e1;
+    color: white;
+
+  
+  }
+
+
+  
+  .dark-mode .apply-filters:hover {
+
+  
+    background: #3182ce;
+
+  
+  }
+
+
+  
+  .dark-mode /* Sheet Selector */
+  .sheet-label {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-dropdown {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-dropdown:focus {
+
+  
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .pagination-button {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .pagination-button:hover:not(:disabled) {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .page-info {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode /* Sheet Tabs */
+  .sheet-tab {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-tab:hover {
+
+  
+    border-color: #4299e1;
+    color: #63b3ed;
+    background: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-tab.active {
+
+  
+    background: #4299e1;
+    border-color: #4299e1;
+    color: white;
+
+  
+  }
+
+
+  
+  .dark-mode .tab-size {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-total {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-types {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode /* Current Sheet Info */
+  .sheet-name {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-dimensions {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .filtered-count {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .filter-active {
+
+  
+    color: #48bb78;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-nav,
+
+  
+  .dark-mode .clear-filters-button {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-nav:hover:not(:disabled),
+
+  
+  .dark-mode .clear-filters-button:hover {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .clear-filters-button {
+
+  
+    background: rgba(252, 129, 129, 0.1);
+    border-color: rgba(252, 129, 129, 0.2);
+    color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode .clear-filters-button:hover {
+
+  
+    background: rgba(252, 129, 129, 0.2);
+    border-color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode /* Excel Table */
+  .excel-table th {
+
+  
+    background: #4a5568;
+    border-bottom-color: #718096;
+    border-right-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .excel-table td {
+
+  
+    border-bottom-color: #718096;
+    border-right-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .header-cell {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .data-cell {
+
+  
+    color: #e2e8f0;
+
+  
+  }
+
+
+  
+  .dark-mode .empty-cell {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .formula-cell {
+
+  
+    color: #9f7aea;
+    background: rgba(159, 122, 234, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .excel-table tr:hover td {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .column-filter-btn {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .column-filter-btn:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .column-resizer:hover {
+
+  
+    background-color: rgba(99, 179, 237, 0.3);
+
+  
+  }
+
+
+  
+  .dark-mode .column-resizer:active {
+
+  
+    background-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .excel-table th:hover .column-resizer {
+
+  
+    background-color: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .data-cell[title]:hover {
+
+  
+    background: #2d3748;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+
+  
+  }
+
+
+  
+  .dark-mode /* Footer */
+  .summary {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .sheet-indicator {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .search-indicator {
+
+  
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+
+  
+  }
+
+
+  
+  .dark-mode .nav-button {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .nav-button:hover:not(:disabled) {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .nav-button.download-external {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+    border-color: rgba(66, 153, 225, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .nav-button.download-external:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+    border-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode /* Loading & Error States */
+  .excel-viewer.loading,
+
+  
+  .dark-mode .excel-viewer.error {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .excel-viewer.error h4 {
+
+  
+    color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode .retry-button {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+    border-color: rgba(66, 153, 225, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .retry-button:hover {
+
+  
+    background: rgba(99, 179, 237, 0.2);
+    border-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .download-external-button {
+
+  
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .excel-viewer {
     background: #2d3748;

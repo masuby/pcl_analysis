@@ -139,6 +139,73 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .analysis-modal-simple {
+
+    background: #2d3748;
+
+  }
+
+
+  
+  .dark-mode .modal-header-simple {
+
+  
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+  
+  }
+
+
+  
+  .dark-mode .placeholder-analysis h3 {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .placeholder-analysis p {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .modal-footer-simple {
+
+  
+    border-top-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .footer-button.close {
+
+  
+    background: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .footer-button.close:hover {
+
+  
+    background: #3182ce;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .analysis-modal-simple {
     background: #2d3748;

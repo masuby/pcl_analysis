@@ -5,17 +5,47 @@ import CountrywiseChart from './CountrywiseChart';
 import CountrywiseAnalysis from './CountrywiseAnalysis';
 import { getNumericColumns } from '../../utils/reportUtils';
 
-const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
 const CountrywiseSection = ({ data }) => {
   const columns = getNumericColumns(data);
+  // Set default column to "Disbursements This Month" if available, otherwise use first column
+  const defaultColumn = columns.includes('Disbursements This Month') 
+    ? 'Disbursements This Month' 
+    : (columns[0] || 'Active Reps');
+  
+  // Calculate initial date range from 18 latest data points (default view)
+  const getInitialDateRange = (dataArray) => {
+    if (!dataArray || dataArray.length === 0) {
+      const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      return { from: defaultFromDate, to: new Date() };
+    }
+    // Sort by date (newest first) and take the latest 18 points
+    const sorted = [...dataArray].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      return dateB - dateA; // Descending order (newest first)
+    });
+    const latest18 = sorted.slice(0, 18); // Get 18 latest points
+    if (latest18.length === 0) {
+      const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      return { from: defaultFromDate, to: new Date() };
+    }
+    // Get min and max dates from the 18 latest points
+    const dates = latest18.map(item => {
+      return item.date instanceof Date ? item.date : new Date(item.date);
+    });
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    return { from: new Date(minDate), to: new Date(maxDate) };
+  };
+  
+  const initialDateRange = getInitialDateRange(data);
   const [chartType, setChartType] = useState('Bar');
-  const [column, setColumn] = useState(columns[0] || 'Active Reps');
+  const [column, setColumn] = useState(defaultColumn);
   const [dataType, setDataType] = useState('daily'); // 'daily' or 'monthly'
-  const [from, setFrom] = useState(defaultFromDate);
-  const [to, setTo] = useState(new Date());
-  const [appliedFrom, setAppliedFrom] = useState(defaultFromDate);
-  const [appliedTo, setAppliedTo] = useState(new Date());
+  const [from, setFrom] = useState(initialDateRange.from);
+  const [to, setTo] = useState(initialDateRange.to);
+  const [appliedFrom, setAppliedFrom] = useState(initialDateRange.from);
+  const [appliedTo, setAppliedTo] = useState(initialDateRange.to);
   const [filteredData, setFilteredData] = useState(data);
 
   useEffect(() => {
@@ -36,13 +66,14 @@ const CountrywiseSection = ({ data }) => {
   };
 
   const reset = () => {
+    const resetDateRange = getInitialDateRange(data);
     setChartType('Bar');
-    setColumn(columns[0] || 'Active Reps');
+    setColumn(defaultColumn);
     setDataType('daily');
-    setFrom(defaultFromDate);
-    setTo(new Date());
-    setAppliedFrom(defaultFromDate);
-    setAppliedTo(new Date());
+    setFrom(resetDateRange.from);
+    setTo(resetDateRange.to);
+    setAppliedFrom(resetDateRange.from);
+    setAppliedTo(resetDateRange.to);
   };
 
   // Process data the same way the chart does (for monthly filtering)

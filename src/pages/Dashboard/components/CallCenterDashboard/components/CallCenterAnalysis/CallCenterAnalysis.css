@@ -198,6 +198,171 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .stat-card {
+
+    background: #4a5568;
+    border-color: #718096;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  }
+
+
+
+  .dark-mode .stat-card:hover {
+
+
+    border-color: #4299e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+
+  }
+
+
+
+  .dark-mode .stat-value {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .stat-label {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .stat-percentage {
+
+
+    color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .chart-section {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .chart-title {
+
+
+    color: #63b3ed;
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .custom-tooltip {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .tooltip-label {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .tooltip-value {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table thead {
+
+
+    background: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table tbody tr {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table tbody tr:hover {
+
+
+    background-color: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table td {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table tbody tr:nth-child(even) {
+
+
+    background-color: #2d3748;
+
+
+  }
+
+
+
+  .dark-mode .agent-performance-table tbody tr:nth-child(even):hover {
+
+
+    background-color: rgba(99, 179, 237, 0.1);
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .stat-card {
     background: #4a5568;
@@ -271,6 +436,8 @@
     background-color: rgba(99, 179, 237, 0.1);
   }
 }
+
+
 
 
 

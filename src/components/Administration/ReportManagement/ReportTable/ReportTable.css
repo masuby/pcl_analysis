@@ -300,6 +300,189 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .table-responsive {
+
+    border-color: #4a5568;
+    background: #2d3748;
+
+  }
+
+
+
+  .dark-mode .report-table thead {
+
+
+    background: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .report-table th {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .report-table tbody tr {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .report-table tbody tr:hover {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .report-title {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .report-description {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .file-icon {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .report-date,
+
+
+  .dark-mode .file-size {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .stat-item {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .download-button {
+
+
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .download-button:hover {
+
+
+    background: rgba(99, 179, 237, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .view-button {
+
+
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+
+
+  }
+
+
+
+  .dark-mode .view-button:hover {
+
+
+    background: rgba(72, 187, 120, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .table-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .footer-info {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .footer-info strong {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .legend-item {
+
+
+    color: #a0aec0;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .table-responsive {
     border-color: #4a5568;

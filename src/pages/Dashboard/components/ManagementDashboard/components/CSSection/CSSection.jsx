@@ -5,8 +5,6 @@ import CSChart from './CSChart';
 import CSAnalysis from './CSAnalysis';
 import { getNumericColumns } from '../../utils/reportUtils';
 
-const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
 const CSSection = ({ data, branchesData = {} }) => {
   // Branch options: Total (default) and individual branches
   const branchOptions = ['Total', ...Object.keys(branchesData).filter(branch => branchesData[branch] && branchesData[branch].length > 0)];
@@ -15,14 +13,47 @@ const CSSection = ({ data, branchesData = {} }) => {
   // Get current data based on selected branch
   const currentData = selectedBranch === 'Total' ? data : (branchesData[selectedBranch] || []);
   
+  // Calculate initial date range from 18 latest data points (default view)
+  const getInitialDateRange = (dataArray) => {
+    if (!dataArray || dataArray.length === 0) {
+      const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      return { from: defaultFromDate, to: new Date() };
+    }
+    // Sort by date (newest first) and take the latest 18 points
+    const sorted = [...dataArray].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      return dateB - dateA; // Descending order (newest first)
+    });
+    const latest18 = sorted.slice(0, 18); // Get 18 latest points
+    if (latest18.length === 0) {
+      const defaultFromDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      return { from: defaultFromDate, to: new Date() };
+    }
+    // Get min and max dates from the 18 latest points
+    const dates = latest18.map(item => {
+      return item.date instanceof Date ? item.date : new Date(item.date);
+    });
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    return { from: new Date(minDate), to: new Date(maxDate) };
+  };
+  
   const columns = getNumericColumns(currentData);
+  // Set default column to "Disbursements This Month" if available, otherwise use first column
+  const getDefaultColumn = (cols) => {
+    return cols.includes('Disbursements This Month') 
+      ? 'Disbursements This Month' 
+      : (cols[0] || 'Active Reps');
+  };
+  const initialDateRange = getInitialDateRange(currentData);
   const [chartType, setChartType] = useState('Bar');
-  const [column, setColumn] = useState(columns[0] || 'Active Reps');
+  const [column, setColumn] = useState(getDefaultColumn(columns));
   const [dataType, setDataType] = useState('daily'); // 'daily' or 'monthly'
-  const [from, setFrom] = useState(defaultFromDate);
-  const [to, setTo] = useState(new Date());
-  const [appliedFrom, setAppliedFrom] = useState(defaultFromDate);
-  const [appliedTo, setAppliedTo] = useState(new Date());
+  const [from, setFrom] = useState(initialDateRange.from);
+  const [to, setTo] = useState(initialDateRange.to);
+  const [appliedFrom, setAppliedFrom] = useState(initialDateRange.from);
+  const [appliedTo, setAppliedTo] = useState(initialDateRange.to);
   const [filteredData, setFilteredData] = useState(currentData);
 
   // Update filtered data when branch or date filters change
@@ -39,8 +70,8 @@ const CSSection = ({ data, branchesData = {} }) => {
     const newColumns = getNumericColumns(currentData);
     if (newColumns.length > 0) {
       setColumn(prevColumn => {
-        // Keep current column if it exists in new columns, otherwise use first
-        return newColumns.includes(prevColumn) ? prevColumn : newColumns[0];
+        // Keep current column if it exists in new columns, otherwise use default
+        return newColumns.includes(prevColumn) ? prevColumn : getDefaultColumn(newColumns);
       });
     }
   }, [selectedBranch, currentData]);
@@ -57,12 +88,14 @@ const CSSection = ({ data, branchesData = {} }) => {
   const reset = () => {
     setSelectedBranch('Total');
     setChartType('Bar');
-    setColumn(columns[0] || 'Active Reps');
+    const resetColumns = getNumericColumns(data);
+    setColumn(getDefaultColumn(resetColumns));
     setDataType('daily');
-    setFrom(defaultFromDate);
-    setTo(new Date());
-    setAppliedFrom(defaultFromDate);
-    setAppliedTo(new Date());
+    const resetDateRange = getInitialDateRange(data);
+    setFrom(resetDateRange.from);
+    setTo(resetDateRange.to);
+    setAppliedFrom(resetDateRange.from);
+    setAppliedTo(resetDateRange.to);
   };
 
   // Get section title based on selected branch
@@ -116,34 +149,13 @@ const CSSection = ({ data, branchesData = {} }) => {
               setSelectedBranch(newBranch);
               // Reset date filters to show all data for the new branch
               const newData = newBranch === 'Total' ? data : (branchesData[newBranch] || []);
-              if (newData.length > 0) {
-                const minDate = newData.reduce((min, d) => {
-                  const itemDate = d.date instanceof Date ? d.date : new Date(d.date);
-                  return itemDate < min ? itemDate : min;
-                }, new Date(newData[0].date));
-                const maxDate = newData.reduce((max, d) => {
-                  const itemDate = d.date instanceof Date ? d.date : new Date(d.date);
-                  return itemDate > max ? itemDate : max;
-                }, new Date(newData[0].date));
-                setFrom(new Date(minDate));
-                setTo(new Date(maxDate));
-                setAppliedFrom(new Date(minDate));
-                setAppliedTo(new Date(maxDate));
-              } else {
-                setFrom(defaultFromDate);
-                setTo(new Date());
-                setAppliedFrom(defaultFromDate);
-                setAppliedTo(new Date());
-              }
+              const newDateRange = getInitialDateRange(newData);
+              setFrom(newDateRange.from);
+              setTo(newDateRange.to);
+              setAppliedFrom(newDateRange.from);
+              setAppliedTo(newDateRange.to);
             }}
-            style={{
-              padding: '0.4rem 0.75rem',
-              border: '1px solid #e1e5e9',
-              borderRadius: '4px',
-              fontSize: '0.85rem',
-              background: 'white',
-              cursor: 'pointer'
-            }}
+            className="branch-selector"
           >
             {branchOptions.map(branch => (
               <option key={branch} value={branch}>{branch}</option>

@@ -772,6 +772,381 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .rm-report-detail-modal,
+
+  .dark-mode .rm-delete-confirm-modal {
+
+    background: #2d3748;
+
+  }
+
+
+
+  .dark-mode .rm-modal-header {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
+
+
+  .dark-mode .rm-file-icon-large {
+
+
+    background: rgba(255, 255, 255, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .rm-form-label {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .rm-form-input,
+
+
+  .dark-mode .rm-form-select,
+
+
+  .dark-mode .rm-form-textarea {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .rm-form-input:focus,
+
+
+  .dark-mode .rm-form-select:focus,
+
+
+  .dark-mode .rm-form-textarea:focus {
+
+
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .rm-detail-label {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-detail-value {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .rm-dept-badge {
+
+
+    background: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .rm-type-badge {
+
+
+    background: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .rm-description-content {
+
+
+    background: #4a5568;
+    border-left-color: #4299e1;
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-stat-item {
+
+
+    background: #4a5568;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .rm-stat-value {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .rm-stat-label {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-filepath-content {
+
+
+    background: #4a5568;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .rm-filepath-content code {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-modal-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .rm-footer-button.cancel {
+
+
+    background: #4a5568;
+    color: #e2e8f0;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .rm-footer-button.cancel:hover:not(:disabled) {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .rm-footer-button.save {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
+
+
+  .dark-mode .rm-footer-button.close {
+
+
+    background: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .rm-footer-button.close:hover:not(:disabled) {
+
+
+    background: #3182ce;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-header {
+
+
+    background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-content p {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .rm-report-to-delete {
+
+
+    background: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-file-icon {
+
+
+    background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-report-info strong {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-report-info span {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-warning {
+
+
+    background: rgba(252, 129, 129, 0.1);
+    border-color: rgba(252, 129, 129, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-warning p {
+
+
+    color: #fc8181;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-warning ul {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-cancel {
+
+
+    background: #4a5568;
+    color: #e2e8f0;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-cancel:hover:not(:disabled) {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .rm-delete-confirm {
+
+
+    background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .rm-report-detail-modal,
   .rm-delete-confirm-modal {
@@ -979,6 +1354,25 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .rm-non-editable-value {
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+  }
+
+
+
+  .dark-mode .rm-field-note {
+
+
+    color: #a0aec0;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .rm-non-editable-value {
     background: #4a5568;

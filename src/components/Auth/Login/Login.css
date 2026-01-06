@@ -245,7 +245,7 @@
   transition: color 0.2s ease;
 }
 
-.form-input {
+.login-card .form-input {
   width: 100%;
   padding: 0.75rem 0.75rem 0.75rem 2.75rem;
   border: 2px solid #e1e5e9;
@@ -257,20 +257,20 @@
   height: 44px;
 }
 
-.form-input:focus {
+.login-card .form-input:focus {
   outline: none;
   border-color: #2a5298;
   background: white;
   box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.1);
 }
 
-.form-input:disabled {
+.login-card .form-input:disabled {
   background: #f5f5f5;
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-.form-input::placeholder {
+.login-card .form-input::placeholder {
   color: #999;
 }
 
@@ -550,7 +550,7 @@
     font-size: 0.95rem;
   }
 
-  .form-input {
+  .login-card .form-input {
     height: 48px;
     font-size: 0.95rem;
   }
@@ -621,7 +621,7 @@
     font-size: 0.9rem;
   }
 
-  .form-input {
+  .login-card .form-input {
     height: 44px;
     padding: 0.75rem 0.75rem 0.75rem 2.75rem;
     font-size: 0.9rem;
@@ -664,6 +664,93 @@
 }
 
 /* Dark Mode Support */
+.dark-mode .login-container {
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+}
+
+.dark-mode .login-card {
+  background: rgba(45, 55, 72, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .login-title {
+  color: #63b3ed;
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: #63b3ed;
+}
+
+.dark-mode .login-subtitle {
+  color: #a0aec0;
+}
+
+.dark-mode .form-label {
+  color: #e2e8f0;
+}
+
+.dark-mode .login-card .form-input,
+.dark-mode .login-card .form-input:-webkit-autofill,
+.dark-mode .login-card .form-input:-webkit-autofill:hover,
+.dark-mode .login-card .form-input:-webkit-autofill:focus,
+.dark-mode .login-card .form-input:-webkit-autofill:active {
+  background: #4a5568 !important;
+  border-color: #718096 !important;
+  color: #e2e8f0 !important;
+  -webkit-text-fill-color: #e2e8f0 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #4a5568 inset !important;
+  box-shadow: 0 0 0px 1000px #4a5568 inset !important;
+}
+
+.dark-mode .login-card .form-input:focus,
+.dark-mode .login-card .form-input:-webkit-autofill:focus {
+  background: #4a5568 !important;
+  border-color: #4299e1 !important;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1), 0 0 0px 1000px #4a5568 inset !important;
+  -webkit-box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1), 0 0 0px 1000px #4a5568 inset !important;
+}
+
+.dark-mode .login-card .form-input::placeholder {
+  color: #a0aec0 !important;
+}
+
+.dark-mode .input-icon {
+  color: #a0aec0;
+}
+
+.dark-mode .copyright {
+  color: #a0aec0;
+}
+
+.dark-mode .footer-link {
+  color: #63b3ed;
+}
+
+.dark-mode .footer-link:hover {
+  color: #4299e1;
+}
+
+.dark-mode .security-notice {
+  color: #a0aec0;
+}
+
+.dark-mode .forgot-password,
+.dark-mode .help-link {
+  color: #63b3ed;
+}
+
+.dark-mode .forgot-password:hover:not(:disabled),
+.dark-mode .help-link:hover:not(:disabled) {
+  color: #4299e1;
+}
+
+.dark-mode .login-footer {
+  border-top-color: rgba(255, 255, 255, 0.05);
+}
+
 @media (prefers-color-scheme: dark) {
   .login-container {
     background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
@@ -679,8 +766,10 @@
   }
 
   .login-title {
-    background: linear-gradient(135deg, #63b3ed 0%, #4299e1 100%);
-    -webkit-text-fill-color: transparent;
+    color: #63b3ed;
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: #63b3ed;
   }
 
   .login-subtitle {
@@ -691,20 +780,29 @@
     color: #e2e8f0;
   }
 
-  .form-input {
-    background: rgba(26, 32, 44, 0.8);
-    border-color: #4a5568;
-    color: #e2e8f0;
+  .login-card .form-input,
+  .login-card .form-input:-webkit-autofill,
+  .login-card .form-input:-webkit-autofill:hover,
+  .login-card .form-input:-webkit-autofill:focus,
+  .login-card .form-input:-webkit-autofill:active {
+    background: #4a5568 !important;
+    border-color: #718096 !important;
+    color: #e2e8f0 !important;
+    -webkit-text-fill-color: #e2e8f0 !important;
+    -webkit-box-shadow: 0 0 0px 1000px #4a5568 inset !important;
+    box-shadow: 0 0 0px 1000px #4a5568 inset !important;
   }
 
-  .form-input:focus {
-    background: #2d3748;
-    border-color: #4299e1;
-    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+  .login-card .form-input:focus,
+  .login-card .form-input:-webkit-autofill:focus {
+    background: #4a5568 !important;
+    border-color: #4299e1 !important;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1), 0 0 0px 1000px #4a5568 inset !important;
+    -webkit-box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1), 0 0 0px 1000px #4a5568 inset !important;
   }
 
-  .form-input::placeholder {
-    color: #a0aec0;
+  .login-card .form-input::placeholder {
+    color: #a0aec0 !important;
   }
 
   .input-icon {
@@ -768,7 +866,7 @@
   .bg-shape,
   .login-card,
   .login-button,
-  .form-input,
+  .login-card .form-input,
   .password-toggle,
   .forgot-password,
   .help-link,
@@ -792,7 +890,7 @@
     border: 2px solid #000;
   }
 
-  .form-input {
+  .login-card .form-input {
     border: 2px solid #000;
   }
 

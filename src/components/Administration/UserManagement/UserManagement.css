@@ -255,6 +255,74 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .header-left h2 {
+
+    color: #63b3ed;
+
+  }
+
+
+
+  .dark-mode .user-count {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .count-number {
+
+
+    color: #63b3ed;
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .user-management-header {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .add-user-button {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
+
+
+  .dark-mode .empty-state {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .empty-state h3 {
+
+
+    color: #63b3ed;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .header-left h2 {
     color: #63b3ed;

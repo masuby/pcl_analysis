@@ -127,11 +127,20 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
     return `rgb(${r}, ${g}, ${b})`;
   };
 
+  // Check if dark mode is active
+  const isDarkMode = typeof document !== 'undefined' && (
+    document.documentElement.classList.contains('dark-mode') || 
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+  
+  const axisTickColor = isDarkMode ? '#ffffff' : '#666';
+  const legendTextColor = isDarkMode ? '#ffffff' : '#333';
+
   switch (type) {
     case 'Line':
       return (
         <LineChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#4a5568' : '#e1e5e9'} />
           <XAxis 
             dataKey={xKey} 
             angle={-45}
@@ -139,10 +148,14 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
+            tick={{ fill: axisTickColor }}
           />
-          <YAxis tickFormatter={formatYAxisLabel} />
+          <YAxis 
+            tickFormatter={formatYAxisLabel}
+            tick={{ fill: axisTickColor }}
+          />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ color: legendTextColor }} />
           <Line type="monotone" dataKey={yKey} stroke="#2a5298" strokeWidth={2} dot={{ r: 4 }} />
         </LineChart>
       );
@@ -150,7 +163,7 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
     case 'Area':
       return (
         <AreaChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#4a5568' : '#e1e5e9'} />
           <XAxis 
             dataKey={xKey} 
             angle={-45}
@@ -158,10 +171,14 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
+            tick={{ fill: axisTickColor }}
           />
-          <YAxis tickFormatter={formatYAxisLabel} />
+          <YAxis 
+            tickFormatter={formatYAxisLabel}
+            tick={{ fill: axisTickColor }}
+          />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ color: legendTextColor }} />
           <Area type="monotone" dataKey={yKey} stroke="#2a5298" fill="#2a5298" fillOpacity={0.3} />
         </AreaChart>
       );
@@ -208,7 +225,7 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
                     backgroundColor: entry.color,
                     borderRadius: '2px'
                   }}></span>
-                  <span style={{ color: '#333' }}>
+                  <span style={{ color: isDarkMode ? '#ffffff' : '#333' }}>
                     {formatXAxisLabel(displayDate)}: <strong>{formatNumber(value)}</strong>
                   </span>
                 </li>
@@ -241,7 +258,7 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
     case 'Scatter':
       return (
         <ScatterChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#4a5568' : '#e1e5e9'} />
           <XAxis 
             dataKey={xKey} 
             angle={-45}
@@ -249,10 +266,14 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
+            tick={{ fill: axisTickColor }}
           />
-          <YAxis tickFormatter={formatYAxisLabel} />
+          <YAxis 
+            tickFormatter={formatYAxisLabel}
+            tick={{ fill: axisTickColor }}
+          />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ color: legendTextColor }} />
           <Scatter dataKey={yKey} fill="#2a5298" />
         </ScatterChart>
       );
@@ -261,7 +282,7 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
     default:
       return (
         <BarChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#4a5568' : '#e1e5e9'} />
           <XAxis 
             dataKey={xKey} 
             angle={-45}
@@ -269,10 +290,14 @@ export const renderChart = ({ type = 'Bar', data = [], xKey, yKey, dateKey = 'da
             height={80}
             tickFormatter={formatXAxisLabel}
             interval={0}
+            tick={{ fill: axisTickColor }}
           />
-          <YAxis tickFormatter={formatYAxisLabel} />
+          <YAxis 
+            tickFormatter={formatYAxisLabel}
+            tick={{ fill: axisTickColor }}
+          />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ color: legendTextColor }} />
           <Bar dataKey={yKey} fill="#2a5298" radius={[4, 4, 0, 0]} />
         </BarChart>
       );

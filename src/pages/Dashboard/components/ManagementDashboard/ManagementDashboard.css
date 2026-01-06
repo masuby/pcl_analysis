@@ -352,6 +352,323 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .dashboard-header-content {
+
+    border-bottom-color: #4a5568;
+
+  }
+
+
+  
+  .dark-mode .dashboard-title {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .dashboard-subtitle {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .stat-card {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .stat-card:hover {
+
+  
+    border-color: #4299e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  
+  }
+
+
+  
+  .dark-mode .stat-value {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .stat-label {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .section-title {
+
+  
+    color: #63b3ed;
+    border-bottom-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .empty-state {
+
+  
+    background: #4a5568;
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .report-card {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .report-card:hover {
+
+  
+    border-color: #4299e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  
+  }
+
+
+  
+  .dark-mode .report-icon {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .report-title {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .report-meta {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .meta-label {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .meta-divider {
+
+  
+    color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .report-footer {
+
+  
+    border-top-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .report-stats {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .stat-divider {
+
+  
+    color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .view-button {
+
+  
+    background: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .view-button:hover:not(.disabled) {
+
+  
+    background: #3182ce;
+
+  
+  }
+
+
+  
+  .dark-mode .view-button.disabled {
+
+  
+    background: #4a5568;
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .data-source-info {
+
+  
+    background: #4a5568;
+    border-left-color: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .data-source-info p {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .data-source-info code {
+
+  
+    background: rgba(66, 153, 225, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .data-source-info strong {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .error-icon {
+
+  
+    color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode .error-state h3 {
+
+  
+    color: #fc8181;
+
+  
+  }
+
+
+  
+  .dark-mode .error-state p {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .retry-button {
+
+  
+    background: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .retry-button:hover {
+
+  
+    background: #3182ce;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .dashboard-header-content {
     border-bottom-color: #4a5568;
@@ -569,6 +886,91 @@
 }
 
 /* Dark mode support for new styles */
+
+  .dark-mode .data-info-banner {
+
+    background: rgba(99, 179, 237, 0.1);
+    border-left-color: #4299e1;
+
+  }
+
+
+  
+  .dark-mode .info-badge {
+
+  
+    background: rgba(66, 153, 225, 0.1);
+    border-color: rgba(99, 179, 237, 0.2);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .refresh-button {
+
+  
+    background: #4a5568;
+    border-color: #718096;
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .refresh-button:hover {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #4299e1;
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .stat-subtext {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .empty-subtext {
+
+  
+    color: #718096;
+
+  
+  }
+
+
+  
+  .dark-mode .info-technical {
+
+  
+    background: rgba(128, 90, 213, 0.1);
+    border-left-color: #9f7aea;
+
+  
+  }
+
+
+  
+  .dark-mode .tech-icon {
+
+  
+    color: #9f7aea;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .data-info-banner {
     background: rgba(99, 179, 237, 0.1);

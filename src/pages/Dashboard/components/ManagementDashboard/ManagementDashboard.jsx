@@ -39,7 +39,7 @@ const ManagementDashboard = () => {
     );
   }
 
-  // Transform parsed reports into chart-ready data
+  // Transform parsed reports into chart-ready data (ALL data, not limited)
   const countrywiseData = parsedReports
     .filter(report => report.countrywise && Object.keys(report.countrywise).length > 0)
     .map(report => ({
@@ -48,7 +48,7 @@ const ManagementDashboard = () => {
       ...report.countrywise
     }));
 
-  // CS data - total and individual branches
+  // CS data - total and individual branches (ALL data)
   const csData = parsedReports
     .filter(report => report.cs && Object.keys(report.cs).length > 0)
     .map(report => ({
@@ -57,7 +57,7 @@ const ManagementDashboard = () => {
       ...report.cs
     }));
 
-  // CS individual branches data
+  // CS individual branches data (ALL data)
   const csBranchesData = {};
   const csBranchNames = ['CS', 'Cs Asset Finance'];
   csBranchNames.forEach(branchName => {
@@ -70,7 +70,7 @@ const ManagementDashboard = () => {
       }));
   });
 
-  // LBF data - total and individual branches
+  // LBF data - total and individual branches (ALL data)
   const lbfData = parsedReports
     .filter(report => report.lbf && Object.keys(report.lbf).length > 0)
     .map(report => ({
@@ -79,7 +79,7 @@ const ManagementDashboard = () => {
       ...report.lbf
     }));
 
-  // LBF individual branches data
+  // LBF individual branches data (ALL data)
   const lbfBranchesData = {};
   const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
   lbfBranchNames.forEach(branchName => {

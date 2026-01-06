@@ -487,6 +487,270 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .profile-page {
+
+    background: #1a202c;
+
+  }
+
+
+
+  .dark-mode .profile-page-title {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .profile-card {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+
+
+  }
+
+
+
+  .dark-mode .profile-card-header {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .profile-card-title {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .profile-avatar-section {
+
+
+    background: linear-gradient(135deg, rgba(99, 179, 237, 0.1) 0%, rgba(66, 153, 225, 0.05) 100%);
+
+
+  }
+
+
+
+  .dark-mode .profile-avatar {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    box-shadow: 0 2px 8px rgba(66, 153, 225, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .profile-name {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .profile-badge {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    box-shadow: 0 2px 6px rgba(66, 153, 225, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .info-item {
+
+
+    background: #4a5568;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .info-label {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .info-value {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .profile-input {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .profile-input:focus {
+
+
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .profile-input:disabled {
+
+
+    background: #2d3748;
+
+
+  }
+
+
+
+  .dark-mode .profile-input::placeholder {
+
+
+    color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .password-section-description {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .form-label {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .profile-actions {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .profile-button.primary {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    box-shadow: 0 2px 6px rgba(66, 153, 225, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .profile-button.primary:hover:not(:disabled) {
+
+
+    background: linear-gradient(135deg, #3182ce 0%, #4299e1 100%);
+    box-shadow: 0 3px 8px rgba(66, 153, 225, 0.3);
+
+
+  }
+
+
+
+  .dark-mode .profile-button.secondary {
+
+
+    background: #4a5568;
+    color: #63b3ed;
+    border-color: #4299e1;
+
+
+  }
+
+
+
+  .dark-mode .profile-button.secondary:hover:not(:disabled) {
+
+
+    background: rgba(99, 179, 237, 0.1);
+    border-color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .profile-message.success {
+
+
+    background: linear-gradient(135deg, rgba(72, 187, 120, 0.2) 0%, rgba(56, 161, 105, 0.15) 100%);
+    color: #48bb78;
+    border-color: rgba(72, 187, 120, 0.3);
+
+
+  }
+
+
+
+  .dark-mode .profile-message.error {
+
+
+    background: linear-gradient(135deg, rgba(252, 129, 129, 0.2) 0%, rgba(248, 113, 113, 0.15) 100%);
+    color: #fc8181;
+    border-color: rgba(252, 129, 129, 0.3);
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .profile-page {
     background: #1a202c;

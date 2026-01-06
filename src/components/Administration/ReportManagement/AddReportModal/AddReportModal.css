@@ -533,6 +533,309 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .add-report-modal {
+
+    background: #2d3748;
+
+  }
+
+
+
+  .dark-mode .modal-header {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
+
+
+  .dark-mode .form-label {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .form-input,
+
+
+  .dark-mode .form-select,
+
+
+  .dark-mode .form-textarea {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .form-input:focus,
+
+
+  .dark-mode .form-select:focus,
+
+
+  .dark-mode .form-textarea:focus {
+
+
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .form-input.error {
+
+
+    border-color: #fc8181;
+
+
+  }
+
+
+
+  .dark-mode .form-input.error:focus {
+
+
+    box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .form-input:disabled,
+
+
+  .dark-mode .form-select:disabled,
+
+
+  .dark-mode .form-textarea:disabled {
+
+
+    background: #4a5568;
+    opacity: 0.5;
+
+
+  }
+
+
+
+  .dark-mode .form-input::placeholder,
+
+
+  .dark-mode .form-textarea::placeholder {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .input-icon,
+
+
+  .dark-mode .select-icon {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .info-note {
+
+
+    color: #63b3ed;
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .file-upload-area {
+
+
+    background: #4a5568;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .file-upload-area:hover:not(.has-file) {
+
+
+    border-color: #4299e1;
+    background: rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .file-upload-area.error {
+
+
+    border-color: #fc8181;
+    background: rgba(252, 129, 129, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .file-upload-area.has-file {
+
+
+    background: #2d3748;
+
+
+  }
+
+
+
+  .dark-mode .file-icon-large {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .file-name {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .file-size {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .remove-file {
+
+
+    background: rgba(252, 129, 129, 0.1);
+    color: #fc8181;
+
+
+  }
+
+
+
+  .dark-mode .remove-file:hover:not(:disabled) {
+
+
+    background: rgba(252, 129, 129, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .upload-icon {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .upload-title {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .upload-subtitle {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .modal-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .cancel-button {
+
+
+    background: #4a5568;
+    color: #e2e8f0;
+    border-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .cancel-button:hover:not(:disabled) {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .submit-button {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .add-report-modal {
     background: #2d3748;
@@ -779,6 +1082,88 @@
 }
 
 /* Dark Mode Support for new elements */
+
+  .dark-mode .title-preview {
+
+    background: #2d3748;
+    border-bottom-color: #4a5568;
+
+  }
+
+
+
+  .dark-mode .title-icon {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .title-label {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .title-preview-content {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .title-note {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .file-auto-title {
+
+
+    color: #63b3ed;
+    background: rgba(99, 179, 237, 0.1);
+    border-left-color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .file-auto-title strong {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .upload-note {
+
+
+    color: #63b3ed;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .title-preview {
     background: #2d3748;

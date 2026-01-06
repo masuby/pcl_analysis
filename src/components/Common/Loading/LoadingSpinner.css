@@ -51,6 +51,23 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .loading-spinner.battery-loading-spinner {
+
+    background: transparent !important;
+
+  }
+
+
+  
+  .dark-mode .loading-message {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .loading-spinner.battery-loading-spinner {
     background: transparent !important;

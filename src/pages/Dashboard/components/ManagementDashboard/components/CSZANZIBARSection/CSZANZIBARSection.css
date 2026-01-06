@@ -119,13 +119,13 @@
 }
 
 .controls select,
-.controls input[type="date"],
-.controls button {
+.controls input[type="date"] {
   padding: 0.4rem 0.55rem;
   border: 1px solid #e1e5e9;
   border-radius: 4px;
   font-size: 0.8rem;
   background: white;
+  color: #333;
 }
 
 .date-filters {
@@ -157,8 +157,9 @@
 .apply-btn:hover,
 .reset-btn:hover,
 .refresh-btn:hover {
-  background: white;
-  color: #2a5298;
+  background: #1e3c72;
+  border-color: #1e3c72;
+  color: white;
   transform: translateY(-1px);
 }
 
@@ -206,6 +207,101 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .section-card {
+
+    background: #2d3748;
+    border-color: #4a5568;
+
+  }
+
+
+  
+  .dark-mode .section-header {
+
+  
+    background: #4a5568;
+    border-bottom-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .section-title {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .section-badge {
+
+  
+    background: #4299e1;
+
+  
+  }
+
+
+  
+  .dark-mode .chart-box,
+
+  
+  .dark-mode .analysis-box {
+
+  
+    background: #2d3748;
+
+  
+  }
+
+
+  
+  .dark-mode .vertical-divider {
+
+  
+    background: #4a5568;
+
+  
+  }
+
+  .dark-mode .controls select,
+  .dark-mode .controls input[type="date"] {
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+  }
+
+  .dark-mode .controls select:focus,
+  .dark-mode .controls input[type="date"]:focus {
+    border-color: #4299e1;
+    outline: none;
+  }
+
+  .dark-mode .date-filters label {
+    color: #a0aec0;
+  }
+
+  .dark-mode .apply-btn,
+  .dark-mode .refresh-btn,
+  .dark-mode .reset-btn {
+    background: #4299e1;
+    border-color: #4299e1;
+    color: white;
+  }
+
+  .dark-mode .apply-btn:hover,
+  .dark-mode .refresh-btn:hover,
+  .dark-mode .reset-btn:hover {
+    background: #3182ce;
+    border-color: #3182ce;
+    color: white;
+  }
+
 @media (prefers-color-scheme: dark) {
   .section-card {
     background: #2d3748;
@@ -233,6 +329,8 @@
     background: #4a5568;
   }
 }
+
+
 
 
 

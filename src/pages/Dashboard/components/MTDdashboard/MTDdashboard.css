@@ -46,6 +46,23 @@
 }
 
 /* Dark mode support */
+
+  .dark-mode .coming-soon-title {
+
+    color: #63b3ed;
+
+  }
+
+
+  
+  .dark-mode .coming-soon-message {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .coming-soon-title {
     color: #63b3ed;

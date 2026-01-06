@@ -233,6 +233,164 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .selector-button {
+
+    color: #a0aec0;
+
+  }
+
+
+  
+  .dark-mode .selector-button:hover::before {
+
+  
+    background: rgba(99, 179, 237, 0.05);
+
+  
+  }
+
+
+  
+  .dark-mode .selector-button.active::before {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+
+  
+  }
+
+
+  
+  .dark-mode .selector-button.hovered::before {
+
+  
+    background: linear-gradient(135deg, rgba(66, 153, 225, 0.1) 0%, rgba(49, 130, 206, 0.1) 100%);
+
+  
+  }
+
+
+  
+  .dark-mode .selector-button:hover .button-text,
+
+  
+  .dark-mode .selector-button.hovered .button-text {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .selector-button.active .button-text {
+
+  
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .department-indicator {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .hover-indicator {
+
+  
+    border-top-color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .button-divider {
+
+  
+    background: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .department-menu {
+
+  
+    background: #2d3748;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+
+  
+  }
+
+
+  
+  .dark-mode .dashboard-menu-header {
+
+  
+    background: #4a5568;
+    color: #63b3ed;
+    border-bottom-color: #4a5568;
+
+  
+  }
+
+
+  
+  .dark-mode .department-option {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+
+  
+  .dark-mode .department-option:hover {
+
+  
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+  
+  }
+
+
+  
+  .dark-mode .department-option.selected {
+
+  
+    background: #4299e1;
+    color: white;
+
+  
+  }
+
+
+  
+  .dark-mode .menu-footer {
+
+  
+    background: #4a5568;
+    border-top-color: #4a5568;
+    color: #a0aec0;
+
+  
+  }
+
 @media (prefers-color-scheme: dark) {
   .selector-button {
     color: #a0aec0;

@@ -82,7 +82,7 @@ const CSCallCenter = () => {
             </select>
           </div>
           <span className="report-date-text">
-            📅 Report Date: {parsedData.reportDate instanceof Date
+            📅 {parsedData.reportDate instanceof Date
               ? parsedData.reportDate.toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',

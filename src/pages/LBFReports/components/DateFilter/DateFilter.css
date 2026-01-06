@@ -267,6 +267,204 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .date-filter-toggle.compact {
+
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #a0aec0;
+
+  }
+
+
+
+  .dark-mode .date-filter-toggle.compact:hover:not(:disabled) {
+
+
+    border-color: #4299e1;
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .date-filter-toggle.compact.has-selection {
+
+
+    border-color: #4299e1;
+    background: rgba(66, 153, 225, 0.1);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .clear-filter-button.compact {
+
+
+    background: rgba(252, 129, 129, 0.1);
+    border-color: rgba(252, 129, 129, 0.2);
+    color: #fc8181;
+
+
+  }
+
+
+
+  .dark-mode .clear-filter-button.compact:hover {
+
+
+    background: rgba(252, 129, 129, 0.2);
+    border-color: #fc8181;
+
+
+  }
+
+
+
+  .dark-mode .date-filter-dropdown.compact {
+
+
+    background: #2d3748;
+    border-color: #4a5568;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+
+
+  }
+
+
+
+  .dark-mode .dropdown-search.compact {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .search-input.compact {
+
+
+    background: #4a5568;
+    border-color: #718096;
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .search-input.compact:focus {
+
+
+    border-color: #4299e1;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .search-icon.compact,
+
+
+  .dark-mode .clear-search.compact {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .clear-search.compact:hover {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .date-item.compact {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .date-item.compact:hover {
+
+
+    background: rgba(66, 153, 225, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .date-item.compact.selected {
+
+
+    background: rgba(66, 153, 225, 0.2);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .dropdown-footer.compact {
+
+
+    background: #4a5568;
+    border-top-color: #718096;
+
+
+  }
+
+
+
+  .dark-mode .dates-count.compact {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .reset-all-button.compact {
+
+
+    background: rgba(66, 153, 225, 0.1);
+    border-color: rgba(66, 153, 225, 0.2);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .reset-all-button.compact:hover:not(:disabled) {
+
+
+    background: rgba(66, 153, 225, 0.2);
+    border-color: #4299e1;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .date-filter-toggle.compact {
     background: #2d3748;
@@ -359,6 +557,8 @@
     border-color: #4299e1;
   }
 }
+
+
 
 
 

@@ -271,6 +271,155 @@
 }
 
 /* Dark Mode Support */
+
+  .dark-mode .table-responsive {
+
+    border-color: #4a5568;
+    background: #2d3748;
+
+  }
+
+
+
+  .dark-mode .user-table thead {
+
+
+    background: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .user-table th {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .user-table tbody tr {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .user-table tbody tr:hover {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .user-name {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .user-email {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .user-avatar {
+
+
+    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+
+
+  }
+
+
+
+  .dark-mode .created-date {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .view-button {
+
+
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .view-button:hover {
+
+
+    background: rgba(99, 179, 237, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .table-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .footer-info {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .footer-info strong {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .legend-item {
+
+
+    color: #a0aec0;
+
+
+  }
+
 @media (prefers-color-scheme: dark) {
   .table-responsive {
     border-color: #4a5568;
