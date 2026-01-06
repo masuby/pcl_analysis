@@ -156,7 +156,7 @@ const Login = () => {
           <div className="login-header">
             <div className="logo-container">
               <img 
-                src="/Assets/pcl_logo.png" 
+                src="/Assets/pcl_logo2.png" 
                 alt="PCL Logo" 
                 className="login-logo"
                 onError={(e) => {
