@@ -1,3 +1,39 @@
+/**
+ * Format number to 3 significant digits with B/M/K abbreviations
+ * @param {number} num - The number to format
+ * @returns {string} - Formatted string (e.g., "4.39 B", "692 M", "1.23 K")
+ */
+export const formatNumberCompact = (num) => {
+  if (num === null || num === undefined || isNaN(num)) return 'N/A';
+  if (num === 0) return '0';
+  
+  const absNum = Math.abs(num);
+  const sign = num < 0 ? '-' : '';
+  
+  // Determine magnitude and format
+  if (absNum >= 1e9) {
+    // Billions
+    const value = absNum / 1e9;
+    // Round to 3 significant digits
+    const rounded = parseFloat(value.toPrecision(3));
+    return `${sign}${rounded} B`;
+  } else if (absNum >= 1e6) {
+    // Millions
+    const value = absNum / 1e6;
+    const rounded = parseFloat(value.toPrecision(3));
+    return `${sign}${rounded} M`;
+  } else if (absNum >= 1e3) {
+    // Thousands
+    const value = absNum / 1e3;
+    const rounded = parseFloat(value.toPrecision(3));
+    return `${sign}${rounded} K`;
+  } else {
+    // Less than 1000, round to 3 significant digits
+    const rounded = parseFloat(absNum.toPrecision(3));
+    return `${sign}${rounded}`;
+  }
+};
+
 export const analyzeData = (data, key) => {
   if (!data || !data.length) return null;
 

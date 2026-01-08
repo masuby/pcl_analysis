@@ -1,4 +1,4 @@
-import { analyzeData } from '../../utils/analysisUtils';
+import { analyzeData, formatNumberCompact } from '../../utils/analysisUtils';
 import './ClusterAnalysisSection.css';
 
 const ClusterAnalysis = ({ data, metric, fromDate, toDate }) => {
@@ -13,10 +13,7 @@ const ClusterAnalysis = ({ data, metric, fromDate, toDate }) => {
     );
   }
 
-  const formatNumber = (num) => {
-    if (num === null || num === undefined) return 'N/A';
-    return typeof num === 'number' ? num.toLocaleString() : num;
-  };
+  const formatNumber = formatNumberCompact;
 
   const formatDate = (date) => {
     if (!date) return '';
