@@ -3,6 +3,7 @@ import './ManagementDashboard.css';
 import { useManagementData } from './hooks/useManagementData';
 import LoadingSpinner from '../../../../components/Common/Loading/LoadingSpinner';
 import UnifiedSection from './components/UnifiedSection/UnifiedSection';
+import ClusterAnalysisSection from './components/ClusterAnalysisSection/ClusterAnalysisSection';
 
 const ManagementDashboard = () => {
   const { parsedReports, loading, error } = useManagementData();
@@ -115,6 +116,8 @@ const ManagementDashboard = () => {
         smeData={smeData}
         zanzibarData={zanzibarData}
       />
+      <hr style={{ margin: '2rem 0', border: 'none', borderTop: '1px solid #e1e5e9' }} />
+      <ClusterAnalysisSection parsedReports={parsedReports} />
     </div>
   );
 };

@@ -1,12 +1,9 @@
-// C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\CSZANZIBARSection\CSZANZIBARChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
-import CSZANZIBARSummary from './CSZANZIBARSummary';
 import ChartDataExport from '../Common/ChartDataExport';
 
-const CSZANZIBARChart = ({ 
+const ClusterChart = ({ 
   data, 
-  allData,
   chartType, 
   column, 
   dataType,
@@ -19,7 +16,12 @@ const CSZANZIBARChart = ({
   setTo, 
   reset,
   applyFilters,
-  columns 
+  columns,
+  allData,
+  selectedType,
+  selectedCluster,
+  selectedZone,
+  selectedBranch
 }) => {
   // Sort by date for better visualization
   let sortedData = [...data].sort((a, b) => {
@@ -49,6 +51,7 @@ const CSZANZIBARChart = ({
   // Prepare chart data - use formatted date as x-axis
   const chartData = sortedData.map(item => {
     const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+    const columnValue = column && typeof item[column] === 'number' ? item[column] : 0;
     return {
       ...item,
       xLabel: dataType === 'monthly' 
@@ -67,7 +70,9 @@ const CSZANZIBARChart = ({
         day: 'numeric' 
       }),
       dateValue: itemDate,
-      value: column && typeof item[column] === 'number' ? item[column] : 0
+      value: columnValue,
+      // Ensure the column value is directly accessible for tooltip
+      [column]: columnValue
     };
   });
 
@@ -110,7 +115,7 @@ const CSZANZIBARChart = ({
               value={to.toISOString().slice(0, 10)} 
               onChange={e => setTo(new Date(e.target.value))} 
             />
-          <button className="apply-btn" onClick={applyFilters}>Apply</button>
+            <button className="apply-btn" onClick={applyFilters}>Apply</button>
           </div>
           <button className="reset-btn" onClick={reset}>Reset</button>
         </div>
@@ -166,18 +171,11 @@ const CSZANZIBARChart = ({
         </ResponsiveContainer>
         <ChartDataExport chartData={chartData} column={column} />
       </div>
-      {allData && <CSZANZIBARSummary allData={allData} />}
     </div>
   );
 };
 
-export default CSZANZIBARChart;
-
-
-
-
-
-
+export default ClusterChart;
 
 
 

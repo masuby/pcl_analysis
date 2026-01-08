@@ -2,6 +2,7 @@
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
 import CSSummary from './CSSummary';
+import ChartDataExport from '../Common/ChartDataExport';
 
 const CSChart = ({ 
   data, 
@@ -152,7 +153,7 @@ const CSChart = ({
         </div>
         <button className="reset-btn" onClick={reset}>Reset</button>
       </div>
-      <div className="chart-wrapper">
+      <div className="chart-wrapper" style={{ position: 'relative' }}>
         <ResponsiveContainer width="100%" height={300}>
           {renderChart({
             type: chartType,
@@ -163,6 +164,7 @@ const CSChart = ({
             columnName: column
           })}
         </ResponsiveContainer>
+        <ChartDataExport chartData={chartData} column={column} />
       </div>
       {allData && <CSSummary allData={allData} />}
     </div>

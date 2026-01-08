@@ -620,3 +620,253 @@
     color: #63b3ed;
   }
 }
+
+/* Chart Data Export Styles */
+.chart-wrapper {
+  position: relative;
+}
+
+.chart-data-export-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(42, 82, 152, 0.8);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chart-data-export-btn:hover {
+  background: rgba(42, 82, 152, 1);
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.chart-data-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #22c55e;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  z-index: 2000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.chart-data-export-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.chart-data-export-modal {
+  background: white;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.chart-data-export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e1e5e9;
+  background: #f8f9fa;
+}
+
+.chart-data-export-header h4 {
+  margin: 0;
+  color: #2a5298;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.chart-data-export-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.chart-data-export-close:hover {
+  background: #e1e5e9;
+  color: #333;
+}
+
+.chart-data-export-body {
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.chart-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+
+.chart-data-table thead {
+  background: #f8f9fa;
+  position: sticky;
+  top: 0;
+}
+
+.chart-data-table th {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2a5298;
+  border-bottom: 1px solid #e1e5e9;
+  font-size: 0.7rem;
+}
+
+.chart-data-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #e1e5e9;
+  font-size: 0.7rem;
+}
+
+.chart-data-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.chart-data-export-footer {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid #e1e5e9;
+  display: flex;
+  justify-content: center;
+}
+
+.chart-data-copy-btn {
+  padding: 0.4rem 0.75rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.chart-data-copy-btn:hover {
+  background: #1e3c72;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(42, 82, 152, 0.3);
+}
+
+/* Dark Mode Support - Using class selector instead of media query */
+.dark-mode .chart-data-export-btn {
+  background: rgba(66, 153, 225, 0.8);
+}
+
+.dark-mode .chart-data-export-btn:hover {
+  background: rgba(66, 153, 225, 1);
+}
+
+.dark-mode .chart-data-toast {
+  background: #16a34a;
+}
+
+.dark-mode .chart-data-export-modal {
+  background: #2d3748;
+  color: #e2e8f0;
+}
+
+.dark-mode .chart-data-export-header {
+  background: #1f2937;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .chart-data-export-header h4 {
+  color: #63b3ed;
+}
+
+.dark-mode .chart-data-export-close {
+  color: #a0aec0;
+}
+
+.dark-mode .chart-data-export-close:hover {
+  background: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .chart-data-table thead {
+  background: #1f2937;
+}
+
+.dark-mode .chart-data-table th {
+  color: #63b3ed;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .chart-data-table td {
+  border-bottom-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .chart-data-table tbody tr:hover {
+  background: #374151;
+}
+
+.dark-mode .chart-data-export-footer {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .chart-data-copy-btn {
+  background: #4299e1;
+}
+
+.dark-mode .chart-data-copy-btn:hover {
+  background: #3182ce;
+}

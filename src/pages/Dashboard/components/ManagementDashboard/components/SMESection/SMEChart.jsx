@@ -152,7 +152,7 @@ const SMEChart = ({
         </div>
         <button className="reset-btn" onClick={reset}>Reset</button>
       </div>
-      <div className="chart-wrapper">
+      <div className="chart-wrapper" style={{ position: 'relative' }}>
         <ResponsiveContainer width="100%" height={300}>
           {renderChart({
             type: chartType,
@@ -163,6 +163,7 @@ const SMEChart = ({
             columnName: column
           })}
         </ResponsiveContainer>
+        <ChartDataExport chartData={chartData} column={column} />
       </div>
       {allData && <SMESummary allData={allData} />}
     </div>
