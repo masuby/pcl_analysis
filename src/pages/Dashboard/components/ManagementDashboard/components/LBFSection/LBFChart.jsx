@@ -1,6 +1,7 @@
 // C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\LBFSection\LBFChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
+import ChartDataExport from '../Common/ChartDataExport';
 import LBFSummary from './LBFSummary';
 
 const LBFChart = ({ 

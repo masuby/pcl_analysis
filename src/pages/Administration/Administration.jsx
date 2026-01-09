@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import UserManagement from '../../components/Administration/UserManagement/UserManagement';
 import ReportManagement from '../../components/Administration/ReportManagement/ReportManagement';
+import ChallengeManagement from '../../components/Administration/ChallengeManagement/ChallengeManagement';
 import './Administration.css';
 
 const Administration = () => {
@@ -29,12 +30,20 @@ const Administration = () => {
           <span className="tab-icon">📊</span>
           <span className="tab-label">Report Management</span>
         </button>
+        <button 
+          className={`tab-button ${activeTab === 'challenges' ? 'active' : ''}`}
+          onClick={() => setActiveTab('challenges')}
+        >
+          <span className="tab-icon">🎯</span>
+          <span className="tab-label">Challenge Management</span>
+        </button>
       </div>
 
       {/* Content Area */}
       <div className="admin-content">
         {activeTab === 'users' && <UserManagement />}
         {activeTab === 'reports' && <ReportManagement />}
+        {activeTab === 'challenges' && <ChallengeManagement />}
         {activeTab === 'settings' && (
           <div className="coming-soon">
             <div className="coming-soon-icon">🚧</div>

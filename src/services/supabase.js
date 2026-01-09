@@ -138,3 +138,115 @@ export const deleteReportFile = async (filePath) => {
     return { success: false, error: error.message };
   }
 };
+
+// Challenge Storage Functions - Files stored in Reports bucket under CHALLENGE/{department} folder
+export const CHALLENGES_BUCKET = 'Reports'; // Use Reports bucket, but in CHALLENGE folder
+
+// Upload challenge image - stored in CHALLENGE/{department}/images/
+export const uploadChallengeImage = async (file, department) => {
+  try {
+    const timestamp = Date.now();
+    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `CHALLENGE/${department}/images/${timestamp}_${fileName}`;
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    
+    const { data, error } = await supabase.storage
+      .from(CHALLENGES_BUCKET)
+      .upload(cleanPath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) throw error;
+    return { success: true, data, filePath };
+  } catch (error) {
+    console.error('Error uploading challenge image:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get challenge image URL
+export const getChallengeImageUrl = async (filePath) => {
+  try {
+    // 3 years in seconds
+    const expiresIn = 3 * 365 * 24 * 60 * 60; // 94,608,000
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+
+    const { data, error } = await supabase.storage
+      .from(CHALLENGES_BUCKET)
+      .createSignedUrl(cleanPath, expiresIn);
+
+    if (error) {
+      console.error('Error creating signed URL for challenge image:', error);
+      throw error;
+    }
+
+    return data.signedUrl;
+  } catch (err) {
+    console.error('Failed to get challenge image URL:', err);
+    return null;
+  }
+};
+
+// Upload challenge attachment - stored in CHALLENGE/{department}/attachments/
+export const uploadChallengeAttachment = async (file, department) => {
+  try {
+    const timestamp = Date.now();
+    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `CHALLENGE/${department}/attachments/${timestamp}_${fileName}`;
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    
+    const { data, error } = await supabase.storage
+      .from(CHALLENGES_BUCKET)
+      .upload(cleanPath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (error) throw error;
+    return { success: true, data, filePath };
+  } catch (error) {
+    console.error('Error uploading challenge attachment:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Get challenge attachment URL
+export const getChallengeAttachmentUrl = async (filePath) => {
+  try {
+    // 3 years in seconds
+    const expiresIn = 3 * 365 * 24 * 60 * 60; // 94,608,000
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+
+    const { data, error } = await supabase.storage
+      .from(CHALLENGES_BUCKET)
+      .createSignedUrl(cleanPath, expiresIn);
+
+    if (error) {
+      console.error('Error creating signed URL for challenge attachment:', error);
+      throw error;
+    }
+
+    return data.signedUrl;
+  } catch (err) {
+    console.error('Failed to get challenge attachment URL:', err);
+    return null;
+  }
+};
+
+// Delete challenge file (image or attachment)
+export const deleteChallengeFile = async (filePath) => {
+  try {
+    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    
+    const { data, error } = await supabase.storage
+      .from(CHALLENGES_BUCKET)
+      .remove([cleanPath]);
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error deleting challenge file:', error);
+    return { success: false, error: error.message };
+  }
+};

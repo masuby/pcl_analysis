@@ -1,0 +1,599 @@
+.challenge-table-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e1e5e9;
+  background: white;
+  flex: 1;
+}
+
+.challenge-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.challenge-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.challenge-table th {
+  padding: 1rem;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.challenge-table tbody tr {
+  border-bottom: 1px solid #e1e5e9;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.challenge-table tbody tr:hover {
+  background: rgba(42, 82, 152, 0.05);
+}
+
+.challenge-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.challenge-table td {
+  padding: 1rem;
+  vertical-align: middle;
+}
+
+/* Report Info */
+.challenge-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-icon,
+.challenge-icon {
+  font-size: 1.5rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(42, 82, 152, 0.1);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.report-details {
+  min-width: 0;
+}
+
+.challenge-title {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.challenge-description {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* Badges */
+.department-badge,
+.type-badge,
+.status-badge {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  min-width: 60px;
+}
+
+/* Date and Size */
+.date-range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.date-item {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.date-item strong {
+  color: #333;
+  margin-right: 0.25rem;
+}
+
+.file-size {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Stats */
+.challenge-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-item {
+  font-size: 0.8rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Actions */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.download-button,
+.view-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.download-button {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+}
+
+.download-button:hover {
+  background: rgba(42, 82, 152, 0.2);
+  transform: translateY(-1px);
+}
+
+.view-button {
+  background: rgba(56, 161, 105, 0.1);
+  color: #38a169;
+}
+
+.view-button:hover {
+  background: rgba(56, 161, 105, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Table Footer */
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  margin-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-info {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.footer-info strong {
+  color: #2a5298;
+}
+
+.table-legend {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-dot.call-center { background: #4299e1; }
+.legend-dot.crm { background: #ed8936; }
+.legend-dot.departmental { background: #38a169; }
+.legend-dot.mtd { background: #9f7aea; }
+.legend-dot.management { background: #e53e3e; }
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .challenge-table th,
+  .challenge-table td {
+    padding: 0.875rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .challenge-table th,
+  .challenge-table td {
+    padding: 0.75rem;
+  }
+
+  .file-icon,
+.challenge-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 1.25rem;
+  }
+
+  .department-badge,
+  .type-badge {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    min-width: 50px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .download-button,
+  .view-button {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+
+  .table-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 0.75rem;
+  }
+
+  .table-legend {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .challenge-table th,
+  .challenge-table td {
+    padding: 0.625rem;
+  }
+
+  .challenge-info {
+    gap: 0.5rem;
+  }
+
+  .file-icon,
+.challenge-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+
+  .challenge-title {
+    font-size: 0.9rem;
+  }
+
+  .challenge-description {
+    font-size: 0.75rem;
+  }
+
+  .date-range,
+  .file-size {
+    font-size: 0.8rem;
+  }
+
+  .stat-item {
+    font-size: 0.75rem;
+  }
+}
+
+/* Dark Mode Support */
+
+  .dark-mode .table-responsive {
+
+    border-color: #4a5568;
+    background: #2d3748;
+
+  }
+
+
+
+  .dark-mode .challenge-table thead {
+
+
+    background: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .challenge-table th {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .challenge-table tbody tr {
+
+
+    border-bottom-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .challenge-table tbody tr:hover {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .challenge-title {
+
+
+    color: #e2e8f0;
+
+
+  }
+
+
+
+  .dark-mode .challenge-description {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .file-icon,
+.challenge-icon {
+
+
+    background: rgba(99, 179, 237, 0.1);
+
+
+  }
+
+
+
+  .dark-mode .date-range,
+
+
+  .dark-mode .file-size {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .stat-item {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .download-button {
+
+
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .download-button:hover {
+
+
+    background: rgba(99, 179, 237, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .view-button {
+
+
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+
+
+  }
+
+
+
+  .dark-mode .view-button:hover {
+
+
+    background: rgba(72, 187, 120, 0.2);
+
+
+  }
+
+
+
+  .dark-mode .table-footer {
+
+
+    border-top-color: #4a5568;
+
+
+  }
+
+
+
+  .dark-mode .footer-info {
+
+
+    color: #a0aec0;
+
+
+  }
+
+
+
+  .dark-mode .footer-info strong {
+
+
+    color: #63b3ed;
+
+
+  }
+
+
+
+  .dark-mode .legend-item {
+
+
+    color: #a0aec0;
+
+
+  }
+
+@media (prefers-color-scheme: dark) {
+  .table-responsive {
+    border-color: #4a5568;
+    background: #2d3748;
+  }
+
+  .challenge-table thead {
+    background: #4a5568;
+  }
+
+  .challenge-table th {
+    color: #a0aec0;
+  }
+
+  .challenge-table tbody tr {
+    border-bottom-color: #4a5568;
+  }
+
+  .challenge-table tbody tr:hover {
+    background: rgba(99, 179, 237, 0.1);
+  }
+
+  .challenge-title {
+    color: #e2e8f0;
+  }
+
+  .challenge-description {
+    color: #a0aec0;
+  }
+
+  .file-icon,
+.challenge-icon {
+    background: rgba(99, 179, 237, 0.1);
+  }
+
+  .date-range,
+  .file-size {
+    color: #a0aec0;
+  }
+
+  .stat-item {
+    color: #a0aec0;
+  }
+
+  .download-button {
+    background: rgba(99, 179, 237, 0.1);
+    color: #63b3ed;
+  }
+
+  .download-button:hover {
+    background: rgba(99, 179, 237, 0.2);
+  }
+
+  .view-button {
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+  }
+
+  .view-button:hover {
+    background: rgba(72, 187, 120, 0.2);
+  }
+
+  .table-footer {
+    border-top-color: #4a5568;
+  }
+
+  .footer-info {
+    color: #a0aec0;
+  }
+
+  .footer-info strong {
+    color: #63b3ed;
+  }
+
+  .legend-item {
+    color: #a0aec0;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .challenge-table tbody tr,
+  .download-button,
+  .view-button {
+    transition: none;
+  }
+
+  .download-button:hover,
+  .view-button:hover {
+    transform: none;
+  }
+}

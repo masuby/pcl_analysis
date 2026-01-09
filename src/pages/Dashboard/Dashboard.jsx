@@ -6,6 +6,7 @@ import CRMdashboard from './components/CRMdashboard/CRMdashboard';
 import CallCenterDashboard from './components/CallCenterDashboard/CallCenterDashboard';
 import MTDdashboard from './components/MTDdashboard/MTDdashboard';
 import DepartmentalDashboard from './components/DepartmentalDashboard/DepartmentalDashboard';
+import ChallengeDashboard from './components/ChallengeDashboard/ChallengeDashboard';
 import LoadingSpinner from '../../components/Common/Loading/LoadingSpinner';
 import Toast from '../../components/Common/Toast/Toast';
 import { useDashboardData } from './hooks/useDashboardData';
@@ -90,6 +91,15 @@ const Dashboard = () => {
       case 'DEPARTMENTAL':
         return (
           <DepartmentalDashboard 
+            reports={reports}
+            selectedDepartment={selectedDepartment}
+            onDepartmentChange={handleDepartmentChange}
+            userData={userData}
+          />
+        );
+      case 'CHALLENGE':
+        return (
+          <ChallengeDashboard 
             reports={reports}
             selectedDepartment={selectedDepartment}
             onDepartmentChange={handleDepartmentChange}

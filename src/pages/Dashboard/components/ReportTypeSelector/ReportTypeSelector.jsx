@@ -16,7 +16,7 @@ const ReportTypeSelector = ({
   const [showDepartmentMenu, setShowDepartmentMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isMenuHovered, setIsMenuHovered] = useState(false);
-  const reportTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL'];
+  const reportTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE'];
   const departments = ['CS', 'LBF', 'SME']; // Removed 'ALL' as it has no pages to render
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -24,6 +24,19 @@ const ReportTypeSelector = ({
   const hoverTimeoutRef = useRef(null);
 
   const isAdmin = userData?.role === 'admin' || userData?.role === 'ALL';
+  
+  // Get available departments for Challenge based on user role
+  const getChallengeDepartments = () => {
+    if (isAdmin) {
+      return ['CS', 'LBF', 'SME', 'ALL'];
+    }
+    // Normal user: show their role + ALL (if challenge was marked ALL on server)
+    const userDept = userData?.department?.toUpperCase() || userData?.role?.toUpperCase();
+    if (userData?.challenge === 'ALL' || userData?.role === 'ALL') {
+      return [userDept, 'ALL'];
+    }
+    return [userDept];
+  };
 
   const handleButtonClick = (type) => {
     handleTypeChange(type);
@@ -37,7 +50,8 @@ const ReportTypeSelector = ({
       clearTimeout(hoverTimeoutRef.current);
     }
 
-    if (isAdmin && type !== 'MANAGEMENT') {
+    // Show menu for CHALLENGE and other non-MANAGEMENT types
+    if (type !== 'MANAGEMENT' && (isAdmin || type === 'CHALLENGE')) {
       const button = buttonRefs.current[type];
       if (button) {
         const rect = button.getBoundingClientRect();
@@ -139,7 +153,7 @@ const ReportTypeSelector = ({
               <button
                 ref={el => buttonRefs.current[type] = el}
                 className={`selector-button ${selectedType === type ? 'active' : ''} ${
-                  hoveredButton === type && isAdmin && type !== 'MANAGEMENT' ? 'hovered' : ''
+                  hoveredButton === type && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') ? 'hovered' : ''
                 }`}
                 onClick={() => handleButtonClick(type)}
                 onMouseEnter={(e) => handleButtonHover(type, e)}
@@ -150,7 +164,7 @@ const ReportTypeSelector = ({
                 {selectedType === type && selectedDepartment !== 'ALL' && type !== 'MANAGEMENT' && (
                   <span className="department-indicator">{selectedDepartment}</span>
                 )}
-                {isAdmin && type !== 'MANAGEMENT' && showDepartmentMenu && hoveredButton === type && (
+                {((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') && showDepartmentMenu && hoveredButton === type && (
                   <div className="hover-indicator"></div>
                 )}
               </button>
@@ -162,7 +176,7 @@ const ReportTypeSelector = ({
         </div>
       </div>
 
-      {showDepartmentMenu && hoveredButton && isAdmin && hoveredButton !== 'MANAGEMENT' && (
+      {showDepartmentMenu && hoveredButton && ((isAdmin && hoveredButton !== 'MANAGEMENT') || hoveredButton === 'CHALLENGE') && (
         <div 
           className="department-menu"
           ref={menuRef}
@@ -178,16 +192,15 @@ const ReportTypeSelector = ({
             <span className="menu-report-type">{hoveredButton}</span>
           </div>
           <div className="department-options">
-            {departments.map(dept => (
+            {(hoveredButton === 'CHALLENGE' ? getChallengeDepartments() : departments).map(dept => (
               <button
                 key={dept}
                 className={`department-option ${selectedDepartment === dept && selectedType === hoveredButton ? 'selected' : ''}`}
                 onClick={() => handleDepartmentSelect(dept)}
-
               >
                 <span className="department-name">{dept}</span>
                 <span className="department-actions">
-                  {dept === (userData?.department || 'ALL') && (
+                  {dept === (userData?.department || 'ALL') && hoveredButton !== 'CHALLENGE' && (
                     <span className="default-badge">Your Dept</span>
                   )}
                 </span>

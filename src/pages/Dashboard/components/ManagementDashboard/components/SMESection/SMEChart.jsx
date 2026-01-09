@@ -1,6 +1,7 @@
 // C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\SMESection\SMEChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
+import ChartDataExport from '../Common/ChartDataExport';
 import SMESummary from './SMESummary';
 
 const SMEChart = ({ 

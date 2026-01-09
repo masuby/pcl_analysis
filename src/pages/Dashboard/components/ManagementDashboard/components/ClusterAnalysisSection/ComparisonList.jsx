@@ -47,3 +47,5 @@ const ComparisonList = ({ data, column, formatNumber }) => {
 
 export default ComparisonList;
 
+
+

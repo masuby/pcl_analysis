@@ -1,0 +1,113 @@
+.challenge-dashboard-view {
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.coming-soon-container {
+  text-align: center;
+  padding: 3rem 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.coming-soon-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.coming-soon-title {
+  color: #2a5298;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
+}
+
+.coming-soon-message {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Dark mode support */
+
+  .dark-mode .coming-soon-title {
+
+    color: #63b3ed;
+
+  }
+
+
+  
+  .dark-mode .coming-soon-message {
+
+  
+    color: #a0aec0;
+
+  
+  }
+
+@media (prefers-color-scheme: dark) {
+  .coming-soon-title {
+    color: #63b3ed;
+  }
+  
+  .coming-soon-message {
+    color: #a0aec0;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .coming-soon-container {
+    padding: 2rem 1.5rem;
+  }
+
+  .coming-soon-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .coming-soon-title {
+    font-size: 1.25rem;
+  }
+
+  .coming-soon-message {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .coming-soon-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .coming-soon-icon {
+    font-size: 2.5rem;
+  }
+
+  .coming-soon-title {
+    font-size: 1.1rem;
+  }
+
+  .coming-soon-message {
+    font-size: 0.85rem;
+  }
+}
+
