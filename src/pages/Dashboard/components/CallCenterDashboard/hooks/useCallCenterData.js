@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../../../../../services/firebase';
+import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
 import * as XLSX from 'xlsx';
+
+// In-memory cache for parsed Call Center data
+const callCenterParsedCache = new Map();
 
 export const useCallCenterData = (department, selectedDate = null) => {
   const [reports, setReports] = useState([]);
@@ -27,45 +29,27 @@ export const useCallCenterData = (department, selectedDate = null) => {
       setLoading(true);
       setError(null);
 
-      const reportsRef = collection(db, 'reports');
-      
-      // Try with orderBy first, fallback to without if index is missing
-      let q = query(
-        reportsRef,
-        where('type', '==', 'CALL CENTER'),
-        where('department', '==', department),
-        where('isActive', '==', true),
-        orderBy('date', 'desc')
-      );
+      // Use Go API instead of Firebase
+      const result = await getReportsByDepartmentAndType(department, 'CALL CENTER');
 
-      let snapshot;
-      try {
-        snapshot = await getDocs(q);
-      } catch (orderByError) {
-        // If orderBy fails (missing index), try without it
-        console.warn('OrderBy failed, fetching without orderBy:', orderByError);
-        q = query(
-          reportsRef,
-          where('type', '==', 'CALL CENTER'),
-          where('department', '==', department),
-          where('isActive', '==', true)
-        );
-        snapshot = await getDocs(q);
+      if (!result.success) {
+        setError(result.error || 'Failed to load call center reports');
+        setReports([]);
+        return;
       }
 
       const reportsData = [];
 
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        const fileName = data.fileName || data.title || 'Unknown';
+      for (const report of result.data || []) {
+        const fileName = report.fileName || report.file_name || report.title || 'Unknown';
         
         // Check if file name contains FINAL_CDR_CALL_REPORT
         if (fileName.includes('FINAL_CDR_CALL_REPORT')) {
-          let fileUrl = data.fileUrl;
+          let fileUrl = report.fileUrl || report.file_url;
           
-          if (!fileUrl && data.filePath) {
+          if (!fileUrl && (report.filePath || report.file_path)) {
             try {
-              fileUrl = await getReportFileUrl(data.filePath);
+              fileUrl = await getReportFileUrl(report.filePath || report.file_path);
             } catch (e) {
               console.warn(`Could not get file URL for ${fileName}:`, e);
               continue;
@@ -74,16 +58,18 @@ export const useCallCenterData = (department, selectedDate = null) => {
 
           if (fileUrl) {
             reportsData.push({
-              id: doc.id,
-              ...data,
+              id: report.id,
+              ...report,
+              fileName,
               fileUrl,
-              date: data.date?.toDate ? data.date.toDate() : new Date(data.date || Date.now())
+              date: report.date ? new Date(report.date) : 
+                    report.created_at ? new Date(report.created_at) : new Date()
             });
           }
         }
       }
 
-      // Sort by date manually if orderBy wasn't used
+      // Sort by date
       reportsData.sort((a, b) => {
         const dateA = a.date instanceof Date ? a.date : new Date(a.date);
         const dateB = b.date instanceof Date ? b.date : new Date(b.date);
@@ -123,11 +109,22 @@ export const useCallCenterData = (department, selectedDate = null) => {
       }
       const latestReport = targetReport;
       
+      // Check cache first
+      const cacheKey = `callcenter_${department}_${latestReport.id}`;
+      if (callCenterParsedCache.has(cacheKey)) {
+        console.log(`[Cache] Using cached Call Center data for ${latestReport.fileName}`);
+        setParsedData(callCenterParsedCache.get(cacheKey));
+        setLoading(false);
+        return;
+      }
+      
       if (!latestReport.fileUrl) {
         setError('No file URL available for parsing');
         setParsedData(null);
         return;
       }
+
+      console.log(`[CallCenter] Parsing Excel file: ${latestReport.fileName}`);
 
       // Fetch and parse the Excel file
       const response = await fetch(latestReport.fileUrl);
@@ -188,6 +185,8 @@ export const useCallCenterData = (department, selectedDate = null) => {
 
       // Check if we have at least some data
       if (parsed.allCallData || parsed.agentPerformance) {
+        // Cache the parsed result
+        callCenterParsedCache.set(cacheKey, parsed);
         setParsedData(parsed);
       } else {
         setParsedData(null);
@@ -211,4 +210,3 @@ export const useCallCenterData = (department, selectedDate = null) => {
     refreshData: fetchCallCenterReports
   };
 };
-

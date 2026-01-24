@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../../services/firebase';
-import { deleteReport, incrementReportDownloads } from '../../../../services/reports';
+import { deleteReport, incrementReportDownloads, updateReport } from '../../../../services/reports';
 import { deleteReportFile, getReportFileUrl } from '../../../../services/supabase';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import './ReportDetailModal.css';
@@ -27,19 +25,42 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
     { value: 'MANAGEMENT', label: 'Management' }
   ];
 
+  // Helper to convert ISO date to dd/mm/yyyy for edit input
+  const formatDateForEdit = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      return '';
+    }
+  };
+
+  // Helper to convert dd/mm/yyyy to YYYY-MM-DD
+  const parseDateFromDisplay = (displayDate) => {
+    if (!displayDate) return '';
+    const parts = displayDate.split('/');
+    if (parts.length !== 3) return displayDate;
+    const [day, month, year] = parts;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  };
+
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
     
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      // Format as dd/mm/yyyy with time
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
     } catch (error) {
       return 'Invalid Date';
     }
@@ -96,7 +117,11 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
 
   const handleEdit = () => {
     setIsEditing(true);
-    setEditData({ ...report });
+    // Format date as dd/mm/yyyy for editing
+    setEditData({ 
+      ...report,
+      date: formatDateForEdit(report.date)
+    });
   };
 
   const handleCancelEdit = () => {
@@ -116,35 +141,59 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
     try {
       setLoading(true);
       
-      const reportRef = doc(db, 'reports', report.id);
+      // Convert date to full ISO string for backend (Go expects RFC3339)
+      let dateValue = null;
+      if (editData.date) {
+        try {
+          let isoDate = editData.date;
+          
+          // If it's in dd/mm/yyyy format, convert to YYYY-MM-DD first
+          if (editData.date.includes('/')) {
+            isoDate = parseDateFromDisplay(editData.date);
+          }
+          
+          // If it doesn't have time component, add it
+          if (!isoDate.includes('T')) {
+            // Create date with explicit UTC to avoid timezone issues
+            const [year, month, day] = isoDate.split('-').map(Number);
+            const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+            dateValue = dateObj.toISOString();
+          } else {
+            dateValue = isoDate;
+          }
+          
+          console.log('Date conversion:', editData.date, '->', dateValue);
+        } catch (dateError) {
+          console.error('Date conversion error:', dateError);
+          // Fallback: try direct ISO conversion
+          dateValue = new Date(editData.date).toISOString();
+        }
+      }
       
-      // Build update object, filtering out undefined values and converting them to null
+      // Build update object
       const updateData = {
-        title: editData.title || null,
-        description: editData.description !== undefined ? (editData.description || null) : null,
-        department: editData.department || null,
-        type: editData.type || null,
-        date: editData.date || null,
-        updatedAt: new Date().toISOString()
+        title: editData.title || '',
+        description: editData.description || '',
+        department: editData.department || '',
+        type: editData.type || '',
+        date: dateValue,
       };
       
-      // Remove undefined values completely
-      Object.keys(updateData).forEach(key => {
-        if (updateData[key] === undefined) {
-          delete updateData[key];
-        }
-      });
+      const result = await updateReport(report.id, updateData);
       
-      await updateDoc(reportRef, updateData);
-
-      onReportUpdated({
-        ...report,
-        ...editData,
-        updatedAt: new Date().toISOString()
-      });
-      
-      setIsEditing(false);
-      showToast('success', 'Report updated successfully');
+      if (result.success) {
+        onReportUpdated({
+          ...report,
+          ...editData,
+          date: dateValue,
+          updatedAt: new Date().toISOString()
+        });
+        
+        setIsEditing(false);
+        showToast('success', 'Report updated successfully');
+      } else {
+        throw new Error(result.error || 'Failed to update report');
+      }
     } catch (error) {
       console.error('Error updating report:', error);
       showToast('error', 'Failed to update report');
@@ -295,15 +344,17 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
                 {/* Keep date field for editing */}
                 <div className="rm-form-group">
                     <label htmlFor="edit-date" className="rm-form-label">
-                    Report Date
+                    Report Date (dd/mm/yyyy)
                     </label>
                     <input
-                    type="date"
+                    type="text"
                     id="edit-date"
                     name="date"
-                    value={editData.date ? new Date(editData.date).toISOString().split('T')[0] : ''}
+                    value={editData.date || ''}
                     onChange={handleChange}
                     className="rm-form-input"
+                    placeholder="dd/mm/yyyy"
+                    pattern="\d{2}/\d{2}/\d{4}"
                     />
                 </div>
                 </div>

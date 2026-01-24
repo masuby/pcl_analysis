@@ -124,32 +124,7 @@
 
   }
 
-@media (prefers-color-scheme: dark) {
-  .upload-progress {
-    background: #4a5568;
-    border-bottom-color: #718096;
-  }
 
-  .progress-title {
-    color: #e2e8f0;
-  }
-
-  .progress-bar {
-    background: #718096;
-  }
-
-  .progress-fill {
-    background: linear-gradient(90deg, #4299e1 0%, #3182ce 100%);
-  }
-
-  .progress-percentage {
-    color: #63b3ed;
-  }
-
-  .progress-status {
-    color: #a0aec0;
-  }
-}
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {

@@ -34,7 +34,7 @@ const Profile = () => {
     setMessage({ type: '', text: '' });
 
     try {
-      await updateUserDataInFirestore(user.uid, { displayName });
+      await updateUserDataInFirestore(user.id, { displayName });
       await refreshUserData();
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
       setIsEditing(false);

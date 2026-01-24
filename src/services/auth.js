@@ -1,173 +1,257 @@
-import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  sendPasswordResetEmail,
-  updatePassword,
-  updateProfile 
-} from "firebase/auth";
-import { auth } from "./firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "./firebase";
+/**
+ * Authentication Service - Go Backend API
+ * Replaces Firebase Authentication
+ */
 
-export const loginUser = async (email, password) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return { success: true, user: userCredential.user };
-  } catch (error) {
-    let errorMessage = error.message;
-    
-    // User-friendly error messages
-    if (error.code === 'auth/user-not-found') {
-      errorMessage = 'No account found with this email.';
-    } else if (error.code === 'auth/wrong-password') {
-      errorMessage = 'Incorrect password.';
-    } else if (error.code === 'auth/invalid-email') {
-      errorMessage = 'Invalid email address.';
-    } else if (error.code === 'auth/too-many-requests') {
-      errorMessage = 'Too many failed attempts. Please try again later.';
-    }
-    
-    return { success: false, error: errorMessage };
-  }
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+// Token management
+const getToken = () => localStorage.getItem('pcl_token');
+const setToken = (token) => localStorage.setItem('pcl_token', token);
+const removeToken = () => localStorage.removeItem('pcl_token');
+
+// Store user data
+const getUserFromStorage = () => {
+  const data = localStorage.getItem('pcl_user');
+  return data ? JSON.parse(data) : null;
 };
+const setUserToStorage = (user) => localStorage.setItem('pcl_user', JSON.stringify(user));
+const removeUserFromStorage = () => localStorage.removeItem('pcl_user');
 
-export const logoutUser = async () => {
-  try {
-    await signOut(auth);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+// API request helper with automatic token refresh
+const apiRequest = async (endpoint, options = {}, isRetry = false) => {
+  const token = getToken();
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
-};
-
-export const createUser = async (email, password, userData) => {
+  
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
-    // Add user data to Firestore with displayName
-    await setDoc(doc(db, "users", userCredential.user.uid), {
-      email: email,
-      role: userData.role || "CS",
-      department: userData.department || "CS",
-      displayName: userData.displayName || "",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isActive: true,
-      ...userData
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
     });
     
-    return { success: true, user: userCredential.user };
-  } catch (error) {
-    let errorMessage = error.message;
+    const data = await response.json();
     
-    if (error.code === 'auth/email-already-in-use') {
-      errorMessage = 'This email is already registered.';
-    } else if (error.code === 'auth/weak-password') {
-      errorMessage = 'Password should be at least 6 characters.';
-    }
-    
-    return { success: false, error: errorMessage };
-  }
-};
-
-export const getUserData = async (userId) => {
-  try {
-    const userDoc = await getDoc(doc(db, "users", userId));
-    
-    if (userDoc.exists()) {
-      const data = userDoc.data();
+    // If token expired and this is not a retry, try to refresh
+    if (!data.success && 
+        (data.error?.includes('expired') || data.error?.includes('invalid') || response.status === 401) &&
+        !isRetry && 
+        endpoint !== '/api/auth/refresh' &&
+        endpoint !== '/api/auth/login') {
       
-      // Validate required fields
-      if (!data.role) {
-        return { 
-          success: false, 
-          error: "User data incomplete in Firestore" 
-        };
+      console.log('Token expired, attempting refresh...');
+      
+      // Try to refresh the token
+      const refreshResponse = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      const refreshData = await refreshResponse.json();
+      
+      if (refreshData.success && refreshData.data?.token) {
+        console.log('Token refreshed successfully');
+        setToken(refreshData.data.token);
+        // Retry the original request with new token
+        return apiRequest(endpoint, options, true);
+      } else {
+        // Refresh failed, clear auth and redirect to login
+        console.log('Token refresh failed, logging out');
+        removeToken();
+        removeUserFromStorage();
+        // Trigger a page reload to show login
+        window.location.href = '/login';
+        return { success: false, error: 'Session expired. Please log in again.' };
       }
-      
-      // Return complete user data including displayName
-      return { 
-        success: true, 
-        data: {
-          uid: userId,
-          email: data.email || '',
-          displayName: data.displayName || '',
-          role: data.role || 'user',
-          department: data.department || '',
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt || data.createdAt,
-          isActive: data.isActive !== undefined ? data.isActive : true
-        }
-      };
     }
     
-    return { 
-      success: false, 
-      error: "User document not found in Firestore" 
-    };
+    return data;
   } catch (error) {
-    console.error("Error fetching user data from Firestore:", error);
-    return { 
-      success: false, 
-      error: `Database error: ${error.message}` 
-    };
+    console.error('API Error:', error);
+    return { success: false, error: error.message };
   }
 };
 
-export const updateUserDataInFirestore = async (userId, userData) => {
+/**
+ * Login user with email and password
+ */
+export const loginUser = async (email, password) => {
   try {
-    const updateData = {
-      ...userData,
-      updatedAt: new Date().toISOString()
-    };
-    await setDoc(doc(db, "users", userId), updateData, { merge: true });
-    return { success: true };
+    const response = await apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    
+    if (response.success && response.data) {
+      setToken(response.data.token);
+      setUserToStorage(response.data.user);
+      return { success: true, user: response.data.user };
+    }
+    
+    return { success: false, error: response.error || 'Login failed' };
   } catch (error) {
     return { success: false, error: error.message };
   }
 };
 
-export const resetPassword = async (email) => {
+/**
+ * Logout user
+ */
+export const logoutUser = async () => {
   try {
-    await sendPasswordResetEmail(auth, email);
-    return { success: true };
-  } catch (error) {
-    let errorMessage = error.message;
+    // Call logout endpoint (optional, JWT is stateless)
+    await apiRequest('/api/auth/logout', { method: 'POST' });
+  } catch (e) {
+    // Ignore errors, clear local storage anyway
+  }
+  
+  removeToken();
+  removeUserFromStorage();
+  return { success: true };
+};
+
+/**
+ * Register new user
+ */
+export const createUser = async (email, password, userData) => {
+  try {
+    const response = await apiRequest('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        password,
+        displayName: userData.displayName || '',
+        role: userData.role || 'user',
+        department: userData.department || '',
+      }),
+    });
     
-    if (error.code === 'auth/user-not-found') {
-      errorMessage = 'No account found with this email.';
+    if (response.success && response.data) {
+      setToken(response.data.token);
+      setUserToStorage(response.data.user);
+      return { success: true, user: response.data.user };
     }
     
-    return { success: false, error: errorMessage };
+    return { success: false, error: response.error || 'Registration failed' };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 };
 
+/**
+ * Get current user data
+ */
+export const getUserData = async (userId) => {
+  try {
+    // First check local storage
+    const storedUser = getUserFromStorage();
+    if (storedUser) {
+      return { success: true, data: storedUser };
+    }
+    
+    // Fetch from API
+    const response = await apiRequest('/api/auth/me');
+    
+    if (response.success && response.data) {
+      setUserToStorage(response.data);
+      return { success: true, data: response.data };
+    }
+    
+    return { success: false, error: response.error || 'Failed to get user data' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Update user profile
+ */
+export const updateUserDataInFirestore = async (userId, userData) => {
+  try {
+    const response = await apiRequest('/api/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+    
+    if (response.success && response.data) {
+      setUserToStorage(response.data);
+      return { success: true, data: response.data };
+    }
+    
+    return { success: false, error: response.error || 'Failed to update profile' };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Reset password (sends email to admin for now)
+ */
+export const resetPassword = async (email) => {
+  // In a real implementation, this would send a reset email
+  // For now, show a message to contact admin
+  return { 
+    success: true, 
+    message: 'Please contact admin@pcl.com to reset your password.' 
+  };
+};
+
+/**
+ * Update user password
+ */
 export const updateUserPassword = async (currentPassword, newPassword) => {
   try {
-    const user = auth.currentUser;
+    const response = await apiRequest('/api/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
     
-    if (!user || !user.email) {
-      throw new Error('No authenticated user found');
+    if (response.success) {
+      return { success: true };
     }
-
-    // Note: For reauthentication, you'll need to implement this separately
-    // as it requires current password verification
-    await updatePassword(user, newPassword);
     
-    return { success: true };
+    return { success: false, error: response.error || 'Failed to update password' };
   } catch (error) {
-    console.error('Error updating password:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Check if user is authenticated
+ */
+export const isAuthenticated = () => {
+  return !!getToken();
+};
+
+/**
+ * Get current token
+ */
+export const getAuthToken = () => getToken();
+
+/**
+ * Refresh token
+ */
+export const refreshToken = async () => {
+  try {
+    const response = await apiRequest('/api/auth/refresh', { method: 'POST' });
     
-    let errorMessage = 'Failed to update password. ';
-    if (error.code === 'auth/weak-password') {
-      errorMessage += 'New password is too weak.';
-    } else if (error.code === 'auth/requires-recent-login') {
-      errorMessage += 'Please log in again to change your password.';
-    } else {
-      errorMessage += error.message;
+    if (response.success && response.data?.token) {
+      setToken(response.data.token);
+      return { success: true };
     }
     
-    return { success: false, error: errorMessage };
+    return { success: false, error: response.error || 'Failed to refresh token' };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
 };

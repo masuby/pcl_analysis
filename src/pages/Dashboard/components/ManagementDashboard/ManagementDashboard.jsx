@@ -1,12 +1,15 @@
-// C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\ManagementDashboard.jsx
+// ManagementDashboard.jsx - Combined Analysis Section with dropdown selector
+import { useState } from 'react';
 import './ManagementDashboard.css';
 import { useManagementData } from './hooks/useManagementData';
 import LoadingSpinner from '../../../../components/Common/Loading/LoadingSpinner';
 import UnifiedSection from './components/UnifiedSection/UnifiedSection';
 import ClusterAnalysisSection from './components/ClusterAnalysisSection/ClusterAnalysisSection';
+import RegionalAnalysisSection from './components/RegionalAnalysisSection/RegionalAnalysisSection';
 
 const ManagementDashboard = () => {
   const { parsedReports, loading, error } = useManagementData();
+  const [analysisView, setAnalysisView] = useState('country'); // 'country', 'cluster', 'regional'
 
   if (loading) {
     return (
@@ -105,19 +108,62 @@ const ManagementDashboard = () => {
       ...report.zanzibar
     }));
 
+  // View options for the dropdown
+  const viewOptions = [
+    { value: 'country', label: '🌍 Country Analysis', icon: '🌍' },
+    { value: 'cluster', label: '📊 Cluster Analysis', icon: '📊' },
+    { value: 'regional', label: '🏢 Regional Analysis', icon: '🏢' }
+  ];
+
+  const currentViewLabel = viewOptions.find(v => v.value === analysisView)?.label || 'Analysis';
+
   return (
     <div className="dashboard-view">
-      <UnifiedSection
-        countrywiseData={countrywiseData}
-        csData={csData}
-        csBranchesData={csBranchesData}
-        lbfData={lbfData}
-        lbfBranchesData={lbfBranchesData}
-        smeData={smeData}
-        zanzibarData={zanzibarData}
-      />
-      <hr style={{ margin: '2rem 0', border: 'none', borderTop: '1px solid #e1e5e9' }} />
-      <ClusterAnalysisSection parsedReports={parsedReports} />
+      {/* Combined Analysis Section with View Selector */}
+      <div className="combined-analysis-section">
+        <div className="analysis-view-header">
+          <h2 className="analysis-view-title">
+            {currentViewLabel}
+          </h2>
+          <div className="analysis-view-selector">
+            <label className="view-selector-label">View:</label>
+            <select 
+              value={analysisView} 
+              onChange={e => setAnalysisView(e.target.value)}
+              className="view-selector-dropdown"
+            >
+              {viewOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Render the selected analysis section */}
+        <div className="analysis-view-content">
+          {analysisView === 'country' && (
+            <UnifiedSection
+              countrywiseData={countrywiseData}
+              csData={csData}
+              csBranchesData={csBranchesData}
+              lbfData={lbfData}
+              lbfBranchesData={lbfBranchesData}
+              smeData={smeData}
+              zanzibarData={zanzibarData}
+            />
+          )}
+          
+          {analysisView === 'cluster' && (
+            <ClusterAnalysisSection parsedReports={parsedReports} />
+          )}
+          
+          {analysisView === 'regional' && (
+            <RegionalAnalysisSection parsedReports={parsedReports} />
+          )}
+        </div>
+      </div>
     </div>
   );
 };

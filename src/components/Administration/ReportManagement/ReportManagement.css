@@ -569,79 +569,7 @@
 
   }
 
-@media (prefers-color-scheme: dark) {
-  .header-left h2 {
-    color: #63b3ed;
-  }
 
-  .report-subtitle {
-    color: #a0aec0;
-  }
-
-  .add-report-button {
-    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-  }
-
-  .stat-card {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-
-  .stat-value {
-    color: #63b3ed;
-  }
-
-  .stat-label {
-    color: #a0aec0;
-  }
-
-  .report-controls {
-    background: #4a5568;
-  }
-
-  .view-toggle {
-    background: #2d3748;
-    border-color: #4a5568;
-    color: #a0aec0;
-  }
-
-  .view-toggle:hover {
-    border-color: #4299e1;
-    color: #63b3ed;
-  }
-
-  .view-toggle.active {
-    background: #4299e1;
-    border-color: #4299e1;
-  }
-
-  .search-results {
-    color: #a0aec0;
-    background: rgba(99, 179, 237, 0.1);
-  }
-
-  .empty-state {
-    background: #2d3748;
-    border-color: #4a5568;
-    color: #a0aec0;
-  }
-
-  .empty-state h3 {
-    color: #63b3ed;
-  }
-
-  .view-more-button {
-    background: #4a5568;
-    border-color: #718096;
-    color: #63b3ed;
-  }
-
-  .view-more-button:hover {
-    background: #4299e1;
-    color: white;
-    border-color: #4299e1;
-  }
-}
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {

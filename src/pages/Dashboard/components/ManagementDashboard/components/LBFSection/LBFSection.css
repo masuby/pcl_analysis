@@ -324,30 +324,3 @@
     color: white;
   }
 
-@media (prefers-color-scheme: dark) {
-  .section-card {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-  
-  .section-header {
-    background: #4a5568;
-    border-bottom-color: #4a5568;
-  }
-  
-  .section-title {
-    color: #63b3ed;
-  }
-  
-  .section-badge {
-    background: #4299e1;
-  }
-  
-  .chart-box, .analysis-box {
-    background: #2d3748;
-  }
-  
-  .vertical-divider {
-    background: #4a5568;
-  }
-}

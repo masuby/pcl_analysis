@@ -1,51 +1,73 @@
-import { initializeApp } from "firebase/app";
-import { 
-  getAuth, 
-  updatePassword, 
-  reauthenticateWithCredential,
-  EmailAuthProvider 
-} from 'firebase/auth';
-import { 
-  doc, 
-  updateDoc, 
-  getDoc,
-  getFirestore 
-} from 'firebase/firestore';
-import { getAnalytics } from "firebase/analytics";
+/**
+ * Firebase Service - DEPRECATED
+ * This file is kept for backward compatibility but now uses Go backend
+ * All Firebase functionality has been migrated to local Go API
+ */
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+// Get auth token
+const getToken = () => localStorage.getItem('pcl_token');
+
+// Mock auth object for backward compatibility
+export const auth = {
+  currentUser: null,
+  onAuthStateChanged: (callback) => {
+    // Check if we have a stored user
+    const storedUser = localStorage.getItem('pcl_user');
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        auth.currentUser = user;
+        callback(user);
+      } catch (e) {
+        callback(null);
+      }
+    } else {
+      callback(null);
+    }
+    // Return unsubscribe function
+    return () => {};
+  }
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Mock db object for backward compatibility
+export const db = {
+  // Add any required mock methods here if needed
+};
 
-// Initialize services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const analytics = getAnalytics(app);
+// Mock analytics
+export const analytics = null;
 
 /**
- * Update user profile in Firestore
- * @param {string} userId - User ID
- * @param {Object} data - Data to update (displayName, etc.)
+ * Update user profile (now uses Go API)
  */
 export const updateUserProfile = async (userId, data) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    const updateData = {
-      ...data,
-      updatedAt: new Date().toISOString()
-    };
+    const token = getToken();
     
-    await updateDoc(userRef, updateData);
-    return { success: true };
+    const response = await fetch(`${API_URL}/api/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      // Update local storage
+      const storedUser = localStorage.getItem('pcl_user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        localStorage.setItem('pcl_user', JSON.stringify({ ...user, ...data }));
+      }
+      return { success: true };
+    }
+    
+    throw new Error(result.error || 'Failed to update profile');
   } catch (error) {
     console.error('Error updating profile:', error);
     throw new Error('Failed to update profile: ' + error.message);
@@ -53,42 +75,38 @@ export const updateUserProfile = async (userId, data) => {
 };
 
 /**
- * Change user password
- * @param {string} currentPassword - Current password
- * @param {string} newPassword - New password
+ * Change user password (now uses Go API)
  */
 export const changePassword = async (currentPassword, newPassword) => {
   try {
-    const user = auth.currentUser;
+    const token = getToken();
     
-    if (!user || !user.email) {
-      throw new Error('No authenticated user found');
+    const response = await fetch(`${API_URL}/api/auth/password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      return { success: true };
     }
-
-    // Re-authenticate user
-    const credential = EmailAuthProvider.credential(user.email, currentPassword);
-    await reauthenticateWithCredential(user, credential);
     
-    // Update password
-    await updatePassword(user, newPassword);
-    
-    return { success: true };
+    throw new Error(result.error || 'Failed to change password');
   } catch (error) {
     console.error('Error changing password:', error);
     
     let errorMessage = 'Failed to change password. ';
-    switch (error.code) {
-      case 'auth/wrong-password':
-        errorMessage += 'Current password is incorrect.';
-        break;
-      case 'auth/weak-password':
-        errorMessage += 'New password is too weak.';
-        break;
-      case 'auth/requires-recent-login':
-        errorMessage += 'Please log in again and try.';
-        break;
-      default:
-        errorMessage += error.message;
+    if (error.message.includes('incorrect')) {
+      errorMessage += 'Current password is incorrect.';
+    } else if (error.message.includes('weak')) {
+      errorMessage += 'New password is too weak.';
+    } else {
+      errorMessage += error.message;
     }
     
     throw new Error(errorMessage);
@@ -96,16 +114,22 @@ export const changePassword = async (currentPassword, newPassword) => {
 };
 
 /**
- * Get current user's profile data from Firestore
- * @param {string} userId - User ID
+ * Get current user's profile data (now uses Go API)
  */
 export const getUserProfile = async (userId) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
+    const token = getToken();
     
-    if (userDoc.exists()) {
-      return userDoc.data();
+    const response = await fetch(`${API_URL}/api/auth/me`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      return result.data;
     }
     
     throw new Error('User profile not found');

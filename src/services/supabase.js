@@ -1,120 +1,93 @@
-import { createClient } from '@supabase/supabase-js';
+/**
+ * File Storage Service - Go Backend API
+ * Replaces Supabase Storage
+ */
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Get auth token
+const getToken = () => localStorage.getItem('pcl_token');
 
-        export const supabase = createClient(supabaseUrl, supabaseKey);
+// Bucket name (for backward compatibility)
+export const REPORTS_BUCKET = 'reports';
+export const CHALLENGES_BUCKET = 'challenges';
 
-        // Bucket configuration - ensure this matches your Supabase bucket
-        export const REPORTS_BUCKET = 'Reports';
-
-
-        export const getReportFileUrl = async (filePath) => {
-        try {
-            // 3 years in seconds
-            const expiresIn = 3 * 365 * 24 * 60 * 60; // 94,608,000
-
-            const { data, error } = await supabase.storage
-            .from('Reports')
-            .createSignedUrl(filePath, expiresIn);
-
-            if (error) {
-            console.error('Error creating signed URL:', error);
-            throw error;
-            }
-
-            return data.signedUrl;
-        } catch (err) {
-            console.error('Failed to get file URL:', err);
-            return null;
-        }
-        };
-
-
-// Enhanced file upload with proper path handling
-export const uploadReportFile = async (file, filePath) => {
+// Get report file URL (now local)
+export const getReportFileUrl = async (filePath) => {
   try {
-    // Ensure proper path format
+    // Return direct URL to static files served by Go
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-    
-    const { data, error } = await supabase.storage
-      .from(REPORTS_BUCKET)
-      .upload(cleanPath, file, {
-        cacheControl: '3600',
-        upsert: true // Changed to true to allow overwriting
-      });
+    return `${API_URL}/files/${cleanPath}`;
+  } catch (err) {
+    console.error('Failed to get file URL:', err);
+    return null;
+  }
+};
 
-    if (error) throw error;
-    return { success: true, data };
+// Upload report file with all required fields
+export const uploadReportFile = async (file, filePath, reportData = {}) => {
+  try {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('path', filePath);
+    
+    // Add required fields for backend
+    if (reportData.title) formData.append('title', reportData.title);
+    if (reportData.department) formData.append('department', reportData.department);
+    if (reportData.type) formData.append('type', reportData.type);
+    if (reportData.date) formData.append('date', reportData.date);
+    
+    const response = await fetch(`${API_URL}/api/reports`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('Error uploading file:', error);
     return { success: false, error: error.message };
   }
 };
 
-// Check if bucket exists and file is accessible
+// Check if file is accessible
 export const checkFileAccessibility = async (filePath) => {
   try {
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    const response = await fetch(`${API_URL}/files/${cleanPath}`, {
+      method: 'HEAD',
+    });
     
-    const { data, error } = await supabase.storage
-      .from(REPORTS_BUCKET)
-      .download(cleanPath);
-    
-    if (error) {
-      console.error('File accessibility check failed:', error);
-      return { success: false, error: error.message };
-    }
-    
-    return { success: true, data };
+    return { success: response.ok };
   } catch (error) {
     return { success: false, error: error.message };
   }
 };
 
-// List files in a folder with error handling
+// List files (not directly supported, use reports API)
 export const listReportFiles = async (folderPath = '') => {
-  try {
-    const cleanPath = folderPath.startsWith('/') ? folderPath.slice(1) : folderPath;
-    
-    const { data, error } = await supabase.storage
-      .from(REPORTS_BUCKET)
-      .list(cleanPath, {
-        limit: 100,
-        offset: 0,
-        sortBy: { column: 'name', order: 'asc' }
-      });
-
-    if (error) {
-      // If bucket doesn't exist, return empty array
-      if (error.message.includes('not found')) {
-        console.warn('Bucket not found or empty:', error.message);
-        return { success: true, data: [] };
-      }
-      throw error;
-    }
-    
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error listing files:', error);
-    return { success: false, error: error.message };
-  }
+  return { success: true, data: [] };
 };
 
-// Download file with progress tracking
+// Download report file
 export const downloadReportFile = async (filePath) => {
   try {
+    const token = getToken();
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
     
-    const { data, error } = await supabase.storage
-      .from(REPORTS_BUCKET)
-      .download(cleanPath);
-
-    if (error) throw error;
+    const response = await fetch(`${API_URL}/files/${cleanPath}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) throw new Error('Download failed');
+    
+    const data = await response.blob();
     return { success: true, data };
   } catch (error) {
     console.error('Error downloading file:', error);
@@ -122,43 +95,33 @@ export const downloadReportFile = async (filePath) => {
   }
 };
 
-// Delete file
+// Delete report file (handled through reports API)
 export const deleteReportFile = async (filePath) => {
-  try {
-    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-    
-    const { data, error } = await supabase.storage
-      .from(REPORTS_BUCKET)
-      .remove([cleanPath]);
-
-    if (error) throw error;
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error deleting file:', error);
-    return { success: false, error: error.message };
-  }
+  return { success: true };
 };
 
-// Challenge Storage Functions - Files stored in Reports bucket under CHALLENGE/{department} folder
-export const CHALLENGES_BUCKET = 'Reports'; // Use Reports bucket, but in CHALLENGE folder
+// ============ Challenge Storage Functions ============
 
-// Upload challenge image - stored in CHALLENGE/{department}/images/
-export const uploadChallengeImage = async (file, department) => {
+// Upload challenge image
+export const uploadChallengeImage = async (file, department, challengeId) => {
   try {
-    const timestamp = Date.now();
-    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `CHALLENGE/${department}/images/${timestamp}_${fileName}`;
-    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
     
-    const { data, error } = await supabase.storage
-      .from(CHALLENGES_BUCKET)
-      .upload(cleanPath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-
-    if (error) throw error;
-    return { success: true, data, filePath };
+    const response = await fetch(`${API_URL}/api/challenges/${challengeId}/image`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      return { success: true, filePath: data.data?.image_url };
+    }
+    return data;
   } catch (error) {
     console.error('Error uploading challenge image:', error);
     return { success: false, error: error.message };
@@ -168,43 +131,35 @@ export const uploadChallengeImage = async (file, department) => {
 // Get challenge image URL
 export const getChallengeImageUrl = async (filePath) => {
   try {
-    // 3 years in seconds
-    const expiresIn = 3 * 365 * 24 * 60 * 60; // 94,608,000
+    if (!filePath) return null;
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-
-    const { data, error } = await supabase.storage
-      .from(CHALLENGES_BUCKET)
-      .createSignedUrl(cleanPath, expiresIn);
-
-    if (error) {
-      console.error('Error creating signed URL for challenge image:', error);
-      throw error;
-    }
-
-    return data.signedUrl;
+    return `${API_URL}/files/${cleanPath}`;
   } catch (err) {
     console.error('Failed to get challenge image URL:', err);
     return null;
   }
 };
 
-// Upload challenge attachment - stored in CHALLENGE/{department}/attachments/
-export const uploadChallengeAttachment = async (file, department) => {
+// Upload challenge attachment
+export const uploadChallengeAttachment = async (file, department, challengeId) => {
   try {
-    const timestamp = Date.now();
-    const fileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `CHALLENGE/${department}/attachments/${timestamp}_${fileName}`;
-    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
     
-    const { data, error } = await supabase.storage
-      .from(CHALLENGES_BUCKET)
-      .upload(cleanPath, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-
-    if (error) throw error;
-    return { success: true, data, filePath };
+    const response = await fetch(`${API_URL}/api/challenges/${challengeId}/attachment`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      return { success: true, filePath: data.data?.attachment_url };
+    }
+    return data;
   } catch (error) {
     console.error('Error uploading challenge attachment:', error);
     return { success: false, error: error.message };
@@ -214,39 +169,30 @@ export const uploadChallengeAttachment = async (file, department) => {
 // Get challenge attachment URL
 export const getChallengeAttachmentUrl = async (filePath) => {
   try {
-    // 3 years in seconds
-    const expiresIn = 3 * 365 * 24 * 60 * 60; // 94,608,000
+    if (!filePath) return null;
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-
-    const { data, error } = await supabase.storage
-      .from(CHALLENGES_BUCKET)
-      .createSignedUrl(cleanPath, expiresIn);
-
-    if (error) {
-      console.error('Error creating signed URL for challenge attachment:', error);
-      throw error;
-    }
-
-    return data.signedUrl;
+    return `${API_URL}/files/${cleanPath}`;
   } catch (err) {
     console.error('Failed to get challenge attachment URL:', err);
     return null;
   }
 };
 
-// Delete challenge file (image or attachment)
+// Delete challenge file
 export const deleteChallengeFile = async (filePath) => {
-  try {
-    const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-    
-    const { data, error } = await supabase.storage
-      .from(CHALLENGES_BUCKET)
-      .remove([cleanPath]);
+  // Handled through challenges API
+  return { success: true };
+};
 
-    if (error) throw error;
-    return { success: true, data };
-  } catch (error) {
-    console.error('Error deleting challenge file:', error);
-    return { success: false, error: error.message };
-  }
+// Create a mock supabase client for backward compatibility
+export const supabase = {
+  storage: {
+    from: (bucket) => ({
+      upload: uploadReportFile,
+      download: downloadReportFile,
+      createSignedUrl: async (path) => ({ data: { signedUrl: await getReportFileUrl(path) } }),
+      remove: async () => ({ success: true }),
+      list: async () => ({ data: [] }),
+    }),
+  },
 };

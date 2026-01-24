@@ -363,79 +363,7 @@
 
   }
 
-@media (prefers-color-scheme: dark) {
-  .stat-card {
-    background: #4a5568;
-    border-color: #718096;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
 
-  .stat-card:hover {
-    border-color: #4299e1;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .stat-value {
-    color: #63b3ed;
-  }
-
-  .stat-label {
-    color: #a0aec0;
-  }
-
-  .stat-percentage {
-    color: #718096;
-  }
-
-  .chart-section {
-    background: #4a5568;
-    border-color: #718096;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  .chart-title {
-    color: #63b3ed;
-    border-bottom-color: #4a5568;
-  }
-
-  .custom-tooltip {
-    background: #4a5568;
-    border-color: #718096;
-    color: #a0aec0;
-  }
-
-  .tooltip-label {
-    color: #63b3ed;
-  }
-
-  .tooltip-value {
-    color: #a0aec0;
-  }
-
-  .agent-performance-table thead {
-    background: #4299e1;
-  }
-
-  .agent-performance-table tbody tr {
-    border-bottom-color: #4a5568;
-  }
-
-  .agent-performance-table tbody tr:hover {
-    background-color: rgba(99, 179, 237, 0.1);
-  }
-
-  .agent-performance-table td {
-    color: #a0aec0;
-  }
-
-  .agent-performance-table tbody tr:nth-child(even) {
-    background-color: #2d3748;
-  }
-
-  .agent-performance-table tbody tr:nth-child(even):hover {
-    background-color: rgba(99, 179, 237, 0.1);
-  }
-}
 
 
 

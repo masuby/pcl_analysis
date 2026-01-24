@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../../../services/firebase';
+import { getAllUsers } from '../../../services/users';
 import SearchBar from './SearchBar/SearchBar';
 import UserTable from './UserTable/UserTable';
 import AddUserModal from './AddUserModal/AddUserModal';
@@ -18,7 +17,7 @@ const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Fetch users from Firestore
+  // Fetch users from Go API
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -34,6 +33,7 @@ const UserManagement = () => {
     const filtered = users.filter(user => 
       user.email?.toLowerCase().includes(term) ||
       user.displayName?.toLowerCase().includes(term) ||
+      user.display_name?.toLowerCase().includes(term) ||
       user.role?.toLowerCase().includes(term) ||
       user.department?.toLowerCase().includes(term)
     );
@@ -44,20 +44,26 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+      const result = await getAllUsers();
       
-      const usersList = [];
-      querySnapshot.forEach((doc) => {
-        usersList.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-      
-      setUsers(usersList);
-      setFilteredUsers(usersList);
+      if (result.success) {
+        // Map snake_case to camelCase for compatibility
+        const usersList = (result.data || []).map(user => ({
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName || user.display_name || '',
+          role: user.role,
+          department: user.department,
+          isActive: user.isActive !== undefined ? user.isActive : user.is_active,
+          createdAt: user.createdAt || user.created_at,
+          updatedAt: user.updatedAt || user.updated_at,
+        }));
+        
+        setUsers(usersList);
+        setFilteredUsers(usersList);
+      } else {
+        showToast('error', result.error || 'Failed to load users');
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       showToast('error', 'Failed to load users');
@@ -75,14 +81,33 @@ const UserManagement = () => {
   };
 
   const handleUserAdded = (newUser) => {
-    setUsers([newUser, ...users]);
-    setFilteredUsers([newUser, ...filteredUsers]);
+    const mappedUser = {
+      id: newUser.id,
+      email: newUser.email,
+      displayName: newUser.displayName || newUser.display_name || '',
+      role: newUser.role,
+      department: newUser.department,
+      isActive: newUser.isActive !== undefined ? newUser.isActive : newUser.is_active,
+      createdAt: newUser.createdAt || newUser.created_at,
+    };
+    setUsers([mappedUser, ...users]);
+    setFilteredUsers([mappedUser, ...filteredUsers]);
     showToast('success', 'User added successfully');
   };
 
   const handleUserUpdated = (updatedUser) => {
+    const mappedUser = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      displayName: updatedUser.displayName || updatedUser.display_name || '',
+      role: updatedUser.role,
+      department: updatedUser.department,
+      isActive: updatedUser.isActive !== undefined ? updatedUser.isActive : updatedUser.is_active,
+      createdAt: updatedUser.createdAt || updatedUser.created_at,
+      updatedAt: updatedUser.updatedAt || updatedUser.updated_at,
+    };
     const updatedUsers = users.map(user => 
-      user.id === updatedUser.id ? updatedUser : user
+      user.id === mappedUser.id ? mappedUser : user
     );
     setUsers(updatedUsers);
     setFilteredUsers(updatedUsers);

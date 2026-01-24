@@ -1,15 +1,39 @@
 import React, { useState, useRef } from 'react';
-import { createReport } from '../../../../services/reports';
-import { uploadReportFile, getReportFileUrl } from '../../../../services/supabase';
+import { uploadReportFile } from '../../../../services/supabase';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import UploadProgress from '../UploadProgress/UploadProgress';
 import './AddReportModal.css';
+
+// Helper to convert YYYY-MM-DD to dd/mm/yyyy
+const formatDateForDisplay = (isoDate) => {
+  if (!isoDate) return '';
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+// Helper to convert dd/mm/yyyy to YYYY-MM-DD
+const parseDateFromDisplay = (displayDate) => {
+  if (!displayDate) return '';
+  const parts = displayDate.split('/');
+  if (parts.length !== 3) return displayDate;
+  const [day, month, year] = parts;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
+// Get today's date in dd/mm/yyyy format
+const getTodayFormatted = () => {
+  const today = new Date();
+  const day = String(today.getDate()).padStart(2, '0');
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const year = today.getFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
   const [formData, setFormData] = useState({
     department: 'CS',
     type: 'CALL CENTER',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayFormatted(),
     file: null
   });
   const [loading, setLoading] = useState(false);
@@ -34,6 +58,25 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
 
   const validateForm = () => {
     const newErrors = {};
+    
+    // Validate date format (dd/mm/yyyy)
+    if (!formData.date) {
+      newErrors.date = 'Please enter a date';
+    } else {
+      const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+      const match = formData.date.match(dateRegex);
+      if (!match) {
+        newErrors.date = 'Invalid date format. Use dd/mm/yyyy';
+      } else {
+        const [, day, month, year] = match;
+        const dateObj = new Date(year, month - 1, day);
+        if (dateObj.getDate() !== parseInt(day) || 
+            dateObj.getMonth() !== parseInt(month) - 1 || 
+            dateObj.getFullYear() !== parseInt(year)) {
+          newErrors.date = 'Invalid date';
+        }
+      }
+    }
     
     if (!formData.file) {
       newErrors.file = 'Please select a file to upload';
@@ -146,9 +189,21 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
         });
       }, 200);
 
-      // Upload file to Supabase and get file path
+      // Extract title from filename
+      const reportTitle = extractTitleFromFilename(formData.file.name);
+      
+      // Convert date from dd/mm/yyyy to ISO format for backend
+      const isoDate = parseDateFromDisplay(formData.date);
+      const fullIsoDate = new Date(isoDate + 'T00:00:00').toISOString();
+      
+      // Upload file with all required data (backend creates the report record)
       const filePath = getFilePath();
-      const uploadResult = await uploadReportFile(formData.file, filePath);
+      const uploadResult = await uploadReportFile(formData.file, filePath, {
+        title: reportTitle,
+        department: formData.department,
+        type: formData.type,
+        date: fullIsoDate
+      });
       
       clearInterval(progressInterval);
       setUploadProgress(100);
@@ -157,39 +212,13 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
         throw new Error(uploadResult.error || 'File upload failed');
       }
 
-      // Extract title from filename
-      const reportTitle = extractTitleFromFilename(formData.file.name);
-
-
-    const fileUrl = await getReportFileUrl(filePath); // <-- await here
-
-      
-      // Create report record in Firestore
-      const reportData = {
-        title: reportTitle, // Auto-generated from filename
-        department: formData.department,
-        type: formData.type,
-        date: new Date(formData.date).toISOString(),
-        filePath: filePath,
-        fileUrl: fileUrl, // Non-expiring URL for downloads
-        fileName: formData.file.name,
-        fileSize: formData.file.size,
-        fileType: formData.file.type,
-        mimeType: formData.file.type,
-        uploader: 'Admin', // TODO: Get from auth context
-        views: 0,
-        downloads: 0,
-        isActive: true
-      };
-
-      const reportResult = await createReport(reportData);
-      
-      if (reportResult.success) {
-        onReportAdded(reportResult.data);
+      // Backend already created the report, use the returned data
+      if (uploadResult.data) {
+        onReportAdded(uploadResult.data);
         onClose();
         showToast('success', 'Report uploaded successfully');
       } else {
-        throw new Error(reportResult.error || 'Failed to create report record');
+        throw new Error('Failed to create report record');
       }
     } catch (error) {
       console.error('Error uploading report:', error);
@@ -345,16 +374,21 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
             </label>
             <div className="input-wrapper">
               <input
-                type="date"
+                type="text"
                 id="date"
                 name="date"
                 value={formData.date}
                 onChange={handleChange}
                 className="form-input"
                 disabled={loading}
-                max={new Date().toISOString().split('T')[0]}
+                placeholder="dd/mm/yyyy"
+                pattern="\d{2}/\d{2}/\d{4}"
               />
+              <span className="input-hint">Format: dd/mm/yyyy</span>
             </div>
+            {errors.date && (
+              <span className="error-message">{errors.date}</span>
+            )}
           </div>
 
           {/* File Upload */}

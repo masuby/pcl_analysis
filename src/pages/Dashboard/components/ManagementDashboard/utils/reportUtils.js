@@ -46,11 +46,38 @@ export const extractSME = (rows) =>
   rows.find(r => r.Branch === 'SME')?.['Active Reps'] ?? 0;
 
 export const getNumericColumns = (rows) => {
-  if (!rows.length) return [];
-  return Object.keys(rows[0]).filter(key => {
-    const value = rows[0][key];
-    const lower = key.toLowerCase();
-    const isDateLike = lower.includes('date') || lower.includes('time') || lower.includes('created') || lower.includes('updated');
-    return typeof value === 'number' && !isDateLike;
+  if (!rows || !rows.length) return [];
+  
+  // Collect all numeric keys from all rows (not just first row)
+  const numericKeys = new Set();
+  
+  rows.forEach(row => {
+    if (row && typeof row === 'object') {
+      Object.keys(row).forEach(key => {
+        const value = row[key];
+        const lower = key.toLowerCase();
+        const isDateLike = lower.includes('date') || 
+                          lower.includes('time') || 
+                          lower.includes('created') || 
+                          lower.includes('updated') ||
+                          lower.includes('reportid') ||
+                          lower.includes('filename') ||
+                          lower === 'branch' ||
+                          lower === 'rowtype' ||
+                          lower === 'parentteamleader' ||
+                          lower === 'id';
+        
+        // Check if value is a number (including 0)
+        if (typeof value === 'number' && !isNaN(value) && !isDateLike) {
+          numericKeys.add(key);
+        }
+        // Also check if value is a string that represents a number
+        else if (typeof value === 'string' && value.trim() !== '' && !isNaN(parseFloat(value)) && isFinite(value) && !isDateLike) {
+          numericKeys.add(key);
+        }
+      });
+    }
   });
+  
+  return Array.from(numericKeys).sort();
 };

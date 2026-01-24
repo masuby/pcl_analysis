@@ -80,30 +80,3 @@
 .dark-mode .no-dashboard-message {
   color: #a0aec0;
 }
-
-@media (prefers-color-scheme: dark) {
-  .dashboard-header {
-    background: #2d3748;
-    border-bottom-color: #4a5568;
-  }
-  
-  .top-line {
-    background: linear-gradient(90deg, 
-      transparent 0%, 
-      #4a5568 10%, 
-      #4a5568 90%, 
-      transparent 100%);
-  }
-  
-  .bottom-line {
-    background: linear-gradient(90deg, 
-      transparent 0%, 
-      #4a5568 10%, 
-      #4a5568 90%, 
-      transparent 100%);
-  }
-  
-  .no-dashboard-message {
-    color: #a0aec0;
-  }
-}

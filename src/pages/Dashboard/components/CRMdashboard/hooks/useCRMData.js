@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../../../../../services/firebase';
+import { useState, useEffect, useRef } from 'react';
+import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
+import { cacheGet, cacheSet } from '../../../../../services/cache';
 import * as XLSX from 'xlsx';
+
+// In-memory cache for parsed CRM data
+const crmParsedCache = new Map();
 
 /**
  * Convert Excel column letter to number (A=1, B=2, ..., Z=26, AA=27, etc.)
@@ -388,36 +391,19 @@ export const useCRMData = (department, selectedDate = null) => {
       setLoading(true);
       setError(null);
 
-      const reportsRef = collection(db, 'reports');
-      
-      // Try with orderBy first, fallback to without if index is missing
-      let q = query(
-        reportsRef,
-        where('type', '==', 'CRM'),
-        where('department', '==', department),
-        where('isActive', '==', true),
-        orderBy('date', 'desc')
-      );
+      // Use Go API instead of Firebase
+      const result = await getReportsByDepartmentAndType(department, 'CRM');
 
-      let snapshot;
-      try {
-        snapshot = await getDocs(q);
-      } catch (orderByError) {
-        console.warn('OrderBy failed, fetching without orderBy:', orderByError);
-        q = query(
-          reportsRef,
-          where('type', '==', 'CRM'),
-          where('department', '==', department),
-          where('isActive', '==', true)
-        );
-        snapshot = await getDocs(q);
+      if (!result.success) {
+        setError(result.error || 'Failed to load CRM reports');
+        setReports([]);
+        return;
       }
 
       const reportsData = [];
 
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        const fileName = data.fileName || data.title || 'Unknown';
+      for (const report of result.data || []) {
+        const fileName = report.fileName || report.file_name || report.title || 'Unknown';
         
         // Check if file name contains CRM pattern (CS_CRM, LBF_CRM, SME_CRM)
         const crmPattern = department === 'CS' ? 'CS_CRM' : 
@@ -425,11 +411,11 @@ export const useCRMData = (department, selectedDate = null) => {
                           department === 'SME' ? 'SME_CRM' : 'CRM';
         
         if (fileName.includes(crmPattern)) {
-          let fileUrl = data.fileUrl;
+          let fileUrl = report.fileUrl || report.file_url;
           
-          if (!fileUrl && data.filePath) {
+          if (!fileUrl && (report.filePath || report.file_path)) {
             try {
-              fileUrl = await getReportFileUrl(data.filePath);
+              fileUrl = await getReportFileUrl(report.filePath || report.file_path);
             } catch (e) {
               console.warn(`Could not get file URL for ${fileName}:`, e);
               continue;
@@ -438,16 +424,18 @@ export const useCRMData = (department, selectedDate = null) => {
 
           if (fileUrl) {
             reportsData.push({
-              id: doc.id,
-              ...data,
+              id: report.id,
+              ...report,
+              fileName,
               fileUrl,
-              date: data.date?.toDate ? data.date.toDate() : new Date(data.date || Date.now())
+              date: report.date ? new Date(report.date) : 
+                    report.created_at ? new Date(report.created_at) : new Date()
             });
           }
         }
       }
 
-      // Sort by date manually if orderBy wasn't used
+      // Sort by date
       reportsData.sort((a, b) => {
         const dateA = a.date instanceof Date ? a.date : new Date(a.date);
         const dateB = b.date instanceof Date ? b.date : new Date(b.date);
@@ -487,12 +475,23 @@ export const useCRMData = (department, selectedDate = null) => {
       }
       const latestReport = targetReport;
       
+      // Check cache first
+      const cacheKey = `crm_${department}_${latestReport.id}`;
+      if (crmParsedCache.has(cacheKey)) {
+        console.log(`[Cache] Using cached CRM data for ${latestReport.fileName}`);
+        setParsedData(crmParsedCache.get(cacheKey));
+        setLoading(false);
+        return;
+      }
+      
       if (!latestReport.fileUrl) {
         setError('No file URL available for parsing');
         setParsedData(null);
         return;
       }
 
+      console.log(`[CRM] Parsing Excel file: ${latestReport.fileName}`);
+      
       // Fetch and parse the Excel file
       const response = await fetch(latestReport.fileUrl);
       if (!response.ok) {
@@ -512,11 +511,11 @@ export const useCRMData = (department, selectedDate = null) => {
       const parsed = {
         reportDate: latestReport.date,
         fileName: latestReport.fileName || latestReport.title,
-        emailData: null, // Text/Value pairs from Email sheet
-        leadsSummary: null, // Data from LEADS_SUMMARY sheet
-        agentSummary: null, // Agent data from summary sheet
-        teamLeaderSummary: null, // Team leader data from summary sheet
-        historicalData: [] // For trend analysis
+        emailData: null,
+        leadsSummary: null,
+        agentSummary: null,
+        teamLeaderSummary: null,
+        historicalData: [] // Skip historical data to improve performance
       };
 
       // Parse Email sheet (Text/Value pairs)
@@ -526,10 +525,6 @@ export const useCRMData = (department, selectedDate = null) => {
         parsed.emailData = emailData;
       }
 
-      // Extract data using new logic:
-      // 1. Lead summary: Get all data from LEADS_SUMMARY/LEAD SUMMARY sheet (leave empty cells as empty)
-      // 2. Agent summary & Team leader: Extract from "summary" sheet by detecting empty columns
-      
       const getLeadSummarySheetName = (dept) => {
         if (dept === 'CS') {
           return 'LEADS_SUMMARY';
@@ -540,11 +535,10 @@ export const useCRMData = (department, selectedDate = null) => {
 
       const leadSummarySheet = getLeadSummarySheetName(department);
       
-      // Extract lead summary - get all data from the sheet
+      // Extract lead summary
       if (sheetNames.includes(leadSummarySheet)) {
         const leadsData = extractAllSheetData(workbook, leadSummarySheet);
         parsed.leadsSummary = leadsData;
-        console.log(`[parseReports] Extracted ${leadsData.length} rows from ${leadSummarySheet}`);
       }
 
       // Extract agent summary and team leader summary from "summary" sheet
@@ -552,43 +546,12 @@ export const useCRMData = (department, selectedDate = null) => {
         const summaryData = extractSummarySheetData(workbook, 'summary');
         parsed.agentSummary = summaryData.agentSummary;
         parsed.teamLeaderSummary = summaryData.teamLeaderSummary;
-        console.log(`[parseReports] Extracted agent summary: ${summaryData.agentSummary.length} rows, team leader: ${summaryData.teamLeaderSummary.length} rows`);
-      }
-
-      // Parse historical reports for trend analysis
-      if (reports.length > 1) {
-        const historicalParsed = [];
-        for (let i = 1; i < Math.min(reports.length, 10); i++) { // Get last 10 reports
-          try {
-            const histResponse = await fetch(reports[i].fileUrl);
-            if (histResponse.ok) {
-              const histArrayBuffer = await histResponse.arrayBuffer();
-              const histWorkbook = XLSX.read(histArrayBuffer, {
-                type: 'array',
-                cellDates: true,
-                cellNF: false,
-                cellText: false,
-                raw: false
-              });
-              
-              if (histWorkbook.SheetNames.includes('Email')) {
-                const histWorksheet = histWorkbook.Sheets['Email'];
-                const histEmailData = XLSX.utils.sheet_to_json(histWorksheet);
-                historicalParsed.push({
-                  date: reports[i].date,
-                  emailData: histEmailData
-                });
-              }
-            }
-          } catch (e) {
-            console.warn(`Failed to parse historical report ${i}:`, e);
-          }
-        }
-        parsed.historicalData = historicalParsed;
       }
 
       // Check if we have at least some data
       if (parsed.emailData || parsed.leadsSummary) {
+        // Cache the parsed result
+        crmParsedCache.set(cacheKey, parsed);
         setParsedData(parsed);
       } else {
         setParsedData(null);

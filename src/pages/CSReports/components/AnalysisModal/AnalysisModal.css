@@ -206,32 +206,3 @@
   
   }
 
-@media (prefers-color-scheme: dark) {
-  .analysis-modal-simple {
-    background: #2d3748;
-  }
-  
-  .modal-header-simple {
-    background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
-  }
-  
-  .placeholder-analysis h3 {
-    color: #63b3ed;
-  }
-  
-  .placeholder-analysis p {
-    color: #a0aec0;
-  }
-  
-  .modal-footer-simple {
-    border-top-color: #4a5568;
-  }
-  
-  .footer-button.close {
-    background: #4299e1;
-  }
-  
-  .footer-button.close:hover {
-    background: #3182ce;
-  }
-}

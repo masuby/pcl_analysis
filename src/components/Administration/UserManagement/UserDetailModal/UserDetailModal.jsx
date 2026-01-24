@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../../services/firebase';
+import { updateUser, deleteUser, toggleUserStatus } from '../../../../services/users';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import './UserDetailModal.css';
 
@@ -60,23 +59,25 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const userRef = doc(db, 'users', user.id);
-      await updateDoc(userRef, {
+      const result = await updateUser(user.id, {
         displayName: editData.displayName,
         role: editData.role,
         department: editData.department,
         isActive: editData.isActive,
-        updatedAt: new Date().toISOString()
       });
 
-      onUserUpdated({
-        ...user,
-        ...editData,
-        updatedAt: new Date().toISOString()
-      });
-      
-      setIsEditing(false);
-      showToast('success', 'User updated successfully');
+      if (result.success) {
+        onUserUpdated({
+          ...user,
+          ...editData,
+          updatedAt: new Date().toISOString()
+        });
+        
+        setIsEditing(false);
+        showToast('success', 'User updated successfully');
+      } else {
+        showToast('error', result.error || 'Failed to update user');
+      }
     } catch (error) {
       console.error('Error updating user:', error);
       showToast('error', 'Failed to update user');
@@ -89,12 +90,15 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const userRef = doc(db, 'users', user.id);
-      await deleteDoc(userRef);
+      const result = await deleteUser(user.id);
       
-      onUserDeleted(user.id);
-      onClose();
-      showToast('success', 'User deleted successfully');
+      if (result.success) {
+        onUserDeleted(user.id);
+        onClose();
+        showToast('success', 'User deleted successfully');
+      } else {
+        showToast('error', result.error || 'Failed to delete user');
+      }
     } catch (error) {
       console.error('Error deleting user:', error);
       showToast('error', 'Failed to delete user');
@@ -107,21 +111,20 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const userRef = doc(db, 'users', user.id);
-      const newStatus = !user.isActive;
+      const result = await toggleUserStatus(user.id);
       
-      await updateDoc(userRef, {
-        isActive: newStatus,
-        updatedAt: new Date().toISOString()
-      });
-
-      onUserUpdated({
-        ...user,
-        isActive: newStatus,
-        updatedAt: new Date().toISOString()
-      });
-      
-      showToast('success', `User ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      if (result.success) {
+        const newStatus = !user.isActive;
+        onUserUpdated({
+          ...user,
+          isActive: newStatus,
+          updatedAt: new Date().toISOString()
+        });
+        
+        showToast('success', `User ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      } else {
+        showToast('error', result.error || 'Failed to update user status');
+      }
     } catch (error) {
       console.error('Error toggling user status:', error);
       showToast('error', 'Failed to update user status');

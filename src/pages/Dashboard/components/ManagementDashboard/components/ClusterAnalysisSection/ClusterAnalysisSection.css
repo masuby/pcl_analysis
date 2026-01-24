@@ -215,52 +215,7 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .comparison-modal-content {
-    background: #1f2937;
-    color: #f3f4f6;
-  }
 
-  .comparison-modal-header {
-    background: #111827;
-    border-bottom-color: #374151;
-  }
-
-  .comparison-modal-header h3 {
-    color: #60a5fa;
-  }
-
-  .comparison-modal-close {
-    color: #9ca3af;
-  }
-
-  .comparison-modal-close:hover {
-    background: #374151;
-    color: #f3f4f6;
-  }
-
-  .comparison-table-header {
-    border-bottom-color: #374151;
-    color: #60a5fa;
-  }
-
-  .comparison-table-row:hover {
-    background: #374151;
-  }
-
-  .comparison-table-row.top-performer {
-    background: #78350f;
-    border-color: #fbbf24;
-  }
-
-  .comparison-name-col {
-    color: #f3f4f6;
-  }
-
-  .comparison-value-col {
-    color: #60a5fa;
-  }
-}
 
 /* Inline Comparison Section */
 .comparison-section {
@@ -476,3 +431,211 @@
   box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
+/* ============================== */
+/* New Layout: Chart + Comparison on Left, Analysis + Summary on Right */
+/* ============================== */
+
+.chart-comparison-area {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.analysis-summary-area {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ============================== */
+/* Box-Style Analysis Metrics     */
+/* ============================== */
+
+.analysis-box-container {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.analysis-title {
+  margin: 0 0 1rem 0;
+  color: #2a5298;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.analysis-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.metric-box {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 0.75rem;
+  border: 1px solid #e1e5e9;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  min-height: 70px;
+}
+
+.metric-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #2a5298;
+}
+
+.metric-box-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.metric-box-icon {
+  font-size: 0.75rem;
+}
+
+.metric-box-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-box-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2a5298;
+  font-family: 'Courier New', monospace;
+  line-height: 1.2;
+}
+
+.metric-box-subtext {
+  font-size: 0.6rem;
+  color: #888;
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+.trend-summary {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.trend-summary-text {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #444;
+  line-height: 1.5;
+}
+
+/* Dark Mode for Box-Style Metrics */
+.dark-mode .analysis-box-container {
+  background: #2d3748;
+}
+
+.dark-mode .analysis-title {
+  color: #63b3ed;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .metric-box {
+  background: #374151;
+  border-color: #4a5568;
+}
+
+.dark-mode .metric-box:hover {
+  border-color: #63b3ed;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .metric-box-label {
+  color: #a0aec0;
+}
+
+.dark-mode .metric-box-value {
+  color: #63b3ed;
+}
+
+.dark-mode .metric-box-subtext {
+  color: #718096;
+}
+
+.dark-mode .trend-summary {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .trend-summary-text {
+  color: #e2e8f0;
+}
+
+/* Responsive for Box-Style Metrics */
+@media (max-width: 1200px) {
+  .analysis-metrics-grid {
+    gap: 0.5rem;
+  }
+  
+  .metric-box {
+    padding: 0.6rem;
+    min-height: 60px;
+  }
+  
+  .metric-box-value {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .analysis-box-container {
+    margin-top: 1rem;
+  }
+  
+  .analysis-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .chart-comparison-area,
+  .analysis-summary-area {
+    width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .analysis-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .metric-box {
+    min-height: auto;
+  }
+}
+
+/* Loading container for cluster analysis */
+.cluster-loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  position: relative;
+}
+
+.cluster-loading-container .loading-spinner.battery-loading-spinner {
+  position: relative !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+}

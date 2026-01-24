@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginUser, resetPassword } from '../../../services/auth';
+import { useAuth } from '../../../contexts/AuthContext';
 import Toast from '../../Common/Toast/Toast';
 import './Login.css';
 
 const Login = () => {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -101,11 +103,13 @@ const Login = () => {
     const result = await loginUser(email, password);
     
     if (result.success) {
+      // Update auth context with user data
+      login(result.user);
       setToast({ type: 'success', message: 'Login successful! Welcome back.' });
       // Keep loading true to show "Authenticating..." until navigation
       setTimeout(() => {
         navigate('/dashboard');
-      }, 2000);
+      }, 1500);
     } else {
       setError(result.error);
       setLoading(false);

@@ -1,3 +1,17 @@
+/* Global Chart Styles for Light Mode - Blue axis text and small font */
+:not(.dark-mode) .recharts-cartesian-axis-tick-value,
+:not(.dark-mode) .recharts-text,
+:not(.dark-mode) .recharts-label {
+  fill: #2a5298 !important;
+  color: #2a5298 !important;
+  font-size: 9px !important;
+}
+
+:not(.dark-mode) .recharts-legend-item-text {
+  fill: #2a5298 !important;
+  color: #2a5298 !important;
+}
+
 /* Global Chart Styles for Dark Mode */
 .dark-mode .recharts-cartesian-axis-tick-value,
 .dark-mode .recharts-text,
@@ -9,27 +23,4 @@
 .dark-mode .recharts-legend-item-text {
   fill: #ffffff !important;
   color: #ffffff !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .recharts-cartesian-axis-tick-value,
-  .recharts-text,
-  .recharts-label {
-    fill: #ffffff !important;
-    color: #ffffff !important;
-  }
-
-  .recharts-legend-item-text {
-    fill: #ffffff !important;
-    color: #ffffff !important;
-  }
-}
-
-/* Global Chart Styles for Light Mode - Blue axis text and small font */
-.recharts-cartesian-axis-tick-value,
-.recharts-text,
-.recharts-label {
-  fill: #2a5298 !important;
-  color: #2a5298 !important;
-  font-size: 9px !important;
 }

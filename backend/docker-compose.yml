@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: pcl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pcl_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pcl_secure_password_change_me}
+      POSTGRES_DB: pcl_analysis
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pcl_user -d pcl_analysis"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pcl-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: pcl-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pcl-network
+
+  # Go API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pcl-api
+    restart: unless-stopped
+    environment:
+      - SERVER_PORT=8080
+      - SERVER_HOST=0.0.0.0
+      - GIN_MODE=release
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=pcl_user
+      - DB_PASSWORD=${DB_PASSWORD:-pcl_secure_password_change_me}
+      - DB_NAME=pcl_analysis
+      - DB_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_change_in_production}
+      - JWT_EXPIRY_HOURS=24
+      - UPLOAD_PATH=/var/reports
+      - MAX_FILE_SIZE=52428800
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    volumes:
+      - reports_data:/var/reports
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - pcl-network
+
+  # Nginx Reverse Proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    container_name: pcl-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - frontend_build:/var/www/html:ro
+    depends_on:
+      - api
+    networks:
+      - pcl-network
+    profiles:
+      - production
+
+networks:
+  pcl-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  reports_data:
+    driver: local
+  frontend_build:
+    driver: local

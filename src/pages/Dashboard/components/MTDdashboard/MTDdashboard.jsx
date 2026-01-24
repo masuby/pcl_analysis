@@ -1,4 +1,7 @@
 import React from 'react';
+import MTDCS from './components/MTDCS/MTDCS';
+import MTDLBF from './components/MTDLBF/MTDLBF';
+import MTDSME from './components/MTDSME/MTDSME';
 import './MTDdashboard.css';
 
 const MTDdashboard = ({ reports, selectedDepartment, onDepartmentChange, userData }) => {
@@ -8,15 +11,23 @@ const MTDdashboard = ({ reports, selectedDepartment, onDepartmentChange, userDat
     ? selectedDepartment 
     : (userData?.department || 'CS');
 
+  // Route to appropriate department component
+  const renderDepartmentView = () => {
+    switch (department.toUpperCase()) {
+      case 'LBF':
+        return <MTDLBF />;
+      case 'CS':
+        return <MTDCS />;
+      case 'SME':
+        return <MTDSME />;
+      default:
+        return <MTDCS />;
+    }
+  };
+
   return (
-    <div className="dashboard-view mtd-dashboard-view">
-      <div className="coming-soon-container">
-        <div className="coming-soon-icon">🚧</div>
-        <h2 className="coming-soon-title">MTD analysis for {department} is coming soon</h2>
-        <p className="coming-soon-message">
-          We're working on bringing you comprehensive Month-To-Date performance metrics and analytics for {department}.
-        </p>
-      </div>
+    <div className="dashboard-view">
+      {renderDepartmentView()}
     </div>
   );
 };

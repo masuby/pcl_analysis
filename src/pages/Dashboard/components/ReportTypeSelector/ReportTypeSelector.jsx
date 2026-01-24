@@ -16,7 +16,7 @@ const ReportTypeSelector = ({
   const [showDepartmentMenu, setShowDepartmentMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isMenuHovered, setIsMenuHovered] = useState(false);
-  const reportTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE'];
+  const reportTypes = ['SUMMARY', 'MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE'];
   const departments = ['CS', 'LBF', 'SME']; // Removed 'ALL' as it has no pages to render
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -50,8 +50,8 @@ const ReportTypeSelector = ({
       clearTimeout(hoverTimeoutRef.current);
     }
 
-    // Show menu for CHALLENGE and other non-MANAGEMENT types
-    if (type !== 'MANAGEMENT' && (isAdmin || type === 'CHALLENGE')) {
+    // Show menu for CHALLENGE, SUMMARY, and other non-MANAGEMENT types
+    if (type !== 'MANAGEMENT' && (isAdmin || type === 'CHALLENGE' || type === 'SUMMARY')) {
       const button = buttonRefs.current[type];
       if (button) {
         const rect = button.getBoundingClientRect();
@@ -153,7 +153,7 @@ const ReportTypeSelector = ({
               <button
                 ref={el => buttonRefs.current[type] = el}
                 className={`selector-button ${selectedType === type ? 'active' : ''} ${
-                  hoveredButton === type && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') ? 'hovered' : ''
+                  hoveredButton === type && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE' || type === 'SUMMARY') ? 'hovered' : ''
                 }`}
                 onClick={() => handleButtonClick(type)}
                 onMouseEnter={(e) => handleButtonHover(type, e)}
@@ -164,7 +164,7 @@ const ReportTypeSelector = ({
                 {selectedType === type && selectedDepartment !== 'ALL' && type !== 'MANAGEMENT' && (
                   <span className="department-indicator">{selectedDepartment}</span>
                 )}
-                {((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') && showDepartmentMenu && hoveredButton === type && (
+                {((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE' || type === 'SUMMARY') && showDepartmentMenu && hoveredButton === type && (
                   <div className="hover-indicator"></div>
                 )}
               </button>
@@ -176,7 +176,7 @@ const ReportTypeSelector = ({
         </div>
       </div>
 
-      {showDepartmentMenu && hoveredButton && ((isAdmin && hoveredButton !== 'MANAGEMENT') || hoveredButton === 'CHALLENGE') && (
+      {showDepartmentMenu && hoveredButton && ((isAdmin && hoveredButton !== 'MANAGEMENT') || hoveredButton === 'CHALLENGE' || hoveredButton === 'SUMMARY') && (
         <div 
           className="department-menu"
           ref={menuRef}
@@ -192,7 +192,7 @@ const ReportTypeSelector = ({
             <span className="menu-report-type">{hoveredButton}</span>
           </div>
           <div className="department-options">
-            {(hoveredButton === 'CHALLENGE' ? getChallengeDepartments() : departments).map(dept => (
+            {(hoveredButton === 'CHALLENGE' ? getChallengeDepartments() : (hoveredButton === 'SUMMARY' ? departments : departments)).map(dept => (
               <button
                 key={dept}
                 className={`department-option ${selectedDepartment === dept && selectedType === hoveredButton ? 'selected' : ''}`}

@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../../../../../services/firebase';
-import { readCountrySheet } from '../utils/reportUtils';
-import { getReportFileUrl } from '../../../../../services/supabase';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { getAllReports, getBatchReportData } from '../../../../../services/reports';
+import { cacheGet, cacheSet } from '../../../../../services/cache';
+
+// In-memory cache for parsed data (survives navigation)
+const parsedDataCache = new Map();
+let batchDataCache = null;
+
+// Clear cache on module load to ensure fresh data after code changes
+parsedDataCache.clear();
+batchDataCache = null;
 
 export const useManagementData = (selectedDepartment, fromDate = null, toDate = null) => {
   const [allReports, setAllReports] = useState([]);
@@ -17,9 +23,13 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     totalViews: 0,
     totalDownloads: 0
   });
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
-    fetchReports();
+    if (!initialLoadDone.current) {
+      fetchReports();
+      initialLoadDone.current = true;
+    }
   }, []);
 
   useEffect(() => {
@@ -28,7 +38,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
 
   useEffect(() => {
     if (managementReports.length > 0) {
-      parseExcelFiles();
+      loadParsedData();
     } else {
       setParsedReports([]);
     }
@@ -39,19 +49,24 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       setLoading(true);
       setError(null);
 
-      const reportsRef = collection(db, 'reports');
-      const snapshot = await getDocs(reportsRef);
+      const result = await getAllReports({ limit: 500, type: 'MANAGEMENT' });
 
-      const reportsData = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now())
-        };
-      });
-
-      setAllReports(reportsData);
+      if (result.success) {
+        const reportsData = (result.data || []).map(report => ({
+          id: report.id,
+          ...report,
+          fileName: report.fileName || report.file_name,
+          fileUrl: report.fileUrl || report.file_url,
+          filePath: report.filePath || report.file_path,
+          fileSize: report.fileSize || report.file_size,
+          createdAt: report.createdAt || report.created_at 
+            ? new Date(report.createdAt || report.created_at) 
+            : new Date()
+        }));
+        setAllReports(reportsData);
+      } else {
+        setError(result.error || 'Failed to load reports');
+      }
     } catch (err) {
       console.error('Error fetching reports:', err);
       setError('Failed to load reports from database');
@@ -60,7 +75,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     }
   };
 
-  const filterReports = () => {
+  const filterReports = useCallback(() => {
     if (!allReports.length) {
       setManagementReports([]);
       return;
@@ -74,9 +89,8 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         report.department === selectedDepartment ||
         report.department === 'ALL';
 
-      const isActive = report.isActive !== false;
+      const isActive = report.isActive !== false && report.is_active !== false;
 
-      // Filter by date
       let inDateRange = true;
       if (fromDate || toDate) {
         const reportDate = report.date ? new Date(report.date) : report.createdAt;
@@ -95,160 +109,104 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
 
     setManagementReports(sorted);
     calculateStats(sorted);
-  };
+  }, [allReports, selectedDepartment, fromDate, toDate]);
 
-  const parseExcelFiles = async () => {
+  // Load ALL pre-parsed data from backend in a SINGLE batch call (much faster!)
+  const loadParsedData = async () => {
     if (!managementReports.length) return;
 
     setParsing(true);
     try {
-      const parsed = await Promise.all(
-        managementReports.map(async (report) => {
-          try {
-            if (!report.fileUrl && !report.filePath) {
-              console.warn(`No file URL for report: ${report.fileName}`);
-              return null;
-            }
+      // Use batch endpoint - single call instead of 100+ individual calls
+      let batchData = batchDataCache;
+      
+      if (!batchData) {
+        console.log('[API] Fetching ALL report data in single batch call...');
+        const batchResult = await getBatchReportData();
+        
+        if (!batchResult.success) {
+          console.error('Batch fetch failed:', batchResult.error);
+          setError('Failed to load report data');
+          setParsing(false);
+          return;
+        }
+        
+        batchData = batchResult.data || {};
+        batchDataCache = batchData;
+        console.log(`[Batch] Loaded data for ${Object.keys(batchData).length} reports in single call`);
+      } else {
+        console.log('[Cache] Using cached batch data');
+      }
+      
+      // Transform batch data to expected format for each report
+      const parsed = managementReports.map(report => {
+        const reportData = batchData[report.id];
+        
+        if (!reportData || reportData.length === 0) {
+          return null;
+        }
 
-            // Use fileUrl if available, otherwise fetch from filePath
-            let fileUrl = report.fileUrl;
-            if (!fileUrl && report.filePath) {
-              try {
-                fileUrl = await getReportFileUrl(report.filePath);
-              } catch (e) {
-                console.warn(`Could not get file URL for ${report.fileName}:`, e);
-              }
-            }
+        // Transform backend data to expected format
+        return transformBackendData(report, reportData);
+      });
 
-            if (!fileUrl) {
-              return null;
-            }
-
-            // Read Country sheet
-            const rows = await readCountrySheet(fileUrl);
-            
-            if (!rows || rows.length === 0) {
-              console.warn(`No data found in Country sheet for: ${report.fileName}`);
-              return null;
-            }
-
-            // Extract all numeric columns from the first row
-            const numericColumns = {};
-            if (rows.length > 0) {
-              Object.keys(rows[0]).forEach(key => {
-                if (typeof rows[0][key] === 'number') {
-                  numericColumns[key] = true;
-                }
-              });
-            }
-
-            // Extract data for each section
-            const countrywiseData = {};
-            const csData = {};
-            const csBranches = {}; // Individual CS branches
-            const lbfData = {};
-            const lbfBranches = {}; // Individual LBF branches
-            const smeData = {};
-            const zanzibarData = {};
-
-            // CS branch names
-            const csBranchNames = ['CS', 'Cs Asset Finance'];
-            // LBF branch names
-            const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
-
-            // Extract all numeric columns for each section
-            Object.keys(numericColumns).forEach(column => {
-              // Countrywise - find Country branch
-              const countryRow = rows.find(r => r.Branch === 'Country');
-              if (countryRow && typeof countryRow[column] === 'number') {
-                countrywiseData[column] = countryRow[column];
-              }
-
-              // CS - sum CS and Cs Asset Finance, and store individual branches
-              const csRows = rows.filter(r => 
-                r.Branch === 'CS' || r.Branch === 'Cs Asset Finance'
-              );
-              csData[column] = csRows.reduce((sum, r) => sum + (r[column] || 0), 0);
-              
-              // Store individual CS branch data
-              csBranchNames.forEach(branchName => {
-                if (!csBranches[branchName]) {
-                  csBranches[branchName] = {};
-                }
-                const branchRow = rows.find(r => r.Branch === branchName);
-                if (branchRow && typeof branchRow[column] === 'number') {
-                  csBranches[branchName][column] = branchRow[column];
-                }
-              });
-
-              // LBF - sum all LBF branches, and store individual branches
-              const lbfRows = rows.filter(r =>
-                lbfBranchNames.includes(r.Branch)
-              );
-              lbfData[column] = lbfRows.reduce((sum, r) => sum + (r[column] || 0), 0);
-              
-              // Store individual LBF branch data
-              lbfBranchNames.forEach(branchName => {
-                if (!lbfBranches[branchName]) {
-                  lbfBranches[branchName] = {};
-                }
-                const branchRow = rows.find(r => r.Branch === branchName);
-                if (branchRow && typeof branchRow[column] === 'number') {
-                  lbfBranches[branchName][column] = branchRow[column];
-                }
-              });
-
-              // SME - find SME branch
-              const smeRow = rows.find(r => r.Branch === 'SME');
-              if (smeRow && typeof smeRow[column] === 'number') {
-                smeData[column] = smeRow[column];
-              }
-
-              // ZANZIBAR - find ZANZIBAR branch
-              const zanzibarRow = rows.find(r => r.Branch === 'ZANZIBAR');
-              if (zanzibarRow && typeof zanzibarRow[column] === 'number') {
-                zanzibarData[column] = zanzibarRow[column];
-              }
-            });
-
-            return {
-              ...report,
-              countrywise: countrywiseData,
-              cs: csData,
-              csBranches: csBranches,
-              lbf: lbfData,
-              lbfBranches: lbfBranches,
-              sme: smeData,
-              zanzibar: zanzibarData,
-              date: report.date || report.createdAt
-            };
-          } catch (err) {
-            console.error(`Error parsing Excel for ${report.fileName}:`, err);
-            return {
-              ...report,
-              countrywise: {},
-              cs: {},
-              csBranches: {},
-              lbf: {},
-              lbfBranches: {},
-              sme: {},
-              zanzibar: {},
-              date: report.date || report.createdAt,
-              parseError: err.message
-            };
-          }
-        })
-      );
-
-      // Filter out null results
       const validParsed = parsed.filter(r => r !== null);
       setParsedReports(validParsed);
     } catch (err) {
-      console.error('Error parsing Excel files:', err);
-      setError('Failed to parse Excel files');
+      console.error('Error loading parsed data:', err);
+      setError('Failed to load report data');
     } finally {
       setParsing(false);
     }
+  };
+
+  // Transform backend report_data rows into the expected frontend format
+  const transformBackendData = (report, data) => {
+    const countrywiseData = {};
+    const csData = {};
+    const csBranches = { 'CS': {}, 'Cs Asset Finance': {} };
+    const lbfData = {};
+    const lbfBranches = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {} };
+    const smeData = {};
+    const zanzibarData = {};
+
+    const csBranchNames = ['CS', 'Cs Asset Finance'];
+    const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
+
+    // Group data by branch and metric
+    data.forEach(row => {
+      const branch = row.branch;
+      const metric = row.metric_name || row.metricName;
+      const value = row.metric_value || row.metricValue || 0;
+
+      if (branch === 'Country') {
+        countrywiseData[metric] = value;
+      } else if (csBranchNames.includes(branch)) {
+        csData[metric] = (csData[metric] || 0) + value;
+        if (!csBranches[branch]) csBranches[branch] = {};
+        csBranches[branch][metric] = value;
+      } else if (lbfBranchNames.includes(branch)) {
+        lbfData[metric] = (lbfData[metric] || 0) + value;
+        if (!lbfBranches[branch]) lbfBranches[branch] = {};
+        lbfBranches[branch][metric] = value;
+      } else if (branch === 'SME') {
+        smeData[metric] = value;
+      } else if (branch === 'ZANZIBAR') {
+        zanzibarData[metric] = value;
+      }
+    });
+
+    return {
+      ...report,
+      countrywise: countrywiseData,
+      cs: csData,
+      csBranches,
+      lbf: lbfData,
+      lbfBranches,
+      sme: smeData,
+      zanzibar: zanzibarData,
+      date: report.date || report.createdAt
+    };
   };
 
   const calculateStats = (reports) => {
@@ -265,6 +223,9 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
   };
 
   const refreshData = () => {
+    initialLoadDone.current = false;
+    parsedDataCache.clear();
+    batchDataCache = null;
     fetchReports();
   };
 

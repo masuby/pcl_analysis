@@ -63,15 +63,7 @@
   
   }
 
-@media (prefers-color-scheme: dark) {
-  .coming-soon-title {
-    color: #63b3ed;
-  }
-  
-  .coming-soon-message {
-    color: #a0aec0;
-  }
-}
+
 
 /* Responsive Design */
 @media (max-width: 768px) {

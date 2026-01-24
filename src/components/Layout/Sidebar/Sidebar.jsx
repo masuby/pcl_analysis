@@ -6,10 +6,9 @@ import Toast from '../../Common/Toast/Toast';
 import './Sidebar.css';
 
 const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }) => {
-  const { user, userData, refreshUserData } = useAuth();
+  const { user, userData } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -96,18 +95,9 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
     setShowLogoutConfirm(false);
   };
 
-  const handleRefreshData = async () => {
-    setIsRefreshing(true);
-    try {
-      await refreshUserData();
-      setToast({ type: 'success', message: 'Data refreshed successfully.' });
-      setTimeout(() => setToast(null), 3000);
-    } catch (error) {
-      setToast({ type: 'error', message: 'Failed to refresh data.' });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setIsRefreshing(false);
-    }
+  const handleRefreshData = () => {
+    // Reload the page like Ctrl+R
+    window.location.reload();
   };
 
   // Get user's accessible menu items - FIXED VERSION
@@ -186,9 +176,8 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
             <button 
               onClick={handleRefreshData}
               className="refresh-button"
-              disabled={isRefreshing}
             >
-              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              Refresh Page
             </button>
           </div>
         </div>
@@ -198,17 +187,6 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
 
   return (
     <>
-      {/* Refresh Blur Overlay */}
-      {isRefreshing && (
-        <div className="refresh-blur-overlay">
-          <div className="refresh-loading">
-            <div className="refresh-spinner"></div>
-            <p>Refreshing...</p>
-            <small>Please wait while we update your data</small>
-          </div>
-        </div>
-      )}
-
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -245,10 +223,9 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
             <button 
               onClick={handleRefreshData}
               className="refresh-user-button"
-              title={isRefreshing ? 'Refreshing...' : 'Refresh user data'}
-              disabled={isRefreshing}
+              title="Refresh page (Ctrl+R)"
             >
-              {isRefreshing ? '🔄' : '🔄'}
+              🔄
             </button>
           </div>
         </div>

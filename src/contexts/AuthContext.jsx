@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from '../services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { getUserData } from '../services/auth';
+import { getUserData, logoutUser, isAuthenticated, getAuthToken } from '../services/auth';
 
 const AuthContext = createContext({});
 
@@ -13,82 +11,79 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Check authentication on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        
-        // Fetch user data from Firestore
-        try {
-          const result = await getUserData(firebaseUser.uid);
-          
-          if (result.success) {
-            // Successfully got user data from Firestore
-            setUserData(result.data);
-            setError(null);
-          } else {
-            // User not found in Firestore - create minimal user data
-            setError(result.error);
-            console.warn('User not found in Firestore, creating minimal data:', result.error);
-            
-            setUserData({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName || '',
-              role: 'user', // Default role
-              department: '',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              isActive: true
-            });
-          }
-        } catch (err) {
-          // Error occurred during fetch - create minimal user data
-          setError(err.message);
-          console.error('Error fetching user data:', err);
-          
-          setUserData({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || '',
-            role: 'user', // Default role
-            department: '',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isActive: true
-          });
-        }
-      } else {
-        // User logged out
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      // Check if we have a token
+      if (!isAuthenticated()) {
         setUser(null);
         setUserData(null);
-        setError(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-    });
 
-    return unsubscribe;
-  }, []);
+      // Fetch user data
+      const result = await getUserData();
+      
+      if (result.success && result.data) {
+        setUser({ id: result.data.id, email: result.data.email });
+        setUserData(result.data);
+        setError(null);
+      } else {
+        // Token might be invalid, clear it
+        await logoutUser();
+        setUser(null);
+        setUserData(null);
+        setError(result.error);
+      }
+    } catch (err) {
+      console.error('Error checking auth:', err);
+      setError(err.message);
+      setUser(null);
+      setUserData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const login = (userData, token) => {
+    setUser({ id: userData.id, email: userData.email });
+    setUserData(userData);
+    setError(null);
+  };
+
+  const logout = async () => {
+    await logoutUser();
+    setUser(null);
+    setUserData(null);
+    setError(null);
+  };
 
   const updateUserData = (data) => {
     setUserData(prev => ({ ...prev, ...data }));
+    // Update localStorage
+    const stored = localStorage.getItem('pcl_user');
+    if (stored) {
+      const user = JSON.parse(stored);
+      localStorage.setItem('pcl_user', JSON.stringify({ ...user, ...data }));
+    }
   };
 
   const refreshUserData = async () => {
-    if (user) {
-      // Don't set global loading state to avoid showing "Authenticating..." in PrivateRoute
-      // The calling component (Sidebar) will handle its own loading state
-      try {
-        const result = await getUserData(user.uid);
-        if (result.success) {
-          setUserData(result.data);
-          setError(null);
-        } else {
-          setError(result.error);
-        }
-      } catch (err) {
-        setError(err.message);
+    try {
+      const result = await getUserData();
+      if (result.success && result.data) {
+        setUserData(result.data);
+        setError(null);
+      } else {
+        setError(result.error);
       }
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -97,8 +92,12 @@ export const AuthProvider = ({ children }) => {
     userData,
     loading,
     error,
+    login,
+    logout,
     updateUserData,
-    refreshUserData
+    refreshUserData,
+    isAuthenticated: () => isAuthenticated(),
+    getToken: () => getAuthToken(),
   };
 
   return (

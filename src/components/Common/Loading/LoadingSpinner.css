@@ -17,7 +17,6 @@
   height: auto !important;
   border: none !important;
   border-radius: 0 !important;
-  animation: none !important;
   margin: 0 !important;
   padding: 0 !important;
   z-index: 9999 !important;
@@ -27,53 +26,128 @@
   font-size: inherit !important;
 }
 
-/* Ensure ALL child elements don't have spinning animations */
-.loading-spinner.battery-loading-spinner * {
-  animation: none !important;
-  animation-name: none !important;
-  animation-duration: 0s !important;
-  animation-iteration-count: 1 !important;
+/* Loading bars container */
+.loading-bars-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
 }
 
-.loading-spinner.battery-loading-spinner .loading-message {
-  color: #666;
-  font-size: 0.9rem;
+/* Loading text */
+.loading-text {
+  color: #2a5298;
+  font-size: 1.1rem;
+  font-weight: 600;
   margin: 0;
-  font-weight: 500;
+  white-space: nowrap;
 }
 
-.loading-spinner.battery-loading-spinner.size-small .loading-message {
-  font-size: 0.8rem;
+/* Loading bars wrapper */
+.loading-bars {
+  display: flex;
+  flex-direction: row;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
 }
 
-.loading-spinner.battery-loading-spinner.size-large .loading-message {
-  font-size: 1rem;
+/* Individual loading bar */
+.loading-bar {
+  width: 8px;
+  height: 40px;
+  background-color: #e1e5e9;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  animation: barPulse 1.4s ease-in-out infinite;
+}
+
+/* Bar animations with staggered delays */
+.loading-bar.bar-1 {
+  animation-delay: 0s;
+}
+
+.loading-bar.bar-2 {
+  animation-delay: 0.1s;
+}
+
+.loading-bar.bar-3 {
+  animation-delay: 0.2s;
+}
+
+.loading-bar.bar-4 {
+  animation-delay: 0.3s;
+}
+
+.loading-bar.bar-5 {
+  animation-delay: 0.4s;
+}
+
+/* Animation for bars - changes color from white/gray to blue and expands */
+@keyframes barPulse {
+  0%, 100% {
+    background-color: #e1e5e9;
+    transform: scaleY(1);
+  }
+  50% {
+    background-color: #2a5298;
+    transform: scaleY(1.3);
+  }
+}
+
+/* Size variations */
+.loading-spinner.battery-loading-spinner.size-small .loading-bar {
+  width: 6px;
+  height: 30px;
+}
+
+.loading-spinner.battery-loading-spinner.size-small .loading-text {
+  font-size: 0.9rem;
+}
+
+.loading-spinner.battery-loading-spinner.size-medium .loading-bar {
+  width: 8px;
+  height: 40px;
+}
+
+.loading-spinner.battery-loading-spinner.size-medium .loading-text {
+  font-size: 1.1rem;
+}
+
+.loading-spinner.battery-loading-spinner.size-large .loading-bar {
+  width: 10px;
+  height: 50px;
+}
+
+.loading-spinner.battery-loading-spinner.size-large .loading-text {
+  font-size: 1.3rem;
 }
 
 /* Dark Mode Support */
+.dark-mode .loading-text {
+  color: #63b3ed;
+}
 
-  .dark-mode .loading-spinner.battery-loading-spinner {
+.dark-mode .loading-bar {
+  background-color: #4a5568;
+}
 
-    background: transparent !important;
+.dark-mode .loading-bar {
+  animation: barPulseDark 1.4s ease-in-out infinite;
+}
 
+@keyframes barPulseDark {
+  0%, 100% {
+    background-color: #4a5568;
+    transform: scaleY(1);
   }
-
-
-  
-  .dark-mode .loading-message {
-
-  
-    color: #a0aec0;
-
-  
+  50% {
+    background-color: #63b3ed;
+    transform: scaleY(1.3);
   }
+}
 
-@media (prefers-color-scheme: dark) {
-  .loading-spinner.battery-loading-spinner {
-    background: transparent !important;
-  }
-  
-  .loading-message {
-    color: #a0aec0;
-  }
+/* Ensure no conflicting animations */
+.loading-spinner.battery-loading-spinner * {
+  animation-fill-mode: both !important;
 }

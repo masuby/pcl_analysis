@@ -125,31 +125,3 @@
   
   }
 
-@media (prefers-color-scheme: dark) {
-  .dashboard-header-content {
-    border-bottom-color: #4a5568;
-  }
-  
-  .dashboard-title {
-    color: #63b3ed;
-  }
-  
-  .dashboard-subtitle {
-    color: #a0aec0;
-  }
-  
-  .admin-note {
-    background: rgba(99, 179, 237, 0.1);
-    border-color: rgba(99, 179, 237, 0.2);
-    color: #63b3ed;
-  }
-  
-  .dashboard-stats {
-    color: #a0aec0;
-  }
-  
-  .department-info {
-    background: rgba(99, 179, 237, 0.1);
-    border-left-color: #4299e1;
-  }
-}

@@ -215,41 +215,6 @@
   color: white;
 }
 
-@media (prefers-color-scheme: dark) {
-  .main-layout {
-    background: #1a202c;
-  }
-
-  .content-area {
-    background: #1a202c;
-  }
-
-  .main-footer {
-    background: #2d3748;
-    border-top-color: #4a5568;
-  }
-
-  .copyright {
-    color: #a0aec0;
-  }
-
-  .version {
-    color: #718096;
-    background: #4a5568;
-  }
-
-  .mobile-menu-toggle {
-    color: #63b3ed;
-  }
-
-  .mobile-menu-toggle:hover {
-    color: #4299e1;
-  }
-  
-  .mobile-menu-toggle.sidebar-open {
-    color: white;
-  }
-}
 
 /* Print Styles */
 @media print {

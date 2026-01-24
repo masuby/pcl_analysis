@@ -76,24 +76,28 @@ export const useCSReports = (department = 'CS') => {
           result.data.map(async (report) => {
             let finalFileUrl = null;
             
-            // Option 1: Use stored fileUrl from Firebase
+            // Option 1: Use stored fileUrl 
             if (report.fileUrl && isValidUrl(report.fileUrl)) {
               finalFileUrl = report.fileUrl;
             }
-            // Option 2: Generate URL from filePath in Supabase
-            else if (report.filePath) {
+            // Option 2: Use file_url from Go backend
+            else if (report.file_url) {
+              finalFileUrl = await getReportFileUrl(report.file_url);
+            }
+            // Option 3: Generate URL from filePath
+            else if (report.filePath || report.file_path) {
               try {
-                finalFileUrl = await getReportFileUrl(report.filePath);
+                finalFileUrl = await getReportFileUrl(report.filePath || report.file_path);
               } catch (urlError) {
-                console.warn(`Failed to generate URL for ${report.filePath}:`, urlError);
+                console.warn(`Failed to generate URL for ${report.filePath || report.file_path}:`, urlError);
               }
             }
             
             return {
               ...report,
               fileUrl: finalFileUrl,
-              // Ensure date is properly formatted
-              date: report.date?.toDate ? report.date.toDate() : new Date(report.date)
+              // Ensure date is properly formatted - handle both camelCase and snake_case
+              date: report.date?.toDate ? report.date.toDate() : new Date(report.date || report.created_at)
             };
           })
         );

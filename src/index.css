@@ -8,4 +8,18 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #f5f7fa;
+  color: #333;
+}
+
+/* Ensure light mode background */
+:not(.dark-mode) body {
+  background-color: #f5f7fa;
+  color: #333;
+}
+
+/* Dark mode background */
+.dark-mode body {
+  background-color: #1a202c;
+  color: #e2e8f0;
 }

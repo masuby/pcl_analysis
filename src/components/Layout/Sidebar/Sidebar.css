@@ -127,14 +127,9 @@
   flex-shrink: 0;
 }
 
-.refresh-user-button:hover:not(:disabled) {
+.refresh-user-button:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: rotate(90deg);
-}
-
-.refresh-user-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Menu Section */
@@ -762,39 +757,6 @@
 
   }
 
-@media (prefers-color-scheme: dark) {
-  .logout-modal {
-    background: #2d3748;
-    color: #e2e8f0;
-  }
-
-  .modal-body p {
-    color: #e2e8f0;
-  }
-
-  .user-info-modal {
-    background: #4a5568;
-  }
-
-  .user-email-modal {
-    color: #63b3ed;
-  }
-
-  .modal-footer {
-    border-top-color: #4a5568;
-  }
-
-  .cancel-btn {
-    background: #4a5568;
-    color: #e2e8f0;
-    border-color: #718096;
-  }
-
-  .cancel-btn:hover {
-    background: #2d3748;
-    border-color: #4a5568;
-  }
-}
 
 /* Refresh Blur Overlay */
 .refresh-blur-overlay {

@@ -6,6 +6,7 @@ import ClusterChart from './ClusterChart';
 import ClusterAnalysis from './ClusterAnalysis';
 import ClusterSummary from './ClusterSummary';
 import ComparisonList from './ComparisonList';
+import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 
 // Helper function to aggregate rows by date
 const aggregateByDate = (rows) => {
@@ -476,10 +477,8 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
 
   if (loading) {
     return (
-      <div className="section-card">
-        <div style={{ padding: '2rem', textAlign: 'center' }}>
-          <p>Loading cluster data...</p>
-        </div>
+      <div className="section-card cluster-loading-container">
+        <LoadingSpinner size="medium" />
       </div>
     );
   }
@@ -571,7 +570,8 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
       
       <div className="section-content">
         <div className="section-container">
-          <div style={{ width: '100%' }}>
+          {/* Left Side - Chart, Summary, and Comparison */}
+          <div className="chart-comparison-area">
             <ClusterChart
               data={filteredData}
               chartType={chartType}
@@ -594,7 +594,7 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
               selectedBranch={selectedBranch}
             />
             
-            {/* Summary Section */}
+            {/* Summary Section - below chart */}
             <div className="summary-divider" style={{ marginTop: '1rem', marginBottom: '1rem' }} />
             <ClusterSummary 
               data={currentData}
@@ -604,7 +604,7 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
               selectedBranch={selectedBranch}
             />
             
-            {/* Comparison Section */}
+            {/* Comparison Section - at bottom */}
             {comparisonData.length > 0 && comparisonLevelName && (
               <>
                 <div className="summary-divider" style={{ marginTop: '1rem', marginBottom: '1rem' }} />
@@ -619,7 +619,10 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
               </>
             )}
           </div>
+          
           <div className="vertical-divider" />
+          
+          {/* Right Side - Analysis boxes only */}
           <ClusterAnalysis 
             data={chartData} 
             metric={column} 

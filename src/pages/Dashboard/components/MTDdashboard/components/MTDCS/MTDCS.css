@@ -1,0 +1,176 @@
+/* ============================================
+   MTD Department View Styles - Unique Prefix: mtd-
+   ============================================ */
+
+/* Department View Container */
+.mtd-dept-view {
+  padding: 1rem;
+  animation: mtdFadeIn 0.3s ease;
+}
+
+@keyframes mtdFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Date Header */
+.mtd-date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #2a5298;
+}
+
+.mtd-date-select-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.mtd-date-select {
+  padding: 0.5rem 1rem;
+  padding-left: 2.5rem;
+  border: 1px solid #2a5298;
+  background: #ffffff;
+  color: #333;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-width: 200px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232a5298' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'%3E%3C/rect%3E%3Cline x1='16' y1='2' x2='16' y2='6'%3E%3C/line%3E%3Cline x1='8' y1='2' x2='8' y2='6'%3E%3C/line%3E%3Cline x1='3' y1='10' x2='21' y2='10'%3E%3C/line%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.75rem center;
+  background-size: 16px 16px;
+}
+
+.mtd-date-select:hover {
+  border-color: #1e3c72;
+}
+
+.mtd-date-select:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 2px rgba(42, 82, 152, 0.2);
+}
+
+.mtd-date-text {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #2a5298;
+}
+
+/* Loading State */
+.mtd-loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 3rem;
+}
+
+.mtd-loading-wrap .loading-message {
+  margin-top: 1.5rem;
+  color: #2a5298;
+  font-size: 1.1rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Error State */
+.mtd-error-wrap {
+  text-align: center;
+  padding: 3rem;
+}
+
+.mtd-error-wrap .error-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #e53e3e;
+}
+
+.mtd-error-wrap h3 {
+  margin: 0 0 1rem 0;
+  color: #e53e3e;
+}
+
+.mtd-error-wrap p {
+  margin: 0;
+  color: #666;
+}
+
+/* Empty State */
+.mtd-empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 3rem;
+  text-align: center;
+}
+
+.mtd-empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.6;
+}
+
+.mtd-empty-wrap h2 {
+  margin: 0 0 1rem 0;
+  color: #2a5298;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.mtd-empty-sub {
+  margin: 0;
+  color: #666;
+  font-size: 1rem;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* ========== DARK MODE ========== */
+.dark-mode .mtd-date-header {
+  border-bottom-color: #4299e1;
+}
+
+.dark-mode .mtd-date-text {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-date-select {
+  background: #4a5568;
+  border-color: #718096;
+  color: #e2e8f0;
+  background-image: none;
+  padding-left: 1rem;
+}
+
+.dark-mode .mtd-date-select:hover {
+  border-color: #4299e1;
+}
+
+.dark-mode .mtd-date-select:focus {
+  border-color: #4299e1;
+  box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .mtd-loading-wrap .loading-message {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-empty-wrap h2 {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-empty-sub {
+  color: #a0aec0;
+}

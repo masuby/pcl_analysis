@@ -1,37 +1,62 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  getDocs, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  orderBy, 
-  where,
-  limit,
-  serverTimestamp 
-} from 'firebase/firestore';
-import { db } from './firebase';
+/**
+ * Challenges Service - Go Backend API
+ * Replaces Firebase Firestore
+ */
 
-const CHALLENGES_COLLECTION = 'Challenge';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+// Get auth token
+const getToken = () => localStorage.getItem('pcl_token');
+
+// API request helper
+const apiRequest = async (endpoint, options = {}) => {
+  const token = getToken();
+  
+  const headers = {
+    ...options.headers,
+  };
+  
+  // Don't set Content-Type for FormData
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('API Error:', error);
+    return { success: false, error: error.message };
+  }
+};
 
 // Create a new challenge
 export const createChallenge = async (challengeData) => {
   try {
-    const challengeId = `challenge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const challengeRef = doc(db, CHALLENGES_COLLECTION, challengeId);
+    const response = await apiRequest('/api/challenges', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: challengeData.title,
+        description: challengeData.description,
+        department: challengeData.department,
+        start_date: challengeData.startDate,
+        end_date: challengeData.endDate,
+        priority: challengeData.priority || 'medium',
+        image_url: challengeData.imageUrl || '',
+        attachment_url: challengeData.attachmentUrl || '',
+      }),
+    });
     
-    const challenge = {
-      id: challengeId,
-      ...challengeData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      isActive: true
-    };
-
-    await setDoc(challengeRef, challenge);
-    return { success: true, data: challenge };
+    return response;
   } catch (error) {
     console.error('Error creating challenge:', error);
     return { success: false, error: error.message };
@@ -41,27 +66,18 @@ export const createChallenge = async (challengeData) => {
 // Get all challenges
 export const getAllChallenges = async (options = {}) => {
   try {
-    const { limit: limitNum = 100, orderBy: order = 'createdAt', orderDir = 'desc' } = options;
-    const challengesRef = collection(db, CHALLENGES_COLLECTION);
-    const q = query(challengesRef, orderBy(order, orderDir), limit(limitNum));
+    const { limit = 100 } = options;
+    const params = new URLSearchParams({ limit: String(limit) });
     
-    const querySnapshot = await getDocs(q);
-    const challenges = [];
+    const response = await apiRequest(`/api/challenges?${params}`);
     
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      challenges.push({
-        id: doc.id,
-        ...data,
-        // Convert Firestore timestamps to dates
-        startDate: data.startDate?.toDate ? data.startDate.toDate() : new Date(data.startDate),
-        endDate: data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate),
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)
-      });
-    });
-
-    return { success: true, data: challenges };
+    if (response.success) {
+      // Map backend fields to frontend expected fields
+      const challenges = (response.data || []).map(mapChallengeFromBackend);
+      return { success: true, data: challenges };
+    }
+    
+    return { success: false, error: response.error };
   } catch (error) {
     console.error('Error fetching challenges:', error);
     return { success: false, error: error.message };
@@ -71,25 +87,13 @@ export const getAllChallenges = async (options = {}) => {
 // Get challenge by ID
 export const getChallengeById = async (challengeId) => {
   try {
-    const challengeRef = doc(db, CHALLENGES_COLLECTION, challengeId);
-    const challengeSnap = await getDoc(challengeRef);
+    const response = await apiRequest(`/api/challenges/${challengeId}`);
     
-    if (challengeSnap.exists()) {
-      const data = challengeSnap.data();
-      return { 
-        success: true, 
-        data: {
-          id: challengeSnap.id,
-          ...data,
-          startDate: data.startDate?.toDate ? data.startDate.toDate() : new Date(data.startDate),
-          endDate: data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)
-        }
-      };
+    if (response.success && response.data) {
+      return { success: true, data: mapChallengeFromBackend(response.data) };
     }
     
-    return { success: false, error: 'Challenge not found' };
+    return { success: false, error: response.error || 'Challenge not found' };
   } catch (error) {
     console.error('Error fetching challenge:', error);
     return { success: false, error: error.message };
@@ -99,14 +103,21 @@ export const getChallengeById = async (challengeId) => {
 // Update challenge
 export const updateChallenge = async (challengeId, challengeData) => {
   try {
-    const challengeRef = doc(db, CHALLENGES_COLLECTION, challengeId);
-    
-    await updateDoc(challengeRef, {
-      ...challengeData,
-      updatedAt: serverTimestamp()
+    const response = await apiRequest(`/api/challenges/${challengeId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: challengeData.title,
+        description: challengeData.description,
+        department: challengeData.department,
+        start_date: challengeData.startDate,
+        end_date: challengeData.endDate,
+        priority: challengeData.priority,
+        image_url: challengeData.imageUrl,
+        attachment_url: challengeData.attachmentUrl,
+      }),
     });
-
-    return { success: true };
+    
+    return response;
   } catch (error) {
     console.error('Error updating challenge:', error);
     return { success: false, error: error.message };
@@ -116,9 +127,11 @@ export const updateChallenge = async (challengeId, challengeData) => {
 // Delete challenge
 export const deleteChallenge = async (challengeId) => {
   try {
-    const challengeRef = doc(db, CHALLENGES_COLLECTION, challengeId);
-    await deleteDoc(challengeRef);
-    return { success: true };
+    const response = await apiRequest(`/api/challenges/${challengeId}`, {
+      method: 'DELETE',
+    });
+    
+    return response;
   } catch (error) {
     console.error('Error deleting challenge:', error);
     return { success: false, error: error.message };
@@ -128,33 +141,15 @@ export const deleteChallenge = async (challengeId) => {
 // Search challenges
 export const searchChallenges = async (searchTerm) => {
   try {
-    const challengesRef = collection(db, CHALLENGES_COLLECTION);
-    const allChallenges = await getDocs(challengesRef);
+    const params = new URLSearchParams({ q: searchTerm });
+    const response = await apiRequest(`/api/challenges/search?${params}`);
     
-    const searchLower = searchTerm.toLowerCase();
-    const results = [];
+    if (response.success) {
+      const challenges = (response.data || []).map(mapChallengeFromBackend);
+      return { success: true, data: challenges };
+    }
     
-    allChallenges.forEach((doc) => {
-      const data = doc.data();
-      const title = (data.title || '').toLowerCase();
-      const description = (data.description || '').toLowerCase();
-      const department = (data.department || '').toLowerCase();
-      
-      if (title.includes(searchLower) || 
-          description.includes(searchLower) || 
-          department.includes(searchLower)) {
-        results.push({
-          id: doc.id,
-          ...data,
-          startDate: data.startDate?.toDate ? data.startDate.toDate() : new Date(data.startDate),
-          endDate: data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate),
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)
-        });
-      }
-    });
-    
-    return { success: true, data: results };
+    return { success: false, error: response.error };
   } catch (error) {
     console.error('Error searching challenges:', error);
     return { success: false, error: error.message };
@@ -164,29 +159,14 @@ export const searchChallenges = async (searchTerm) => {
 // Get challenges by department
 export const getChallengesByDepartment = async (department) => {
   try {
-    const challengesRef = collection(db, CHALLENGES_COLLECTION);
-    const q = query(
-      challengesRef, 
-      where('department', '==', department),
-      orderBy('createdAt', 'desc')
-    );
+    const response = await apiRequest(`/api/challenges/department/${department}`);
     
-    const querySnapshot = await getDocs(q);
-    const challenges = [];
+    if (response.success) {
+      const challenges = (response.data || []).map(mapChallengeFromBackend);
+      return { success: true, data: challenges };
+    }
     
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      challenges.push({
-        id: doc.id,
-        ...data,
-        startDate: data.startDate?.toDate ? data.startDate.toDate() : new Date(data.startDate),
-        endDate: data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate),
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt),
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)
-      });
-    });
-
-    return { success: true, data: challenges };
+    return { success: false, error: response.error };
   } catch (error) {
     console.error('Error fetching department challenges:', error);
     return { success: false, error: error.message };
@@ -198,10 +178,29 @@ export const getChallengeStatus = (challenge) => {
   if (!challenge.startDate || !challenge.endDate) return 'unknown';
   
   const now = new Date();
-  const startDate = challenge.startDate?.toDate ? challenge.startDate.toDate() : new Date(challenge.startDate);
-  const endDate = challenge.endDate?.toDate ? challenge.endDate.toDate() : new Date(challenge.endDate);
+  const startDate = new Date(challenge.startDate);
+  const endDate = new Date(challenge.endDate);
   
   if (now < startDate) return 'incoming';
   if (now > endDate) return 'finished';
   return 'ongoing';
+};
+
+// Helper: Map backend challenge to frontend format
+const mapChallengeFromBackend = (challenge) => {
+  return {
+    id: challenge.id,
+    title: challenge.title,
+    description: challenge.description,
+    department: challenge.department,
+    startDate: challenge.start_date ? new Date(challenge.start_date) : null,
+    endDate: challenge.end_date ? new Date(challenge.end_date) : null,
+    priority: challenge.priority,
+    imageUrl: challenge.image_url,
+    attachmentUrl: challenge.attachment_url,
+    status: challenge.status,
+    createdAt: challenge.created_at ? new Date(challenge.created_at) : new Date(),
+    updatedAt: challenge.updated_at ? new Date(challenge.updated_at) : new Date(),
+    isActive: true,
+  };
 };

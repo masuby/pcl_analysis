@@ -1,13 +1,26 @@
+// ClusterAnalysis.jsx - Box-style metrics display
+import { useMemo } from 'react';
 import { analyzeData, formatNumberCompact } from '../../utils/analysisUtils';
 import './ClusterAnalysisSection.css';
 
 const ClusterAnalysis = ({ data, metric, fromDate, toDate }) => {
   const stats = analyzeData(data, metric);
+  
+  // Get the latest data point for Excel-based metrics
+  const latestData = useMemo(() => {
+    if (!data || data.length === 0) return null;
+    const sorted = [...data].sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date : new Date(a.date);
+      const dateB = b.date instanceof Date ? b.date : new Date(b.date);
+      return dateB - dateA;
+    });
+    return sorted[0];
+  }, [data]);
 
   if (!stats || !metric) {
     return (
-      <div className="analysis-box">
-        <h4>Analysis</h4>
+      <div className="analysis-box-container">
+        <h4 className="analysis-title">Analysis</h4>
         <p className="analysis-placeholder">Select a metric to view analysis</p>
       </div>
     );
@@ -25,18 +38,8 @@ const ClusterAnalysis = ({ data, metric, fromDate, toDate }) => {
     });
   };
 
-  const formatDateShort = (date) => {
-    if (!date) return '';
-    const d = date instanceof Date ? date : new Date(date);
-    return d.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
   const getTrendIcon = () => {
-    if (!stats.trend) return '';
+    if (!stats.trend) return '➡️';
     if (stats.trend === 'up') return '📈';
     if (stats.trend === 'down') return '📉';
     return '➡️';
@@ -49,102 +52,148 @@ const ClusterAnalysis = ({ data, metric, fromDate, toDate }) => {
     return '#666';
   };
 
+  const getTrendText = () => {
+    if (!stats.trend) return 'No Change';
+    if (stats.trend === 'up') return 'Increasing';
+    if (stats.trend === 'down') return 'Decreasing';
+    return 'Stable';
+  };
+
+  // Get Excel-based metrics from latest data
+  const getMetricValue = (metricName) => {
+    if (!latestData) return null;
+    // Try different variations of metric names
+    const variations = [
+      metricName,
+      metricName.replace(/ /g, ''),
+      metricName.toLowerCase(),
+      metricName.toUpperCase()
+    ];
+    for (const name of variations) {
+      if (latestData[name] !== undefined && latestData[name] !== null) {
+        return latestData[name];
+      }
+    }
+    // Check for partial matches
+    const keys = Object.keys(latestData);
+    for (const key of keys) {
+      if (key.toLowerCase().includes(metricName.toLowerCase().replace(/ /g, ''))) {
+        return latestData[key];
+      }
+    }
+    return null;
+  };
+
+  // Build metric boxes configuration
+  const metricBoxes = [
+    {
+      label: 'Latest Value',
+      value: formatNumber(stats.latest),
+      subtext: stats.latestDate ? formatDate(stats.latestDate) : null,
+      color: '#2a5298',
+      icon: '📊'
+    },
+    {
+      label: 'Previous Value',
+      value: formatNumber(stats.previous),
+      subtext: stats.previousDate ? formatDate(stats.previousDate) : null,
+      color: '#666',
+      icon: '📋'
+    },
+    {
+      label: 'Trend',
+      value: stats.trendPercentage !== null ? `${stats.trendPercentage > 0 ? '+' : ''}${stats.trendPercentage}%` : 'N/A',
+      subtext: getTrendText(),
+      color: getTrendColor(),
+      icon: getTrendIcon()
+    },
+    {
+      label: 'New Business',
+      value: formatNumber(getMetricValue('New Business')),
+      subtext: 'From Excel',
+      color: '#0ea5e9',
+      icon: '🆕'
+    },
+    {
+      label: 'Repeat Business',
+      value: formatNumber(getMetricValue('Repeat Business')),
+      subtext: 'From Excel',
+      color: '#8b5cf6',
+      icon: '🔄'
+    },
+    {
+      label: 'Number of Loans',
+      value: formatNumber(getMetricValue('Number of loans') || getMetricValue('Number of Loans')),
+      subtext: 'Active Loans',
+      color: '#f59e0b',
+      icon: '📝'
+    },
+    {
+      label: 'PAR>30',
+      value: formatNumber(getMetricValue('PAR>30')),
+      subtext: 'Portfolio at Risk',
+      color: '#ef4444',
+      icon: '⚠️'
+    },
+    {
+      label: 'Active Reps',
+      value: formatNumber(getMetricValue('Active Reps') || getMetricValue('Active clients')),
+      subtext: 'Current Active',
+      color: '#22c55e',
+      icon: '👥'
+    },
+    {
+      label: 'Maximum',
+      value: formatNumber(stats.max),
+      subtext: stats.maxDate ? formatDate(stats.maxDate) : null,
+      color: '#10b981',
+      icon: '📈'
+    },
+    {
+      label: 'Minimum',
+      value: formatNumber(stats.min),
+      subtext: stats.minDate ? formatDate(stats.minDate) : null,
+      color: '#f97316',
+      icon: '📉'
+    }
+  ];
+
   return (
-    <div className="analysis-box">
-      <h4>Analysis: {metric}</h4>
+    <div className="analysis-box-container">
+      <h4 className="analysis-title">📊 Analysis: {metric}</h4>
       
-      <div className="analysis-stats">
-        <div className="stat-row">
-          <span className="stat-label">Latest Value:</span>
-          <span className="stat-value-primary">{formatNumber(stats.latest)}</span>
-        </div>
-        {stats.latestDate && (
-          <div className="stat-date">on {formatDate(stats.latestDate)}</div>
-        )}
-
-        {stats.previous !== null && (
-          <>
-            <div className="stat-row">
-              <span className="stat-label">Previous Value:</span>
-              <span className="stat-value">{formatNumber(stats.previous)}</span>
+      <div className="analysis-metrics-grid">
+        {metricBoxes.map((box, index) => (
+          <div key={index} className="metric-box">
+            <div className="metric-box-header">
+              <span className="metric-box-icon">{box.icon}</span>
+              <span className="metric-box-label">{box.label}</span>
             </div>
-            {stats.previousDate && (
-              <div className="stat-date">on {formatDate(stats.previousDate)}</div>
+            <div className="metric-box-value" style={{ color: box.color }}>
+              {box.value || '—'}
+            </div>
+            {box.subtext && (
+              <div className="metric-box-subtext">{box.subtext}</div>
             )}
-          </>
-        )}
-
-        {stats.trend && (
-          <div className="stat-row trend-row">
-            <span className="stat-label">Trend:</span>
-            <span className="stat-value" style={{ color: getTrendColor() }}>
-              {getTrendIcon()} {stats.trendPercentage !== null && `${stats.trendPercentage > 0 ? '+' : ''}${stats.trendPercentage}%`}
-            </span>
           </div>
-        )}
-
-        <div className="stat-divider" />
-
-        <div className="stat-row">
-          <span className="stat-label">Minimum:</span>
-          <span className="stat-value">{formatNumber(stats.min)}</span>
-        </div>
-        {stats.minDate && (
-          <div className="stat-date">on {formatDate(stats.minDate)}</div>
-        )}
-
-        <div className="stat-row">
-          <span className="stat-label">Maximum:</span>
-          <span className="stat-value">{formatNumber(stats.max)}</span>
-        </div>
-        {stats.maxDate && (
-          <div className="stat-date">on {formatDate(stats.maxDate)}</div>
-        )}
-
-        <div className="stat-row">
-          <span className="stat-label">Average:</span>
-          <span className="stat-value">{formatNumber(stats.avg)}</span>
-        </div>
-
-        <div className="stat-row">
-          <span className="stat-label">Median:</span>
-          <span className="stat-value">{formatNumber(stats.median)}</span>
-        </div>
-
-        <div className="stat-row">
-          <span className="stat-label">Range:</span>
-          <span className="stat-value">{formatNumber(stats.range)}</span>
-        </div>
-
-        <div className="stat-row">
-          <span className="stat-label">Count:</span>
-          <span className="stat-value">{stats.count}</span>
-        </div>
+        ))}
       </div>
-
-      {/* Trend Section */}
-      {stats && metric && fromDate && toDate && (
-        <>
-          <div className="trend-divider" />
-          <div className="trend-section">
-            <h5 className="trend-title">Trend</h5>
-            <p className="trend-text">
-              From <strong>{formatDateShort(fromDate)}</strong> to <strong>{formatDateShort(toDate)}</strong>, 
-              The Latest Amount is <strong>{formatNumber(stats.latest)}</strong> on <strong>{formatDateShort(stats.latestDate)}</strong>, 
-              where the maximum was <strong>{formatNumber(stats.max)}</strong> captured on <strong>{formatDateShort(stats.maxDate)}</strong> 
-              and the minimum was <strong>{formatNumber(stats.min)}</strong> captured on <strong>{formatDateShort(stats.minDate)}</strong>. 
-              This shows an <strong>{stats.trend === 'up' ? 'increase' : stats.trend === 'down' ? 'decrease' : 'no change'}</strong> of{' '}
-              <strong>{stats.trendPercentage !== null ? `${stats.trendPercentage > 0 ? '+' : ''}${stats.trendPercentage}%` : 'N/A'}</strong> 
-              from the previous Amount (<strong>{formatNumber(stats.previous)}</strong>).
-            </p>
-          </div>
-        </>
+      
+      {/* Trend Summary Text */}
+      {stats && fromDate && toDate && (
+        <div className="trend-summary">
+          <p className="trend-summary-text">
+            <strong>{metric}</strong> from {formatDate(fromDate)} to {formatDate(toDate)}: 
+            Latest <strong style={{ color: '#2a5298' }}>{formatNumber(stats.latest)}</strong>, 
+            showing a <strong style={{ color: getTrendColor() }}>{getTrendText().toLowerCase()}</strong> of{' '}
+            <strong style={{ color: getTrendColor() }}>
+              {stats.trendPercentage !== null ? `${stats.trendPercentage > 0 ? '+' : ''}${stats.trendPercentage}%` : 'N/A'}
+            </strong> from previous.
+          </p>
+        </div>
       )}
     </div>
   );
 };
 
 export default ClusterAnalysis;
-
-
-

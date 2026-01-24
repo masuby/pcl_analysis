@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportTypeSelector from './components/ReportTypeSelector/ReportTypeSelector';
+import SummaryDashboard from './components/SummaryDashboard/SummaryDashboard';
 import ManagementDashboard from './components/ManagementDashboard/ManagementDashboard';
 import CRMdashboard from './components/CRMdashboard/CRMdashboard';
 import CallCenterDashboard from './components/CallCenterDashboard/CallCenterDashboard';
@@ -14,7 +15,7 @@ import './Dashboard.css';
 
 const Dashboard = () => {
   const { userData } = useAuth();
-  const [selectedReportType, setSelectedReportType] = useState('MANAGEMENT');
+  const [selectedReportType, setSelectedReportType] = useState('SUMMARY');
   const [selectedDepartment, setSelectedDepartment] = useState(userData?.department || 'ALL');
   const [toast, setToast] = useState(null);
   
@@ -31,6 +32,9 @@ const Dashboard = () => {
     if (!preserveDepartment) {
       if (reportType === 'MANAGEMENT') {
         setSelectedDepartment('ALL');
+      } else if (reportType === 'SUMMARY') {
+        // SUMMARY respects user's department
+        setSelectedDepartment(userData?.department || 'ALL');
       } else {
         setSelectedDepartment(userData?.department || 'ALL');
       }
@@ -54,6 +58,13 @@ const Dashboard = () => {
     }
 
     switch (selectedReportType) {
+      case 'SUMMARY':
+        return (
+          <SummaryDashboard 
+            selectedDepartment={selectedDepartment}
+            userData={userData}
+          />
+        );
       case 'MANAGEMENT':
         return (
           <ManagementDashboard 
