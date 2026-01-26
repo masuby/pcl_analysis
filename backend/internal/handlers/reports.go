@@ -251,6 +251,7 @@ func UploadReport(c *gin.Context) {
 	department := c.PostForm("department")
 	reportType := c.PostForm("type")
 	dateStr := c.PostForm("date")
+	pathFromForm := c.PostForm("path") // Get path from frontend if provided
 
 	if title == "" || department == "" || reportType == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -259,22 +260,82 @@ func UploadReport(c *gin.Context) {
 		})
 		return
 	}
-
-	// Parse date if provided
-	var reportDate *time.Time
-	if dateStr != "" {
-		parsed, err := time.Parse("2006-01-02", dateStr)
-		if err == nil {
-			reportDate = &parsed
-		}
+	
+	if dateStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Date is required",
+		})
+		return
 	}
 
-	// Create file path
+	// Parse date if provided - handle multiple formats like UpdateReport
+	var reportDate *time.Time
+	if dateStr != "" {
+		// Try multiple date formats
+		formats := []string{
+			time.RFC3339,
+			time.RFC3339Nano,
+			"2006-01-02T15:04:05Z07:00",
+			"2006-01-02",
+			"02/01/2006",
+		}
+		
+		parsed := false
+		for _, format := range formats {
+			if t, err := time.Parse(format, dateStr); err == nil {
+				reportDate = &t
+				parsed = true
+				fmt.Printf("Successfully parsed date '%s' using format '%s' -> %v\n", dateStr, format, reportDate)
+				break
+			}
+		}
+		
+		// If still not parsed, try extracting just the date part from ISO string
+		if !parsed && len(dateStr) >= 10 {
+			dateOnly := dateStr[:10] // Extract YYYY-MM-DD part
+			if t, err := time.Parse("2006-01-02", dateOnly); err == nil {
+				reportDate = &t
+				fmt.Printf("Successfully parsed date by extracting YYYY-MM-DD from '%s' -> %v\n", dateStr, reportDate)
+			} else {
+				fmt.Printf("Warning: Failed to parse date '%s' (extracted '%s'): %v\n", dateStr, dateOnly, err)
+			}
+		} else if !parsed {
+			fmt.Printf("Error: Failed to parse date '%s' with all formats\n", dateStr)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   fmt.Sprintf("Invalid date format: %s. Please use YYYY-MM-DD or ISO format", dateStr),
+			})
+			return
+		}
+	}
+	
+	// Ensure we have a valid date before proceeding
+	if reportDate == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Could not parse the provided date. Please use format: dd/mm/yyyy or YYYY-MM-DD",
+		})
+		return
+	}
+
+	// Create file path - use path from form if provided, otherwise generate one
 	fileName := header.Filename
-	timestamp := time.Now().Unix()
-	safeFileName := fmt.Sprintf("%d_%s", timestamp, fileName)
-	filePath := filepath.Join(department, safeFileName)
-	fullPath := filepath.Join(uploadPath, filePath)
+	var filePath string
+	var fullPath string
+	
+	if pathFromForm != "" {
+		// Use the path provided by frontend (includes type folder structure)
+		filePath = pathFromForm
+		fullPath = filepath.Join(uploadPath, filePath)
+	} else {
+		// Generate path (fallback - should not happen if frontend sends path)
+		timestamp := time.Now().Unix()
+		safeFileName := fmt.Sprintf("%d_%s", timestamp, fileName)
+		// Include type in path structure
+		filePath = filepath.Join(department, reportType, safeFileName)
+		fullPath = filepath.Join(uploadPath, filePath)
+	}
 
 	// Create destination directory
 	destDir := filepath.Dir(fullPath)
@@ -327,6 +388,10 @@ func UploadReport(c *gin.Context) {
 		})
 		return
 	}
+
+	// Invalidate cache after creating report
+	_ = database.CacheDeletePattern("reports:*")
+	_ = database.CacheDeletePattern("dashboard:*")
 
 	// Parse Excel and store data (async)
 	go func() {

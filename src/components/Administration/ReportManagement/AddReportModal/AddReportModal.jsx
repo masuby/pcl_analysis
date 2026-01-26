@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { uploadReportFile } from '../../../../services/supabase';
+import { useReportRefresh } from '../../../../contexts/ReportRefreshContext';
+import { cacheInvalidate } from '../../../../services/cache';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import UploadProgress from '../UploadProgress/UploadProgress';
 import './AddReportModal.css';
@@ -30,6 +32,7 @@ const getTodayFormatted = () => {
 };
 
 const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
+  const { triggerRefresh } = useReportRefresh();
   const [formData, setFormData] = useState({
     department: 'CS',
     type: 'CALL CENTER',
@@ -192,17 +195,61 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
       // Extract title from filename
       const reportTitle = extractTitleFromFilename(formData.file.name);
       
+      // Ensure title is not empty
+      if (!reportTitle || reportTitle.trim() === '') {
+        throw new Error('Could not extract title from filename. Please ensure the file has a valid name.');
+      }
+      
       // Convert date from dd/mm/yyyy to ISO format for backend
-      const isoDate = parseDateFromDisplay(formData.date);
-      const fullIsoDate = new Date(isoDate + 'T00:00:00').toISOString();
+      // Use Date.UTC to avoid timezone issues that could shift the date
+      let dateValue = null;
+      if (formData.date) {
+        try {
+          // Convert dd/mm/yyyy to YYYY-MM-DD
+          const isoDate = parseDateFromDisplay(formData.date);
+          
+          if (!isoDate || isoDate.length < 10) {
+            throw new Error('Invalid date format');
+          }
+          
+          // Create date with explicit UTC to avoid timezone issues
+          const [year, month, day] = isoDate.split('-').map(Number);
+          if (isNaN(year) || isNaN(month) || isNaN(day)) {
+            throw new Error('Invalid date values');
+          }
+          
+          const dateObj = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
+          dateValue = dateObj.toISOString();
+          
+          console.log('Date conversion:', formData.date, '->', isoDate, '->', dateValue);
+        } catch (dateError) {
+          console.error('Date conversion error:', dateError);
+          throw new Error(`Invalid date format: ${formData.date}. Please use dd/mm/yyyy format.`);
+        }
+      } else {
+        throw new Error('Date is required');
+      }
+      
+      // Validate all required fields before upload
+      if (!formData.department || !formData.type) {
+        throw new Error('Department and type are required');
+      }
       
       // Upload file with all required data (backend creates the report record)
       const filePath = getFilePath();
+      console.log('Uploading report with:', {
+        title: reportTitle,
+        department: formData.department,
+        type: formData.type,
+        date: dateValue,
+        path: filePath
+      });
+      
       const uploadResult = await uploadReportFile(formData.file, filePath, {
         title: reportTitle,
         department: formData.department,
         type: formData.type,
-        date: fullIsoDate
+        date: dateValue
       });
       
       clearInterval(progressInterval);
@@ -214,6 +261,33 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
 
       // Backend already created the report, use the returned data
       if (uploadResult.data) {
+        // Invalidate all caches
+        cacheInvalidate('reports');
+        cacheInvalidate('dashboard');
+        
+        // Trigger refresh for all dashboards
+        triggerRefresh({
+          type: 'report_added',
+          report: uploadResult.data,
+          department: formData.department,
+          reportType: formData.type
+        });
+        
+        // Also trigger via localStorage for cross-tab communication
+        try {
+          localStorage.setItem('pcl_report_refresh', JSON.stringify({
+            type: 'report_added',
+            report: uploadResult.data,
+            department: formData.department,
+            reportType: formData.type,
+            timestamp: Date.now()
+          }));
+          // Remove after a short delay to allow other tabs to pick it up
+          setTimeout(() => localStorage.removeItem('pcl_report_refresh'), 100);
+        } catch (e) {
+          console.warn('Could not set refresh event:', e);
+        }
+        
         onReportAdded(uploadResult.data);
         onClose();
         showToast('success', 'Report uploaded successfully');

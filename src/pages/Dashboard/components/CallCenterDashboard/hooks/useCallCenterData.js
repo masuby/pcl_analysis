@@ -1,30 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
+import { cacheInvalidate } from '../../../../../services/cache';
+import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 import * as XLSX from 'xlsx';
 
 // In-memory cache for parsed Call Center data
 const callCenterParsedCache = new Map();
 
 export const useCallCenterData = (department, selectedDate = null) => {
+  const { refreshTrigger } = useReportRefresh();
   const [reports, setReports] = useState([]);
   const [parsedData, setParsedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initialLoadDone = useRef(false);
 
-  useEffect(() => {
-    fetchCallCenterReports();
-  }, [department]);
-
-  useEffect(() => {
-    if (reports.length > 0) {
-      parseReports();
-    } else {
-      setParsedData(null);
-    }
-  }, [reports, selectedDate]);
-
-  const fetchCallCenterReports = async () => {
+  const fetchCallCenterReports = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -82,8 +74,35 @@ export const useCallCenterData = (department, selectedDate = null) => {
       setError('Failed to load call center reports');
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
-  };
+  }, [department]);
+
+  // Listen for refresh events
+  useEffect(() => {
+    if (refreshTrigger > 0 && initialLoadDone.current) {
+      console.log(`[CallCenterDashboard-${department}] Refresh triggered, clearing cache`);
+      callCenterParsedCache.clear();
+      cacheInvalidate('reports');
+      setParsedData(null);
+      initialLoadDone.current = false;
+      fetchCallCenterReports();
+    }
+  }, [refreshTrigger, department, fetchCallCenterReports]);
+
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      fetchCallCenterReports();
+    }
+  }, [fetchCallCenterReports]);
+
+  useEffect(() => {
+    if (reports.length > 0) {
+      parseReports();
+    } else {
+      setParsedData(null);
+    }
+  }, [reports, selectedDate]);
 
   const parseReports = async () => {
     if (reports.length === 0) {

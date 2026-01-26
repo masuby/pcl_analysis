@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAllReports, getBatchReportData } from '../../../../../services/reports';
-import { cacheGet, cacheSet } from '../../../../../services/cache';
+import { cacheGet, cacheSet, cacheInvalidate } from '../../../../../services/cache';
+import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 
 // In-memory cache for parsed data (survives navigation)
 const parsedDataCache = new Map();
@@ -11,6 +12,7 @@ parsedDataCache.clear();
 batchDataCache = null;
 
 export const useManagementData = (selectedDepartment, fromDate = null, toDate = null) => {
+  const { refreshTrigger, lastReportUpdate } = useReportRefresh();
   const [allReports, setAllReports] = useState([]);
   const [managementReports, setManagementReports] = useState([]);
   const [parsedReports, setParsedReports] = useState([]);
@@ -24,6 +26,21 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     totalDownloads: 0
   });
   const initialLoadDone = useRef(false);
+
+  // Listen for refresh events
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('[ManagementDashboard] Refresh triggered, clearing cache and refetching');
+      // Clear all caches
+      parsedDataCache.clear();
+      batchDataCache = null;
+      cacheInvalidate('reports');
+      cacheInvalidate('dashboard');
+      // Reset and refetch
+      initialLoadDone.current = false;
+      fetchReports();
+    }
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (!initialLoadDone.current) {

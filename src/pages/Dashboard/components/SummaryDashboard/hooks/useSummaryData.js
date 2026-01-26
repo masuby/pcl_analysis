@@ -5,11 +5,13 @@ import { useManagementData } from '../../ManagementDashboard/hooks/useManagement
 import { useCRMData } from '../../CRMdashboard/hooks/useCRMData';
 import { useCallCenterData } from '../../CallCenterDashboard/hooks/useCallCenterData';
 import { useMTDData } from '../../MTDdashboard/hooks/useMTDData';
+import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 
 // In-memory cache that persists across component mounts
 const summaryCache = new Map();
 
 export const useSummaryData = () => {
+  const { refreshTrigger } = useReportRefresh();
   const [managementData, setManagementData] = useState(() => summaryCache.get('management_summary') || null);
   const [crmData, setCrmData] = useState(() => summaryCache.get('crm_data') || {});
   const [callCenterData, setCallCenterData] = useState(() => summaryCache.get('callcenter_data') || {});
@@ -18,6 +20,21 @@ export const useSummaryData = () => {
   const [error, setError] = useState(null);
   const processingRef = useRef(false);
   const initialProcessDone = useRef(false);
+
+  // Listen for refresh events
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log('[SummaryDashboard] Refresh triggered, clearing cache');
+      // Clear all summary caches
+      summaryCache.clear();
+      setManagementData(null);
+      setCrmData({});
+      setCallCenterData({});
+      setMtdData({});
+      initialProcessDone.current = false;
+      processingRef.current = false;
+    }
+  }, [refreshTrigger]);
 
   // Use existing hooks for data fetching - these handle their own caching
   const { parsedReports: managementReports, loading: managementLoading } = useManagementData();

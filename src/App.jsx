@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
+import { ReportRefreshProvider } from './contexts/ReportRefreshContext';
 import PrivateRoute from './components/Auth/PrivateRoute';
 import Login from './components/Auth/Login/Login';
 import MainLayout from './components/Layout/MainLayout';
@@ -20,22 +21,24 @@ function App() {
     <ThemeProvider>
       <Router>
         <AuthProvider>
-          <ThemeToggle />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<PrivateRoute />}>
-              <Route element={<MainLayout />}>
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="cs-reports" element={<CSReports />} />
-                <Route path="lbf-reports" element={<LBFReports />} />
-                <Route path="sme-reports" element={<SMEReports />} />
-                <Route path="all-reports" element={<AllReports />} />
-                <Route path="administration" element={<Administration />} />
-                <Route path="profile" element={<Profile />} />
-                <Route index element={<Navigate to="/dashboard" />} />
+          <ReportRefreshProvider>
+            <ThemeToggle />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<PrivateRoute />}>
+                <Route element={<MainLayout />}>
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="cs-reports" element={<CSReports />} />
+                  <Route path="lbf-reports" element={<LBFReports />} />
+                  <Route path="sme-reports" element={<SMEReports />} />
+                  <Route path="all-reports" element={<AllReports />} />
+                  <Route path="administration" element={<Administration />} />
+                  <Route path="profile" element={<Profile />} />
+                  <Route index element={<Navigate to="/dashboard" />} />
+                </Route>
               </Route>
-            </Route>
-          </Routes>
+            </Routes>
+          </ReportRefreshProvider>
         </AuthProvider>
       </Router>
     </ThemeProvider>

@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
+import { cacheInvalidate } from '../../../../../services/cache';
+import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 import * as XLSX from 'xlsx';
 
 // In-memory cache for parsed MTD data
@@ -339,24 +341,14 @@ const processExcelFile = async (fileUrl, fileName, department) => {
 };
 
 export const useMTDData = (department, selectedDate = null) => {
+  const { refreshTrigger } = useReportRefresh();
   const [reports, setReports] = useState([]);
   const [parsedData, setParsedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initialLoadDone = useRef(false);
 
-  useEffect(() => {
-    fetchMTDReports();
-  }, [department]);
-
-  useEffect(() => {
-    if (reports.length > 0) {
-      parseReports();
-    } else {
-      setParsedData(null);
-    }
-  }, [reports, selectedDate]);
-
-  const fetchMTDReports = async () => {
+  const fetchMTDReports = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -416,8 +408,35 @@ export const useMTDData = (department, selectedDate = null) => {
       setError('Failed to load MTD reports');
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
-  };
+  }, [department]);
+
+  // Listen for refresh events
+  useEffect(() => {
+    if (refreshTrigger > 0 && initialLoadDone.current) {
+      console.log(`[MTDDashboard-${department}] Refresh triggered, clearing cache`);
+      mtdParsedCache.clear();
+      cacheInvalidate('reports');
+      setParsedData(null);
+      initialLoadDone.current = false;
+      fetchMTDReports();
+    }
+  }, [refreshTrigger, department, fetchMTDReports]);
+
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      fetchMTDReports();
+    }
+  }, [fetchMTDReports]);
+
+  useEffect(() => {
+    if (reports.length > 0) {
+      parseReports();
+    } else {
+      setParsedData(null);
+    }
+  }, [reports, selectedDate]);
 
   const parseReports = async () => {
     if (reports.length === 0) {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
-import { cacheGet, cacheSet } from '../../../../../services/cache';
+import { cacheGet, cacheSet, cacheInvalidate } from '../../../../../services/cache';
+import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 import * as XLSX from 'xlsx';
 
 // In-memory cache for parsed CRM data
@@ -369,10 +370,22 @@ const extractTableFromRange = (allData, startRow, endRow, startCol, endCol, maxC
 };
 
 export const useCRMData = (department, selectedDate = null) => {
+  const { refreshTrigger } = useReportRefresh();
   const [reports, setReports] = useState([]);
   const [parsedData, setParsedData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Listen for refresh events
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      console.log(`[CRMDashboard-${department}] Refresh triggered, clearing cache`);
+      crmParsedCache.clear();
+      cacheInvalidate('reports');
+      setParsedData(null);
+      fetchCRMReports();
+    }
+  }, [refreshTrigger, department]);
 
   useEffect(() => {
     fetchCRMReports();
