@@ -289,6 +289,86 @@
   box-shadow: 0 4px 12px rgba(42, 82, 152, 0.2);
 }
 
+/* Pagination - Unique RM prefix to avoid conflicts */
+.rm-report-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  gap: 1.5rem;
+}
+
+.rm-pagination-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  min-width: 120px;
+  border: 2px solid #cbd5e1;
+  background: white;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.rm-pagination-button:hover:not(:disabled) {
+  border-color: #2a5298;
+  color: #2a5298;
+  background: #f0f7ff;
+  transform: translateY(-1px);
+}
+
+.rm-pagination-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rm-pagination-arrow {
+  font-size: 1.2rem;
+  font-weight: bold;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rm-pagination-text {
+  display: inline-block;
+  line-height: 1.2;
+}
+
+.rm-pagination-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.rm-pagination-current {
+  font-weight: 600;
+  color: #1e3a5f;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.rm-pagination-count {
+  font-size: 0.85rem;
+  color: #64748b;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .view-more-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -334,6 +414,22 @@
   .search-section {
     min-width: 100%;
     max-width: 100%;
+  }
+
+  .rm-report-pagination {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .rm-pagination-info {
+    order: -1;
+  }
+
+  .rm-pagination-button {
+    flex: 1;
+    justify-content: center;
+    min-width: auto;
+    width: 100%;
   }
 
   .empty-icon {
@@ -560,13 +656,34 @@
 
 
   .dark-mode .view-more-button:hover {
-
-
     background: #4299e1;
     color: white;
     border-color: #4299e1;
+  }
 
+  .dark-mode .rm-report-pagination {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
 
+  .dark-mode .rm-pagination-button {
+    background: #2d3748;
+    border-color: #4a5568;
+    color: #a0aec0;
+  }
+
+  .dark-mode .rm-pagination-button:hover:not(:disabled) {
+    background: #1a365d;
+    border-color: #2c5282;
+    color: #90cdf4;
+  }
+
+  .dark-mode .rm-pagination-current {
+    color: #e2e8f0;
+  }
+
+  .dark-mode .rm-pagination-count {
+    color: #a0aec0;
   }
 
 

@@ -342,6 +342,7 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
   const userDept = userData?.department?.toUpperCase() || 'CS';
   
   // Department states for each section - default to CS
+  const [managementDept, setManagementDept] = useState('Country'); // 'Country', 'CS', 'LBF', 'SME'
   const [crmDept, setCrmDept] = useState('CS');
   const [callCenterDept, setCallCenterDept] = useState('CS');
   const [mtdDept, setMtdDept] = useState('CS');
@@ -357,6 +358,9 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
     loading, 
     error 
   } = useSummaryData();
+  
+  // Get current management data based on selected department
+  const currentManagementData = managementData?.[managementDept] || managementData?.Country || null;
 
   // Get data for active departments
   const currentCrmData = crmData[crmDept] || null;
@@ -387,7 +391,7 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
     return (currentCallCenterData.successfulCalls / currentCallCenterData.totalCalls) * 100;
   }, [currentCallCenterData]);
 
-  if (loading && !managementData && Object.keys(crmData).length === 0 && Object.keys(callCenterData).length === 0 && Object.keys(mtdData).length === 0) {
+  if (loading && Object.keys(managementData || {}).length === 0 && Object.keys(crmData).length === 0 && Object.keys(callCenterData).length === 0 && Object.keys(mtdData).length === 0) {
     return (
       <div className="sd-loading-container">
         <LoadingSpinner size="large" />
@@ -417,12 +421,40 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
         <div className="sd-section-header">
           <div className="sd-section-icon sd-management-icon">📈</div>
           <h2>Management Overview</h2>
-          {managementData?.reportDate && (
-            <span className="sd-report-date">{formatReportDate(managementData.reportDate)}</span>
-          )}
+          <div className="sd-header-right">
+            {currentManagementData?.reportDate && (
+              <span className="sd-report-date">{formatReportDate(currentManagementData.reportDate)}</span>
+            )}
+            <div className="sd-mgmt-dept-selector">
+              <button
+                className={`sd-mgmt-dept-btn ${managementDept === 'Country' ? 'sd-active' : ''}`}
+                onClick={() => setManagementDept('Country')}
+              >
+                Country
+              </button>
+              <button
+                className={`sd-mgmt-dept-btn ${managementDept === 'CS' ? 'sd-active' : ''}`}
+                onClick={() => setManagementDept('CS')}
+              >
+                CS
+              </button>
+              <button
+                className={`sd-mgmt-dept-btn ${managementDept === 'LBF' ? 'sd-active' : ''}`}
+                onClick={() => setManagementDept('LBF')}
+              >
+                LBF
+              </button>
+              <button
+                className={`sd-mgmt-dept-btn ${managementDept === 'SME' ? 'sd-active' : ''}`}
+                onClick={() => setManagementDept('SME')}
+              >
+                SME
+              </button>
+            </div>
+          </div>
         </div>
         
-        {managementData ? (
+        {currentManagementData ? (
           <div className="sd-management-content">
             {/* Main KPIs Row - Disbursement and Trend Graph */}
             <div className="sd-main-kpis-row">
@@ -430,11 +462,11 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
               <div className="sd-main-kpi-card">
                 <div className="sd-kpi-header">
                   <span className="sd-kpi-label">Disbursement This Month</span>
-                  <span className={`sd-kpi-trend ${managementData.trend >= 0 ? 'sd-positive' : 'sd-negative'}`}>
-                    {managementData.trend >= 0 ? '↑' : '↓'} {formatPercent(Math.abs(managementData.trend))}
+                  <span className={`sd-kpi-trend ${currentManagementData.trend >= 0 ? 'sd-positive' : 'sd-negative'}`}>
+                    {currentManagementData.trend >= 0 ? '↑' : '↓'} {formatPercent(Math.abs(currentManagementData.trend))}
                   </span>
                 </div>
-                <div className="sd-kpi-value">{formatCurrency(managementData.disbursementThisMonth)}</div>
+                <div className="sd-kpi-value">{formatCurrency(currentManagementData.disbursementThisMonth)}</div>
               </div>
 
               {/* Trend Graph */}
@@ -442,8 +474,8 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
                 <div className="sd-kpi-header">
                   <span className="sd-kpi-label">Sales Trend</span>
                 </div>
-                {managementData.trendData && managementData.trendData.length > 0 ? (
-                  <AreaChart data={managementData.trendData} height={100} />
+                {currentManagementData.trendData && currentManagementData.trendData.length > 0 ? (
+                  <AreaChart data={currentManagementData.trendData} height={100} />
                 ) : (
                   <div className="sd-area-chart-empty">No trend data</div>
                 )}
@@ -455,35 +487,35 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
               <div className="sd-kpi-box">
                 <div className="sd-kpi-box-icon">🆕</div>
                 <div className="sd-kpi-box-content">
-                  <span className="sd-kpi-box-value">{formatCurrency(managementData.newBusiness)}</span>
+                  <span className="sd-kpi-box-value">{formatCurrency(currentManagementData.newBusiness)}</span>
                   <span className="sd-kpi-box-label">New Business</span>
                 </div>
               </div>
               <div className="sd-kpi-box">
                 <div className="sd-kpi-box-icon">🔄</div>
                 <div className="sd-kpi-box-content">
-                  <span className="sd-kpi-box-value">{formatCurrency(managementData.repeatBusiness)}</span>
+                  <span className="sd-kpi-box-value">{formatCurrency(currentManagementData.repeatBusiness)}</span>
                   <span className="sd-kpi-box-label">Repeat Business</span>
                 </div>
               </div>
               <div className="sd-kpi-box">
                 <div className="sd-kpi-box-icon">📝</div>
                 <div className="sd-kpi-box-content">
-                  <span className="sd-kpi-box-value">{formatNumber(managementData.numberOfLoans)}</span>
+                  <span className="sd-kpi-box-value">{formatNumber(currentManagementData.numberOfLoans)}</span>
                   <span className="sd-kpi-box-label">Number of Loans</span>
                 </div>
               </div>
               <div className="sd-kpi-box">
                 <div className="sd-kpi-box-icon">👥</div>
                 <div className="sd-kpi-box-content">
-                  <span className="sd-kpi-box-value">{formatNumber(managementData.activeReps)}</span>
+                  <span className="sd-kpi-box-value">{formatNumber(currentManagementData.activeReps)}</span>
                   <span className="sd-kpi-box-label">Active Reps</span>
                 </div>
               </div>
               <div className="sd-kpi-box sd-warning">
                 <div className="sd-kpi-box-icon">⚠️</div>
                 <div className="sd-kpi-box-content">
-                  <span className="sd-kpi-box-value">{formatPercent(managementData.par30)}</span>
+                  <span className="sd-kpi-box-value">{formatPercent(currentManagementData.par30)}</span>
                   <span className="sd-kpi-box-label">PAR &gt; 30</span>
                 </div>
               </div>
@@ -492,12 +524,12 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
             {/* Average Loan Size */}
             <div className="sd-avg-loan-card">
               <span className="sd-avg-label">Average Loan Size</span>
-              <span className="sd-avg-value">{formatCurrency(managementData.averageLoanSize)}</span>
+              <span className="sd-avg-value">{formatCurrency(currentManagementData.averageLoanSize)}</span>
             </div>
           </div>
         ) : (
           <div className="sd-section-no-data">
-            <span>No management data available</span>
+            <span>No management data available for {managementDept}</span>
           </div>
         )}
       </div>

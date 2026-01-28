@@ -18,6 +18,8 @@ const ReportManagement = () => {
   const [toast, setToast] = useState(null);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'recent', 'department'
   const [showAllReports, setShowAllReports] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const reportsPerPage = 15;
 
   // Fetch reports
   useEffect(() => {
@@ -28,6 +30,7 @@ const ReportManagement = () => {
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredReports(getDisplayReports());
+      setCurrentPage(1); // Reset to first page when filtering changes
       return;
     }
 
@@ -35,6 +38,7 @@ const ReportManagement = () => {
       const result = await searchReports(searchTerm);
       if (result.success) {
         setFilteredReports(result.data);
+        setCurrentPage(1); // Reset to first page when search changes
       } else {
         setFilteredReports([]);
       }
@@ -46,11 +50,13 @@ const ReportManagement = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const result = await getAllReports();
+      // Fetch all reports (no limit or very high limit)
+      const result = await getAllReports({ limit: 10000 });
       
       if (result.success) {
         setReports(result.data);
         setFilteredReports(getDisplayReports(result.data));
+        setCurrentPage(1); // Reset to first page when fetching new data
       } else {
         showToast('error', 'Failed to load reports');
       }
@@ -67,6 +73,32 @@ const ReportManagement = () => {
       return reportList.slice(0, 3);
     }
     return reportList;
+  };
+
+  // Calculate pagination
+  const getPaginatedReports = () => {
+    const startIndex = (currentPage - 1) * reportsPerPage;
+    const endIndex = startIndex + reportsPerPage;
+    return filteredReports.slice(startIndex, endIndex);
+  };
+
+  const totalPages = Math.ceil(filteredReports.length / reportsPerPage);
+  const paginatedReports = getPaginatedReports();
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      // Scroll to top of table
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+      // Scroll to top of table
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleSearch = (term) => {
@@ -109,8 +141,9 @@ const ReportManagement = () => {
   };
 
   const getStats = () => {
+    // Use all reports, not filtered ones, for stats
     const totalReports = reports.length;
-    const activeReports = reports.filter(r => r.isActive).length;
+    const activeReports = reports.filter(r => r.isActive !== false).length;
     const totalViews = reports.reduce((sum, r) => sum + (r.views || 0), 0);
     const totalDownloads = reports.reduce((sum, r) => sum + (r.downloads || 0), 0);
 
@@ -232,9 +265,43 @@ const ReportManagement = () => {
         ) : (
           <>
             <ReportTable 
-              reports={filteredReports}
+              reports={paginatedReports}
               onReportClick={handleReportClick}
             />
+            
+            {/* Pagination Controls */}
+            {filteredReports.length > reportsPerPage && (
+              <div className="rm-report-pagination">
+                <button 
+                  className="rm-pagination-button"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  aria-label="Previous page"
+                >
+                  <span className="rm-pagination-arrow">←</span>
+                  <span className="rm-pagination-text">Previous</span>
+                </button>
+                
+                <div className="rm-pagination-info">
+                  <span className="rm-pagination-current">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <span className="rm-pagination-count">
+                    Showing {((currentPage - 1) * reportsPerPage) + 1} - {Math.min(currentPage * reportsPerPage, filteredReports.length)} of {filteredReports.length} reports
+                  </span>
+                </div>
+                
+                <button 
+                  className="rm-pagination-button"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  aria-label="Next page"
+                >
+                  <span className="rm-pagination-text">Next</span>
+                  <span className="rm-pagination-arrow">→</span>
+                </button>
+              </div>
+            )}
             
             {viewMode === 'recent' && !showAllReports && reports.length > 3 && (
               <div className="view-more-section">

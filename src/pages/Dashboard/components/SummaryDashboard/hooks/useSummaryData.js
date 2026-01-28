@@ -12,7 +12,7 @@ const summaryCache = new Map();
 
 export const useSummaryData = () => {
   const { refreshTrigger } = useReportRefresh();
-  const [managementData, setManagementData] = useState(() => summaryCache.get('management_summary') || null);
+  const [managementData, setManagementData] = useState(() => summaryCache.get('management_summary') || {});
   const [crmData, setCrmData] = useState(() => summaryCache.get('crm_data') || {});
   const [callCenterData, setCallCenterData] = useState(() => summaryCache.get('callcenter_data') || {});
   const [mtdData, setMtdData] = useState(() => summaryCache.get('mtd_data') || {});
@@ -48,23 +48,76 @@ export const useSummaryData = () => {
   const mtdLBF = useMTDData('LBF');
   const mtdSME = useMTDData('SME');
 
-  // Process management data
+  // Helper function to process department data
+  const processDepartmentData = (dataArray, departmentName) => {
+    if (!dataArray || dataArray.length === 0) {
+      return null;
+    }
+
+    // Sort by date descending
+    dataArray.sort((a, b) => b.date - a.date);
+    const latestMonth = dataArray[0];
+    const previousMonth = dataArray.length > 1 ? dataArray[1] : null;
+
+    // Extract values with fallbacks
+    const disbursements = latestMonth['Disbursements This Month'] || latestMonth['Disbursement This Month'] || latestMonth['Disbursement this Month'] || 0;
+    const target = latestMonth['Target'] || latestMonth['Monthly Target'] || 0;
+    const newBusiness = latestMonth['New Business'] || latestMonth['New Loans'] || 0;
+    const repeatBusiness = latestMonth['Repeat Business'] || latestMonth['Refinance'] || 0;
+    const numberOfLoans = latestMonth['Number of loans'] || latestMonth['Number of Loans'] || latestMonth['No. of Loans'] || 0;
+    const averageLoanSize = latestMonth['Average loan size'] || latestMonth['Average Loan Size'] || latestMonth['Avg Loan Size'] || 0;
+    const par30 = latestMonth['PAR>30'] || latestMonth['PAR > 30'] || latestMonth['Par>30'] || 0;
+    const activeReps = latestMonth['Active Reps'] || latestMonth['Active clients'] || 0;
+
+    // Calculate trend
+    let trend = 0;
+    if (previousMonth) {
+      const prevDisbursements = previousMonth['Disbursements This Month'] || previousMonth['Disbursement This Month'] || 0;
+      if (prevDisbursements > 0) {
+        trend = ((disbursements - prevDisbursements) / prevDisbursements) * 100;
+      }
+    }
+
+    // Get last 10 data points for trend graph (most recent first)
+    const trendData = dataArray.slice(0, 10).reverse().map(item => ({
+      date: item.date,
+      value: item['Disbursements This Month'] || item['Disbursement This Month'] || item['Disbursement this Month'] || 0
+    }));
+
+    return {
+      disbursementThisMonth: disbursements,
+      trend: trend,
+      newBusiness: newBusiness,
+      repeatBusiness: repeatBusiness,
+      par30: par30,
+      numberOfLoans: numberOfLoans,
+      averageLoanSize: averageLoanSize,
+      activeReps: activeReps,
+      target: target,
+      trendData: trendData,
+      reportDate: latestMonth.date
+    };
+  };
+
+  // Process management data for all departments
   const processManagementData = useCallback(() => {
     // Check cache first - if we already have data, don't reprocess
     const cached = summaryCache.get('management_summary');
-    if (cached && managementData && JSON.stringify(cached) === JSON.stringify(managementData)) {
+    if (cached && managementData && Object.keys(managementData).length > 0 && JSON.stringify(cached) === JSON.stringify(managementData)) {
       return;
     }
 
     if (!managementReports || managementReports.length === 0) {
       if (!managementLoading) {
-        setManagementData(null);
+        setManagementData({});
       }
       return;
     }
 
     try {
-      // Get latest report with Country data (same pattern as CountrywiseSummary)
+      const result = {};
+
+      // Process Country data
       const countrywiseData = managementReports
         .filter(report => report.countrywise && Object.keys(report.countrywise).length > 0)
         .map(report => ({
@@ -72,63 +125,43 @@ export const useSummaryData = () => {
           date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
           ...report.countrywise
         }));
+      result.Country = processDepartmentData(countrywiseData, 'Country');
 
-      if (countrywiseData.length === 0) {
-        setManagementData(null);
-        return;
-      }
+      // Process CS data (Total - all CS branches combined)
+      const csData = managementReports
+        .filter(report => report.cs && Object.keys(report.cs).length > 0)
+        .map(report => ({
+          fileName: report.fileName || 'Unknown',
+          date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
+          ...report.cs
+        }));
+      result.CS = processDepartmentData(csData, 'CS');
 
-      // Sort by date descending
-      countrywiseData.sort((a, b) => b.date - a.date);
-      const latestMonth = countrywiseData[0];
-      
-      // Get previous month for trend
-      const previousMonth = countrywiseData.length > 1 ? countrywiseData[1] : null;
+      // Process LBF data (Total - all LBF branches combined)
+      const lbfData = managementReports
+        .filter(report => report.lbf && Object.keys(report.lbf).length > 0)
+        .map(report => ({
+          fileName: report.fileName || 'Unknown',
+          date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
+          ...report.lbf
+        }));
+      result.LBF = processDepartmentData(lbfData, 'LBF');
 
-      // Extract values (same pattern as CountrywiseSummary)
-      const disbursements = latestMonth['Disbursements This Month'] || latestMonth['Disbursement This Month'] || latestMonth['Disbursement this Month'] || 0;
-      const target = latestMonth['Target'] || latestMonth['Monthly Target'] || 0;
-      const newBusiness = latestMonth['New Business'] || latestMonth['New Loans'] || 0;
-      const repeatBusiness = latestMonth['Repeat Business'] || latestMonth['Refinance'] || 0;
-      const numberOfLoans = latestMonth['Number of loans'] || latestMonth['Number of Loans'] || latestMonth['No. of Loans'] || 0;
-      const averageLoanSize = latestMonth['Average loan size'] || latestMonth['Average Loan Size'] || latestMonth['Avg Loan Size'] || 0;
-      const par30 = latestMonth['PAR>30'] || latestMonth['PAR > 30'] || latestMonth['Par>30'] || 0;
-      const activeReps = latestMonth['Active Reps'] || latestMonth['Active clients'] || 0;
+      // Process SME data
+      const smeData = managementReports
+        .filter(report => report.sme && Object.keys(report.sme).length > 0)
+        .map(report => ({
+          fileName: report.fileName || 'Unknown',
+          date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
+          ...report.sme
+        }));
+      result.SME = processDepartmentData(smeData, 'SME');
 
-      // Calculate trend
-      let trend = 0;
-      if (previousMonth) {
-        const prevDisbursements = previousMonth['Disbursements This Month'] || previousMonth['Disbursement This Month'] || 0;
-        if (prevDisbursements > 0) {
-          trend = ((disbursements - prevDisbursements) / prevDisbursements) * 100;
-        }
-      }
-
-      // Get last 10 data points for trend graph (most recent first)
-      const trendData = countrywiseData.slice(0, 10).reverse().map(item => ({
-        date: item.date,
-        value: item['Disbursements This Month'] || item['Disbursement This Month'] || item['Disbursement this Month'] || 0
-      }));
-
-      const summary = {
-        disbursementThisMonth: disbursements,
-        trend: trend,
-        newBusiness: newBusiness,
-        repeatBusiness: repeatBusiness,
-        par30: par30,
-        numberOfLoans: numberOfLoans,
-        averageLoanSize: averageLoanSize,
-        activeReps: activeReps,
-        target: target,
-        trendData: trendData,
-        reportDate: latestMonth.date
-      };
-
-      summaryCache.set('management_summary', summary);
-      setManagementData(summary);
+      summaryCache.set('management_summary', result);
+      setManagementData(result);
     } catch (err) {
       console.error('Error processing management summary:', err);
-      setManagementData(null);
+      setManagementData({});
     }
   }, [managementReports, managementLoading, managementData]);
 
@@ -179,19 +212,7 @@ export const useSummaryData = () => {
           return defaultVal;
         };
 
-        // Extract counts from summary sheets
-        let totalAgents = 0;
-        let totalTeamLeaders = 0;
-        
-        if (hook.parsedData.agentSummary && hook.parsedData.agentSummary.length > 0) {
-          totalAgents = hook.parsedData.agentSummary.length;
-        }
-        
-        if (hook.parsedData.teamLeaderSummary && hook.parsedData.teamLeaderSummary.length > 0) {
-          totalTeamLeaders = hook.parsedData.teamLeaderSummary.length;
-        }
-
-        // Department-specific metric keys
+        // Department-specific metric keys (matching CRMAnalysis component)
         const metricKeys = dept === 'CS' ? {
           numberOfLeads: ['lead', 'count_leads', 'leads'],
           prospectLeads: ['prospect_lead', 'prospect', 'prospects'],
@@ -218,11 +239,13 @@ export const useSummaryData = () => {
           branchesNoActivity: ['tl_no_planned_visited_location', 'branches_count_without_assgned_activities']
         };
 
+        // Use email metrics directly (same as CRMAnalysis component)
+        // Do NOT use array length - the arrays are for detailed tables, not totals
         result[dept] = {
           numberOfLeads: getValue(metricKeys.numberOfLeads),
           prospectLeads: getValue(metricKeys.prospectLeads),
-          totalAgents: totalAgents || getValue(metricKeys.totalAgents),
-          totalTeamLeaders: totalTeamLeaders || getValue(metricKeys.totalTeamLeaders),
+          totalAgents: getValue(metricKeys.totalAgents),
+          totalTeamLeaders: getValue(metricKeys.totalTeamLeaders),
           loggedInAgents: getValue(metricKeys.loggedInAgents),
           loggedInTeamLeaders: getValue(metricKeys.loggedInTeamLeaders),
           branchesNoActivity: getValue(metricKeys.branchesNoActivity),

@@ -252,14 +252,44 @@
   border-color: transparent;
 }
 
+/* Management Department Selector */
+.sd-mgmt-dept-selector {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+}
+
+.sd-mgmt-dept-btn {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #64748b;
+  font-weight: 500;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  min-width: 50px;
+}
+
+.sd-mgmt-dept-btn:hover {
+  border-color: #2a5298;
+  color: #2a5298;
+  background: #f0f7ff;
+}
+
+.sd-mgmt-dept-btn.sd-active {
+  background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+  color: white;
+  border-color: transparent;
+}
+
 /* Bottom Row Grid */
 .sd-bottom-row {
   display: grid;
   grid-template-columns: 1fr 1px 1fr 1px 1fr;
   gap: 1.5rem;
   margin-top: 0;
-}
-  margin: 0;
 }
 
 .sd-section-no-data {
@@ -1143,6 +1173,24 @@
 }
 
 .dark-mode .sd-dept-btn.sd-active {
+  background: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
+  color: white;
+  border-color: transparent;
+}
+
+.dark-mode .sd-mgmt-dept-btn {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #a0aec0;
+}
+
+.dark-mode .sd-mgmt-dept-btn:hover {
+  background: #1a365d;
+  border-color: #2c5282;
+  color: #90cdf4;
+}
+
+.dark-mode .sd-mgmt-dept-btn.sd-active {
   background: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
   color: white;
   border-color: transparent;
