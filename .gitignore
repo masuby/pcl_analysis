@@ -61,3 +61,6 @@ ui-debug.log
 
 # Supabase
 .supabase
+
+# Uploaded files
+backend/uploads/

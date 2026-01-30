@@ -1,0 +1,187 @@
+.procedure-viewer {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  min-height: 400px;
+}
+
+.no-procedure {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #666;
+}
+
+.no-procedure-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.no-procedure h3 {
+  color: #2a5298;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+}
+
+.no-procedure p {
+  margin: 0;
+  color: #999;
+}
+
+.procedure-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.procedure-block {
+  line-height: 1.6;
+}
+
+.paragraph-block p {
+  margin: 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+.heading-block h3 {
+  margin: 0 0 0.5rem 0;
+  color: #2a5298;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.list-block ol,
+.list-block ul {
+  margin: 0;
+  padding-left: 2rem;
+}
+
+.list-block li {
+  margin: 0.5rem 0;
+  color: #333;
+}
+
+.image-block {
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.image-block img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-block {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
+}
+
+.file-download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #2a5298;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e1e5e9;
+  transition: all 0.2s ease;
+}
+
+.file-download-link:hover {
+  background: #f0f7ff;
+  border-color: #2a5298;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(42, 82, 152, 0.2);
+}
+
+.file-icon {
+  font-size: 1.25rem;
+}
+
+.file-name {
+  flex: 1;
+}
+
+.file-size {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: normal;
+}
+
+.formula-block {
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #2a5298;
+  margin: 1rem 0;
+}
+
+.formula-block code {
+  font-family: 'Courier New', monospace;
+  font-size: 1rem;
+  color: #333;
+  white-space: pre-wrap;
+}
+
+/* Dark mode support */
+.dark-mode .procedure-viewer {
+  background: #2d3748;
+}
+
+.dark-mode .no-procedure h3 {
+  color: #63b3ed;
+}
+
+.dark-mode .no-procedure p {
+  color: #a0aec0;
+}
+
+.dark-mode .paragraph-block p {
+  color: #e2e8f0;
+}
+
+.dark-mode .heading-block h3 {
+  color: #63b3ed;
+}
+
+.dark-mode .list-block li {
+  color: #e2e8f0;
+}
+
+.dark-mode .file-block {
+  background: #4a5568;
+  border-color: #4a5568;
+}
+
+.dark-mode .file-download-link {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #63b3ed;
+}
+
+.dark-mode .file-download-link:hover {
+  background: #1a365d;
+  border-color: #4299e1;
+}
+
+.dark-mode .file-size {
+  color: #a0aec0;
+}
+
+.dark-mode .formula-block {
+  background: #4a5568;
+  border-left-color: #4299e1;
+}
+
+.dark-mode .formula-block code {
+  color: #e2e8f0;
+}

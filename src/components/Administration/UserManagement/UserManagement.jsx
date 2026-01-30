@@ -48,16 +48,25 @@ const UserManagement = () => {
       
       if (result.success) {
         // Map snake_case to camelCase for compatibility
-        const usersList = (result.data || []).map(user => ({
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName || user.display_name || '',
-          role: user.role,
-          department: user.department,
-          isActive: user.isActive !== undefined ? user.isActive : user.is_active,
-          createdAt: user.createdAt || user.created_at,
-          updatedAt: user.updatedAt || user.updated_at,
-        }));
+        const usersList = (result.data || []).map(user => {
+          const mappedUser = {
+            id: user.id || user.user_id || user.userId || user._id,
+            email: user.email,
+            displayName: user.displayName || user.display_name || '',
+            role: user.role,
+            department: user.department,
+            isActive: user.isActive !== undefined ? user.isActive : user.is_active,
+            createdAt: user.createdAt || user.created_at,
+            updatedAt: user.updatedAt || user.updated_at,
+          };
+          
+          // Debug: Log if ID is missing
+          if (!mappedUser.id) {
+            console.error('User missing ID:', user);
+          }
+          
+          return mappedUser;
+        });
         
         setUsers(usersList);
         setFilteredUsers(usersList);
@@ -97,7 +106,7 @@ const UserManagement = () => {
 
   const handleUserUpdated = (updatedUser) => {
     const mappedUser = {
-      id: updatedUser.id,
+      id: updatedUser.id || updatedUser.user_id || updatedUser.userId || updatedUser._id,
       email: updatedUser.email,
       displayName: updatedUser.displayName || updatedUser.display_name || '',
       role: updatedUser.role,

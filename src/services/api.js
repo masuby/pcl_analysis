@@ -324,6 +324,77 @@ export const challengesAPI = {
   },
 };
 
+// ========== Procedures API ==========
+
+export const proceduresAPI = {
+  async getAll() {
+    return apiRequest('/api/procedures');
+  },
+  
+  async getByTypeAndDepartment(reportType, department = null) {
+    const params = department ? `?department=${department}` : '';
+    return apiRequest(`/api/procedures/type/${reportType}${params}`);
+  },
+  
+  async create(data) {
+    return apiRequest('/api/procedures', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  
+  async update(id, data) {
+    return apiRequest(`/api/procedures/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  
+  async delete(id) {
+    return apiRequest(`/api/procedures/${id}`, {
+      method: 'DELETE',
+    });
+  },
+  
+  async uploadFile(file, fileType = 'file') {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const token = getToken();
+    const response = await fetch(`${API_URL}/api/procedures/upload?type=${fileType}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    
+    // Check content type before parsing
+    const contentType = response.headers.get('content-type');
+    let data;
+    
+    if (contentType && contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Server error: ${text.substring(0, 100)}`);
+      }
+    }
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Upload failed');
+    }
+    
+    return data;
+  },
+  
+  getFileUrl(path) {
+    // Backend serves static files at /files, and path already includes "procedures/images/" or "procedures/files/"
+    return `${API_URL}/files/${path}`;
+  },
+};
+
 // ========== Admin API ==========
 
 export const adminAPI = {

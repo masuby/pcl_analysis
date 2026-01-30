@@ -48,9 +48,11 @@ const UserTable = ({ users, onUserClick }) => {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {users.map((user) => {
+              const userId = user.id || user.user_id || user.userId || user._id;
+              return (
               <tr 
-                key={user.id} 
+                key={userId} 
                 className="user-row"
                 onClick={() => onUserClick(user)}
                 tabIndex={0}
@@ -113,7 +115,8 @@ const UserTable = ({ users, onUserClick }) => {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,13 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { updateUser, deleteUser, toggleUserStatus } from '../../../../services/users';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import './UserDetailModal.css';
 
 const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToast }) => {
+  // Ensure user object has an id property - make it reactive
+  const userId = useMemo(() => {
+    const id = user?.id || user?.user_id || user?.userId || user?._id;
+    if (!id && user) {
+      console.error('UserDetailModal: User object missing ID:', user);
+    }
+    return id;
+  }, [user]);
+  
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({ ...user });
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  // Update editData when user prop changes
+  useEffect(() => {
+    if (user) {
+      setEditData({ ...user });
+    }
+  }, [user]);
 
   const roles = [
     { value: 'admin', label: 'Administrator' },
@@ -59,7 +75,14 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const result = await updateUser(user.id, {
+      if (!userId) {
+        console.error('UserDetailModal handleSave: User ID is missing', { user, userId });
+        showToast('error', 'User ID is missing. Cannot update user.');
+        setLoading(false);
+        return;
+      }
+      
+      const result = await updateUser(userId, {
         displayName: editData.displayName,
         role: editData.role,
         department: editData.department,
@@ -70,6 +93,7 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
         onUserUpdated({
           ...user,
           ...editData,
+          id: userId,
           updatedAt: new Date().toISOString()
         });
         
@@ -90,7 +114,15 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const result = await deleteUser(user.id);
+      // Get user ID with fallback for different field names
+      const userId = user.id || user.user_id || user.userId || user._id;
+      if (!userId) {
+        showToast('error', 'User ID is missing. Cannot delete user.');
+        setLoading(false);
+        return;
+      }
+      
+      const result = await deleteUser(userId);
       
       if (result.success) {
         onUserDeleted(user.id);
@@ -111,12 +143,20 @@ const UserDetailModal = ({ user, onClose, onUserUpdated, onUserDeleted, showToas
     try {
       setLoading(true);
       
-      const result = await toggleUserStatus(user.id);
+      if (!userId) {
+        console.error('UserDetailModal handleToggleStatus: User ID is missing', { user, userId });
+        showToast('error', 'User ID is missing. Cannot update user status.');
+        setLoading(false);
+        return;
+      }
+      
+      const result = await toggleUserStatus(userId);
       
       if (result.success) {
         const newStatus = !user.isActive;
         onUserUpdated({
           ...user,
+          id: userId,
           isActive: newStatus,
           updatedAt: new Date().toISOString()
         });

@@ -41,6 +41,7 @@ func main() {
 
 	// Initialize handlers
 	handlers.InitReportHandlers(&cfg.Storage)
+	handlers.InitProcedureHandlers(&cfg.Storage)
 
 	// Create Gin router
 	router := gin.New()
@@ -85,14 +86,14 @@ func main() {
 			// Reports routes
 			reports := protected.Group("/reports")
 			{
-			reports.GET("", handlers.GetAllReports)
-			reports.GET("/recent", handlers.GetRecentReports)
-			reports.GET("/search", handlers.SearchReports)
-			reports.GET("/batch-data", handlers.GetBatchReportData)
-			reports.GET("/cluster-data", handlers.GetClusterData)
-			reports.GET("/sheets", handlers.GetAvailableSheets)
-			reports.GET("/regional-data", handlers.GetRegionalData)
-			reports.GET("/regional-batch", handlers.GetRegionalDataBatch)
+				reports.GET("", handlers.GetAllReports)
+				reports.GET("/recent", handlers.GetRecentReports)
+				reports.GET("/search", handlers.SearchReports)
+				reports.GET("/batch-data", handlers.GetBatchReportData)
+				reports.GET("/cluster-data", handlers.GetClusterData)
+				reports.GET("/sheets", handlers.GetAvailableSheets)
+				reports.GET("/regional-data", handlers.GetRegionalData)
+				reports.GET("/regional-batch", handlers.GetRegionalDataBatch)
 				reports.GET("/:id", handlers.GetReportByID)
 				reports.GET("/:id/data", handlers.GetReportData)
 				reports.GET("/:id/download", handlers.DownloadReport)
@@ -123,6 +124,18 @@ func main() {
 				challenges.DELETE("/:id", handlers.DeleteChallenge)
 				challenges.POST("/:id/image", handlers.UploadChallengeImage)
 				challenges.POST("/:id/attachment", handlers.UploadChallengeAttachment)
+			}
+
+			// Procedures routes
+			procedures := protected.Group("/procedures")
+			{
+				procedures.GET("", handlers.GetAllProcedures)
+				procedures.GET("/type/:type", handlers.GetProcedureByTypeAndDepartment)
+				procedures.POST("", handlers.CreateProcedure)
+				procedures.PUT("/:id", handlers.UpdateProcedure)
+				procedures.DELETE("/:id", handlers.DeleteProcedure)
+				procedures.POST("/upload", handlers.UploadProcedureFile)
+				procedures.GET("/files/*path", handlers.DownloadProcedureFile)
 			}
 
 			// Admin routes (admin only)

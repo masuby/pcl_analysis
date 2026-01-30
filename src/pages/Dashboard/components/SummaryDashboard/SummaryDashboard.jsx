@@ -341,11 +341,12 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
   const isAdmin = userData?.role === 'admin' || userData?.role === 'ALL';
   const userDept = userData?.department?.toUpperCase() || 'CS';
   
-  // Department states for each section - default to CS
+  // Department states for each section
+  // For admin/ALL users: default to CS, for regular users: default to their department
   const [managementDept, setManagementDept] = useState('Country'); // 'Country', 'CS', 'LBF', 'SME'
-  const [crmDept, setCrmDept] = useState('CS');
-  const [callCenterDept, setCallCenterDept] = useState('CS');
-  const [mtdDept, setMtdDept] = useState('CS');
+  const [crmDept, setCrmDept] = useState(isAdmin ? 'CS' : userDept);
+  const [callCenterDept, setCallCenterDept] = useState(isAdmin ? 'CS' : userDept);
+  const [mtdDept, setMtdDept] = useState(isAdmin ? 'CS' : userDept);
   const [mtdViewType, setMtdViewType] = useState('supervision'); // 'supervision' or 'teamleader'
   
   const availableDepts = isAdmin ? ['CS', 'LBF', 'SME'] : [userDept];

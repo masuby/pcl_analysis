@@ -686,7 +686,448 @@
     color: #a0aec0;
   }
 
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-right: 1rem;
+}
 
+.view-mode-button {
+  padding: 0.75rem 1.25rem;
+  background: white;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.view-mode-button:hover:not(.active) {
+  border-color: #2a5298;
+  color: #2a5298;
+  background: rgba(42, 82, 152, 0.05);
+}
+
+.view-mode-button.active {
+  background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%);
+  border-color: #2a5298;
+  color: white;
+  box-shadow: 0 2px 8px rgba(42, 82, 152, 0.2);
+}
+
+/* Procedures View */
+.procedures-view {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1rem 0;
+}
+
+.procedures-selector-container {
+  position: relative;
+  padding: 0.75rem 0;
+  margin: 0 auto;
+  width: 100%;
+  z-index: 1;
+}
+
+.procedure-selector-scroll-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  margin: 0 -1rem;
+  padding: 0 1rem;
+}
+
+.procedure-selector-scroll-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.procedure-selector-scroll-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.procedure-selector-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.procedure-selector-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.procedure-selector-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: max-content;
+  gap: 0;
+}
+
+.procedure-selector-button {
+  position: relative;
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.procedure-selector-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border-radius: 8px;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
+  z-index: -1;
+}
+
+.procedure-selector-button:hover::before {
+  background: rgba(42, 82, 152, 0.05);
+}
+
+.procedure-selector-button.active::before {
+  background: rgba(42, 82, 152, 0.1);
+}
+
+.procedure-selector-button.hovered::before {
+  background: linear-gradient(135deg, rgba(42, 82, 152, 0.1) 0%, rgba(30, 60, 114, 0.1) 100%);
+}
+
+.procedure-selector-button .button-text {
+  position: relative;
+  z-index: 1;
+  transition: color 0.2s ease;
+}
+
+.procedure-selector-button:hover .button-text,
+.procedure-selector-button.hovered .button-text {
+  color: #2a5298;
+}
+
+.procedure-selector-button.active .button-text {
+  color: #2a5298;
+  font-weight: 600;
+}
+
+.procedure-selector-button .department-indicator {
+  font-size: 0.7rem;
+  padding: 0.125rem 0.5rem;
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.procedure-selector-button .hover-indicator {
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #2a5298;
+}
+
+.procedure-selector-buttons .button-divider {
+  width: 1px;
+  height: 24px;
+  background: #e1e5e9;
+  margin: 0 0.5rem;
+}
+
+.procedure-department-menu {
+  position: absolute;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+  z-index: 1001;
+  min-width: 200px;
+  animation: fadeInUp 0.15s ease;
+  cursor: default;
+}
+
+.procedure-department-menu .dashboard-menu-header {
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  color: #2a5298;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-bottom: 1px solid #e1e5e9;
+  border-radius: 8px 8px 0 0;
+}
+
+.procedure-department-menu .department-options {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.procedure-department-menu .department-option {
+  position: relative;
+  padding: 0.625rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.procedure-department-menu .department-option:hover {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+}
+
+.procedure-department-menu .department-option.selected {
+  background: #2a5298;
+  color: white;
+  font-weight: 500;
+}
+
+.procedure-department-menu .department-name {
+  font-weight: 500;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.procedure-content-wrapper {
+  min-height: 400px;
+  padding: 1rem 0;
+}
+
+.procedure-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 1rem;
+  color: #666;
+}
+
+.procedure-message {
+  text-align: center;
+  max-width: 600px;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  border: 2px solid #e1e5e9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.procedure-message-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.procedure-message h3 {
+  color: #2a5298;
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.procedure-message p {
+  color: #666;
+  font-size: 1rem;
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.procedure-placeholder {
+  color: #999;
+  font-style: italic;
+  margin-top: 1rem !important;
+}
+
+/* Dark Mode for Procedures */
+.dark-mode .view-mode-button {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #a0aec0;
+}
+
+.dark-mode .view-mode-button:hover:not(.active) {
+  border-color: #4299e1;
+  color: #63b3ed;
+  background: rgba(66, 153, 225, 0.1);
+}
+
+.dark-mode .view-mode-button.active {
+  background: #4299e1;
+  border-color: #4299e1;
+  color: white;
+}
+
+.dark-mode .procedure-selector-button {
+  color: #a0aec0;
+}
+
+.dark-mode .procedure-selector-button:hover::before {
+  background: rgba(99, 179, 237, 0.05);
+}
+
+.dark-mode .procedure-selector-button.active::before {
+  background: rgba(99, 179, 237, 0.1);
+}
+
+.dark-mode .procedure-selector-button.hovered::before {
+  background: linear-gradient(135deg, rgba(66, 153, 225, 0.1) 0%, rgba(49, 130, 206, 0.1) 100%);
+}
+
+.dark-mode .procedure-selector-button:hover .button-text,
+.dark-mode .procedure-selector-button.hovered .button-text {
+  color: #63b3ed;
+}
+
+.dark-mode .procedure-selector-button.active .button-text {
+  color: #63b3ed;
+}
+
+.dark-mode .procedure-selector-button .department-indicator {
+  background: rgba(99, 179, 237, 0.1);
+  color: #63b3ed;
+}
+
+.dark-mode .procedure-selector-button .hover-indicator {
+  border-top-color: #63b3ed;
+}
+
+.dark-mode .procedure-selector-buttons .button-divider {
+  background: #4a5568;
+}
+
+.dark-mode .procedure-department-menu {
+  background: #2d3748;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .procedure-department-menu .dashboard-menu-header {
+  background: #4a5568;
+  color: #63b3ed;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .procedure-department-menu .department-option {
+  color: #a0aec0;
+}
+
+.dark-mode .procedure-department-menu .department-option:hover {
+  background: rgba(99, 179, 237, 0.1);
+  color: #63b3ed;
+}
+
+.dark-mode .procedure-department-menu .department-option.selected {
+  background: #4299e1;
+  color: white;
+}
+
+.dark-mode .procedure-message {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+.dark-mode .procedure-message h3 {
+  color: #63b3ed;
+}
+
+.dark-mode .procedure-message p {
+  color: #a0aec0;
+}
+
+.dark-mode .procedure-placeholder {
+  color: #718096;
+}
+
+/* Responsive Design for Procedures */
+@media (max-width: 768px) {
+  .view-mode-toggle {
+    margin-right: 0;
+    margin-bottom: 1rem;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .header-right {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .procedures-selector-container {
+    padding: 0.5rem 0;
+  }
+  
+  .procedure-selector-button {
+    padding: 0.5rem 1rem;
+    min-width: 100px;
+    font-size: 0.85rem;
+  }
+  
+  .procedure-department-menu {
+    min-width: 180px;
+    position: fixed;
+    top: auto !important;
+    bottom: 1rem;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+
+  .procedure-content {
+    min-height: 300px;
+    padding: 1rem;
+  }
+
+  .procedure-message {
+    padding: 1.5rem;
+  }
+
+  .procedure-message-icon {
+    font-size: 3rem;
+  }
+
+  .procedure-message h3 {
+    font-size: 1.25rem;
+  }
+}
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {

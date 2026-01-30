@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAllReports, searchReports } from '../../../services/reports';
+import { proceduresAPI } from '../../../services/api';
 import ReportTable from './ReportTable/ReportTable';
 import AddReportModal from './AddReportModal/AddReportModal';
 import ReportDetailModal from './ReportDetailModal/ReportDetailModal';
+import ProcedureEditor from './Procedures/ProcedureEditor';
+import ProcedureViewer from './Procedures/ProcedureViewer';
 import Toast from '../../Common/Toast/Toast';
 import LoadingSpinner from '../../Common/Loading/LoadingSpinner';
 import SearchBar from '../UserManagement/SearchBar/SearchBar';
@@ -20,6 +23,35 @@ const ReportManagement = () => {
   const [showAllReports, setShowAllReports] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const reportsPerPage = 15;
+  
+  // Procedures view state
+  const [activeView, setActiveView] = useState('reports'); // 'reports' or 'procedures'
+  const [selectedProcedureType, setSelectedProcedureType] = useState(null);
+  const [selectedProcedureDepartment, setSelectedProcedureDepartment] = useState(null);
+  
+  // Set MANAGEMENT as default when switching to Procedures view
+  useEffect(() => {
+    if (activeView === 'procedures' && !selectedProcedureType) {
+      setSelectedProcedureType('MANAGEMENT');
+      setSelectedProcedureDepartment(null);
+    }
+  }, [activeView]);
+  const [hoveredProcedureButton, setHoveredProcedureButton] = useState(null);
+  const [showProcedureDepartmentMenu, setShowProcedureDepartmentMenu] = useState(false);
+  const [procedureMenuPosition, setProcedureMenuPosition] = useState({ x: 0, y: 0 });
+  const [isProcedureMenuHovered, setIsProcedureMenuHovered] = useState(false);
+  const procedureButtonRefs = useRef({});
+  const procedureMenuRef = useRef(null);
+  const procedureHoverTimeoutRef = useRef(null);
+  const procedureContainerRef = useRef(null);
+  
+  // Procedure data state
+  const [currentProcedure, setCurrentProcedure] = useState(null);
+  const [loadingProcedure, setLoadingProcedure] = useState(false);
+  const [procedureError, setProcedureError] = useState(null);
+  
+  const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
+  const departments = ['CS', 'SME', 'LBF'];
 
   // Fetch reports
   useEffect(() => {
@@ -150,6 +182,163 @@ const ReportManagement = () => {
     return { totalReports, activeReports, totalViews, totalDownloads };
   };
 
+  // Load procedure when type/department changes
+  useEffect(() => {
+    if (selectedProcedureType) {
+      loadProcedure();
+    } else {
+      setCurrentProcedure(null);
+    }
+  }, [selectedProcedureType, selectedProcedureDepartment]);
+
+  const loadProcedure = async () => {
+    if (!selectedProcedureType) return;
+    
+    setLoadingProcedure(true);
+    setProcedureError(null);
+    
+    try {
+      const result = await proceduresAPI.getByTypeAndDepartment(
+        selectedProcedureType,
+        selectedProcedureType === 'MANAGEMENT' ? null : selectedProcedureDepartment
+      );
+      
+      if (result.success) {
+        setCurrentProcedure(result.data);
+      } else {
+        setCurrentProcedure(null);
+        setProcedureError(result.error || 'Procedure not found');
+      }
+    } catch (error) {
+      setCurrentProcedure(null);
+      setProcedureError(error.message || 'Failed to load procedure');
+    } finally {
+      setLoadingProcedure(false);
+    }
+  };
+
+  const handleSaveProcedure = async (content) => {
+    try {
+      const procedureData = {
+        reportType: selectedProcedureType,
+        department: selectedProcedureType === 'MANAGEMENT' ? null : selectedProcedureDepartment,
+        content,
+      };
+
+      let result;
+      if (currentProcedure) {
+        // Update existing
+        result = await proceduresAPI.update(currentProcedure.id, { content });
+      } else {
+        // Create new
+        result = await proceduresAPI.create(procedureData);
+      }
+
+      if (result.success) {
+        setCurrentProcedure(result.data);
+        showToast('success', 'Procedure saved successfully');
+      } else {
+        throw new Error(result.error || 'Failed to save procedure');
+      }
+    } catch (error) {
+      showToast('error', error.message || 'Failed to save procedure');
+      throw error;
+    }
+  };
+
+  // Procedures handlers
+  const handleProcedureButtonClick = (type) => {
+    setSelectedProcedureType(type);
+    // For MANAGEMENT, don't require department selection
+    if (type === 'MANAGEMENT') {
+      setSelectedProcedureDepartment(null);
+    }
+    setShowProcedureDepartmentMenu(false);
+    setHoveredProcedureButton(null);
+  };
+
+  const handleProcedureButtonHover = (type, event) => {
+    // Skip hover menu for MANAGEMENT (only one management report)
+    if (type === 'MANAGEMENT') {
+      return;
+    }
+
+    if (procedureHoverTimeoutRef.current) {
+      clearTimeout(procedureHoverTimeoutRef.current);
+    }
+
+    const button = procedureButtonRefs.current[type];
+    if (button && procedureContainerRef.current) {
+      const rect = button.getBoundingClientRect();
+      const containerRect = procedureContainerRef.current.getBoundingClientRect();
+      
+      setHoveredProcedureButton(type);
+      
+      setProcedureMenuPosition({
+        x: rect.left - containerRect.left + rect.width / 2,
+        y: rect.bottom - containerRect.top + 5
+      });
+      
+      setShowProcedureDepartmentMenu(true);
+    }
+  };
+
+  const handleProcedureButtonLeave = () => {
+    procedureHoverTimeoutRef.current = setTimeout(() => {
+      if (!isProcedureMenuHovered) {
+        setShowProcedureDepartmentMenu(false);
+        setHoveredProcedureButton(null);
+      }
+    }, 200);
+  };
+
+  const handleProcedureMenuEnter = () => {
+    if (procedureHoverTimeoutRef.current) {
+      clearTimeout(procedureHoverTimeoutRef.current);
+    }
+    setIsProcedureMenuHovered(true);
+  };
+
+  const handleProcedureMenuLeave = () => {
+    setIsProcedureMenuHovered(false);
+    procedureHoverTimeoutRef.current = setTimeout(() => {
+      setShowProcedureDepartmentMenu(false);
+      setHoveredProcedureButton(null);
+    }, 150);
+  };
+
+  const handleProcedureDepartmentSelect = (dept) => {
+    setSelectedProcedureDepartment(dept);
+    setShowProcedureDepartmentMenu(false);
+    setHoveredProcedureButton(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (procedureHoverTimeoutRef.current) {
+        clearTimeout(procedureHoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (procedureMenuRef.current && !procedureMenuRef.current.contains(event.target)) {
+        const isButtonClick = Array.from(document.querySelectorAll('.procedure-selector-button')).some(
+          button => button.contains(event.target)
+        );
+        
+        if (!isButtonClick) {
+          setShowProcedureDepartmentMenu(false);
+          setHoveredProcedureButton(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const stats = getStats();
 
   return (
@@ -161,83 +350,207 @@ const ReportManagement = () => {
           <p className="report-subtitle">Upload and manage reports in the system</p>
         </div>
         <div className="header-right">
-          <button 
-            className="add-report-button"
-            onClick={handleAddReport}
-            aria-label="Upload new report"
-          >
-            <span className="button-icon">📤</span>
-            <span className="button-text">Upload Report</span>
-          </button>
+          <div className="view-mode-toggle">
+            <button 
+              className={`view-mode-button ${activeView === 'reports' ? 'active' : ''}`}
+              onClick={() => setActiveView('reports')}
+            >
+              Reports
+            </button>
+            <button 
+              className={`view-mode-button ${activeView === 'procedures' ? 'active' : ''}`}
+              onClick={() => setActiveView('procedures')}
+            >
+              Procedures
+            </button>
+          </div>
+          {activeView === 'reports' && (
+            <button 
+              className="add-report-button"
+              onClick={handleAddReport}
+              aria-label="Upload new report"
+            >
+              <span className="button-icon">📤</span>
+              <span className="button-text">Upload Report</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="stats-cards">
-        <div className="stat-card">
-          <div className="stat-icon">📊</div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalReports}</div>
-            <div className="stat-label">Total Reports</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">✅</div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.activeReports}</div>
-            <div className="stat-label">Active</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">👁️</div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalViews}</div>
-            <div className="stat-label">Total Views</div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon">📥</div>
-          <div className="stat-content">
-            <div className="stat-value">{stats.totalDownloads}</div>
-            <div className="stat-label">Downloads</div>
-          </div>
-        </div>
-      </div>
+      {/* Procedures View */}
+      {activeView === 'procedures' && (
+        <div className="procedures-view">
+          <div className="procedures-selector-container" ref={procedureContainerRef}>
+            <div className="procedure-selector-scroll-wrapper">
+              <div className="procedure-selector-buttons">
+                {procedureTypes.map((type, index) => (
+                  <React.Fragment key={type}>
+                    <button
+                      ref={el => procedureButtonRefs.current[type] = el}
+                      className={`procedure-selector-button ${selectedProcedureType === type ? 'active' : ''} ${
+                        hoveredProcedureButton === type && type !== 'MANAGEMENT' ? 'hovered' : ''
+                      }`}
+                      onClick={() => handleProcedureButtonClick(type)}
+                      onMouseEnter={(e) => handleProcedureButtonHover(type, e)}
+                      onMouseLeave={type !== 'MANAGEMENT' ? handleProcedureButtonLeave : undefined}
+                      data-type={type}
+                    >
+                      <span className="button-text">{type}</span>
+                      {selectedProcedureType === type && selectedProcedureDepartment && type !== 'MANAGEMENT' && (
+                        <span className="department-indicator">{selectedProcedureDepartment}</span>
+                      )}
+                      {showProcedureDepartmentMenu && hoveredProcedureButton === type && type !== 'MANAGEMENT' && (
+                        <div className="hover-indicator"></div>
+                      )}
+                    </button>
+                    {index < procedureTypes.length - 1 && (
+                      <div className="button-divider"></div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
 
-      {/* Filters and Search */}
-      <div className="report-controls">
-        <div className="view-toggles">
-          <button 
-            className={`view-toggle ${viewMode === 'all' ? 'active' : ''}`}
-            onClick={() => setViewMode('all')}
-          >
-            All Reports
-          </button>
-          <button 
-            className={`view-toggle ${viewMode === 'recent' ? 'active' : ''}`}
-            onClick={() => setViewMode('recent')}
-          >
-            Recent
-          </button>
-        </div>
-        
-        <div className="search-section">
-          <SearchBar 
-            onSearch={handleSearch}
-            placeholder="Search reports by title, department, or type..."
-          />
-          <div className="search-info">
-            {searchTerm && (
-              <span className="search-results">
-                Found {filteredReports.length} results for "{searchTerm}"
-              </span>
+            {showProcedureDepartmentMenu && hoveredProcedureButton && hoveredProcedureButton !== 'MANAGEMENT' && (
+              <div 
+                className="procedure-department-menu"
+                ref={procedureMenuRef}
+                style={{
+                  left: `${procedureMenuPosition.x}px`,
+                  top: `${procedureMenuPosition.y}px`,
+                  transform: 'translateX(-50%)'
+                }}
+                onMouseEnter={handleProcedureMenuEnter}
+                onMouseLeave={handleProcedureMenuLeave}
+              >
+                <div className="dashboard-menu-header">
+                  <span className="menu-report-type">{hoveredProcedureButton}</span>
+                </div>
+                <div className="department-options">
+                  {departments.map(dept => (
+                    <button
+                      key={dept}
+                      className={`department-option ${selectedProcedureDepartment === dept && selectedProcedureType === hoveredProcedureButton ? 'selected' : ''}`}
+                      onClick={() => handleProcedureDepartmentSelect(dept)}
+                    >
+                      <span className="department-name">{dept}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Procedure Content */}
+          <div className="procedure-content-wrapper">
+            {loadingProcedure ? (
+              <div className="procedure-loading">
+                <LoadingSpinner size="large" />
+                <p>Loading procedure...</p>
+              </div>
+            ) : selectedProcedureType ? (
+              currentProcedure ? (
+                <ProcedureEditor
+                  reportType={selectedProcedureType}
+                  department={selectedProcedureDepartment}
+                  initialContent={currentProcedure.content}
+                  onSave={handleSaveProcedure}
+                  onCancel={() => loadProcedure()}
+                />
+              ) : (
+                <ProcedureEditor
+                  reportType={selectedProcedureType}
+                  department={selectedProcedureDepartment}
+                  initialContent={[]}
+                  onSave={handleSaveProcedure}
+                  onCancel={() => {
+                    setSelectedProcedureType(null);
+                    setSelectedProcedureDepartment(null);
+                  }}
+                />
+              )
+            ) : (
+              <div className="procedure-message">
+                <div className="procedure-message-icon">📋</div>
+                <h3>Select a Report Procedure</h3>
+                <p className="procedure-placeholder">
+                  Click on MANAGEMENT to view its procedure, or hover over other procedure types and select a department (CS, SME, or LBF) to view the report procedure.
+                </p>
+              </div>
             )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Reports Table */}
-      <div className="report-table-container">
+      {/* Reports View */}
+      {activeView === 'reports' && (
+        <>
+          {/* Stats Cards */}
+          <div className="stats-cards">
+            <div className="stat-card">
+              <div className="stat-icon">📊</div>
+              <div className="stat-content">
+                <div className="stat-value">{stats.totalReports}</div>
+                <div className="stat-label">Total Reports</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">✅</div>
+              <div className="stat-content">
+                <div className="stat-value">{stats.activeReports}</div>
+                <div className="stat-label">Active</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">👁️</div>
+              <div className="stat-content">
+                <div className="stat-value">{stats.totalViews}</div>
+                <div className="stat-label">Total Views</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">📥</div>
+              <div className="stat-content">
+                <div className="stat-value">{stats.totalDownloads}</div>
+                <div className="stat-label">Downloads</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters and Search */}
+          <div className="report-controls">
+            <div className="view-toggles">
+              <button 
+                className={`view-toggle ${viewMode === 'all' ? 'active' : ''}`}
+                onClick={() => setViewMode('all')}
+              >
+                All Reports
+              </button>
+              <button 
+                className={`view-toggle ${viewMode === 'recent' ? 'active' : ''}`}
+                onClick={() => setViewMode('recent')}
+              >
+                Recent
+              </button>
+            </div>
+            
+            <div className="search-section">
+              <SearchBar 
+                onSearch={handleSearch}
+                placeholder="Search reports by title, department, or type..."
+              />
+              <div className="search-info">
+                {searchTerm && (
+                  <span className="search-results">
+                    Found {filteredReports.length} results for "{searchTerm}"
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Reports Table */}
+          <div className="report-table-container">
         {loading ? (
           <div className="loading-container">
             <LoadingSpinner size="large" />
@@ -315,7 +628,9 @@ const ReportManagement = () => {
             )}
           </>
         )}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Add Report Modal */}
       {showAddModal && (
