@@ -186,9 +186,11 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     const lbfBranches = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {} };
     const smeData = {};
     const zanzibarData = {};
+    let agrifinanceData = {};
 
     const csBranchNames = ['CS', 'Cs Asset Finance'];
     const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
+    const agriFinanceBranches = ['AgriFinance', 'Agrifinance'];
 
     // Group data by branch and metric
     data.forEach(row => {
@@ -210,6 +212,9 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         smeData[metric] = value;
       } else if (branch === 'ZANZIBAR') {
         zanzibarData[metric] = value;
+      } else if (agriFinanceBranches.includes(branch)) {
+        if (!agrifinanceData) agrifinanceData = {};
+        agrifinanceData[metric] = value;
       }
     });
 
@@ -222,6 +227,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       lbfBranches,
       sme: smeData,
       zanzibar: zanzibarData,
+      agrifinance: agrifinanceData || {},
       date: report.date || report.createdAt
     };
   };

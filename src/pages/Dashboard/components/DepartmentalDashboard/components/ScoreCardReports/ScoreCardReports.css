@@ -1,0 +1,383 @@
+/* ============================================
+   ScoreCardReports - Unique CSS Classes
+   Prefix: scorecard-
+   ============================================ */
+
+.scorecard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.scorecard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.scorecard-main-title {
+  color: #2a5298;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.scorecard-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+  background: #f8f9fa;
+  padding: 0.25rem;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
+}
+
+.scorecard-mode-btn {
+  padding: 0.5rem 1.25rem;
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.scorecard-mode-btn:hover {
+  background: rgba(42, 82, 152, 0.1);
+  color: #2a5298;
+}
+
+.scorecard-mode-btn--active {
+  background: #2a5298;
+  color: white;
+  font-weight: 600;
+}
+
+.scorecard-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.scorecard-divider {
+  height: 2px;
+  background: linear-gradient(to right, transparent, #e1e5e9, transparent);
+  margin: 2rem 0;
+}
+
+.scorecard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 2rem 0;
+  margin-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.scorecard-email-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: #5a6c7d;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.scorecard-email-btn:hover {
+  background: #4a5c6d;
+}
+
+.scorecard-email-icon {
+  font-size: 1.1rem;
+}
+
+.scorecard-export-container {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+  min-width: 200px;
+}
+
+.scorecard-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 2rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(42, 82, 152, 0.2);
+}
+
+.scorecard-export-btn:hover {
+  background: #1e3c72;
+  box-shadow: 0 4px 12px rgba(42, 82, 152, 0.3);
+  transform: translateY(-2px);
+}
+
+.scorecard-export-btn:active {
+  transform: translateY(0);
+}
+
+.scorecard-export-icon {
+  font-size: 1.25rem;
+}
+
+/* Email modal */
+.scorecard-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.scorecard-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.scorecard-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.scorecard-modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2a5298;
+}
+
+.scorecard-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+.scorecard-modal-close:hover {
+  color: #333;
+}
+
+.scorecard-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.scorecard-modal-hint {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.scorecard-recipients-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.scorecard-recipient-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.scorecard-add-recipient-btn {
+  padding: 0.5rem 1rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.scorecard-add-recipient-btn:hover {
+  background: #1e3c72;
+}
+
+.scorecard-recipients-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scorecard-recipient-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.scorecard-recipient-email {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.scorecard-remove-recipient {
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  border: 1px solid #ccc;
+  color: #666;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.scorecard-remove-recipient:hover {
+  background: #fee;
+  color: #c00;
+  border-color: #c00;
+}
+
+.scorecard-modal-empty {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.875rem;
+  color: #999;
+}
+
+.scorecard-modal-error {
+  margin: 0.75rem 0 0 0;
+  font-size: 0.875rem;
+  color: #c00;
+}
+
+.scorecard-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.scorecard-modal-cancel {
+  padding: 0.5rem 1.25rem;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.scorecard-modal-cancel:hover {
+  background: #e0e0e0;
+}
+
+.scorecard-modal-send {
+  padding: 0.5rem 1.25rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.scorecard-modal-send:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.scorecard-modal-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode support */
+.dark-mode .scorecard-main-title {
+  color: #63b3ed;
+}
+
+.dark-mode .scorecard-mode-toggle {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+.dark-mode .scorecard-mode-btn {
+  color: #a0aec0;
+}
+
+.dark-mode .scorecard-mode-btn:hover {
+  background: rgba(99, 179, 237, 0.1);
+  color: #63b3ed;
+}
+
+.dark-mode .scorecard-mode-btn--active {
+  background: #4299e1;
+  color: white;
+}
+
+.dark-mode .scorecard-divider {
+  background: linear-gradient(to right, transparent, #4a5568, transparent);
+}
+
+.dark-mode .scorecard-export-btn {
+  background: #4299e1;
+  box-shadow: 0 2px 8px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .scorecard-export-btn:hover {
+  background: #3182ce;
+  box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .scorecard-header {
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .scorecard-mode-toggle {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .scorecard-mode-btn {
+    flex: 1;
+  }
+
+  .scorecard-export-btn {
+    width: 100%;
+    max-width: 400px;
+    justify-content: center;
+  }
+}

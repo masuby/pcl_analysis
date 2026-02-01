@@ -1,0 +1,387 @@
+/* ============================================
+   ProductionSalesTracker - Unique CSS Classes
+   Prefix: pst-
+   ============================================ */
+
+.pst-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.pst-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.pst-title {
+  color: #2a5298;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.pst-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.pst-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}
+
+/* Table Section */
+.pst-table-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pst-section-title {
+  color: #2a5298;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.pst-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.pst-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.pst-table thead {
+  background: #f8f9fa;
+}
+
+.pst-table th {
+  padding: 0.625rem 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: #2a5298;
+  border: 1px solid #e1e5e9;
+  white-space: nowrap;
+}
+
+.pst-table td {
+  padding: 0.5rem;
+  border: 1px solid #e1e5e9;
+  color: #333;
+}
+
+/* Header styling */
+.pst-th-product {
+  background: #4472C4 !important;
+  color: white !important;
+  min-width: 80px;
+}
+
+.pst-th-subproduct {
+  background: #4472C4 !important;
+  color: white !important;
+  min-width: 120px;
+}
+
+.pst-th-number {
+  background: #ED7D31 !important;
+  color: white !important;
+}
+
+.pst-th-percent {
+  background: #70AD47 !important;
+  color: white !important;
+}
+
+.pst-th-group-current {
+  background: #70AD47 !important;
+  color: white !important;
+}
+
+.pst-th-group-previous {
+  background: #A5A5A5 !important;
+  color: white !important;
+}
+
+.pst-th-change {
+  background: #FFC000 !important;
+  color: #333 !important;
+}
+
+.pst-subheader th {
+  background: #f0f2f5 !important;
+  color: #666 !important;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Cell styling */
+.pst-td-product {
+  font-weight: 600;
+  color: #2a5298;
+  background: #E9EEF7;
+}
+
+.pst-td-subproduct {
+  font-weight: 500;
+  background: #f8f9fa;
+}
+
+.pst-td-number {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.pst-td-percent {
+  text-align: center;
+  font-weight: 500;
+}
+
+.pst-td-change {
+  text-align: center;
+  font-weight: 600;
+}
+
+.pst-td-month {
+  font-weight: 500;
+  background: #f8f9fa;
+}
+
+/* Conditional colors */
+.pst-positive {
+  color: #38a169;
+  background: #e6f4ea !important;
+}
+
+.pst-warning {
+  color: #d69e2e;
+  background: #fef3cd !important;
+}
+
+.pst-negative {
+  color: #e53e3e;
+  background: #f8d7da !important;
+}
+
+/* Total row styling */
+.pst-row-total {
+  background: #e2e8f0 !important;
+  font-weight: 600;
+}
+
+.pst-row-total td {
+  background: #e2e8f0 !important;
+  border-bottom: 2px solid #2a5298;
+}
+
+/* Trend Section */
+.pst-trend-section {
+  margin-top: 1rem;
+}
+
+.pst-trend-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.pst-trend-table-wrapper {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.pst-trend-subtitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2a5298;
+  margin: 0 0 0.75rem 0;
+}
+
+.pst-table-compact {
+  font-size: 0.75rem;
+}
+
+.pst-table-compact th,
+.pst-table-compact td {
+  padding: 0.375rem 0.5rem;
+}
+
+/* Hover effects */
+.pst-table tbody tr:hover td {
+  filter: brightness(0.97);
+}
+
+/* No data message */
+.pst-no-data {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 2rem !important;
+  background: #f8f9fa !important;
+}
+
+/* Footer */
+.pst-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.pst-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(42, 82, 152, 0.2);
+}
+
+.pst-export-btn:hover {
+  background: #1e3c72;
+  box-shadow: 0 4px 8px rgba(42, 82, 152, 0.3);
+  transform: translateY(-2px);
+}
+
+.pst-export-btn:active {
+  transform: translateY(0);
+}
+
+.pst-export-icon {
+  font-size: 1.25rem;
+}
+
+/* Dark mode support */
+.dark-mode .pst-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .pst-header {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .pst-title,
+.dark-mode .pst-section-title {
+  color: #63b3ed;
+}
+
+.dark-mode .pst-table thead {
+  background: #4a5568;
+}
+
+.dark-mode .pst-table th {
+  border-color: #4a5568;
+}
+
+.dark-mode .pst-table td {
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .pst-td-product {
+  background: #374151;
+  color: #63b3ed;
+}
+
+.dark-mode .pst-td-subproduct,
+.dark-mode .pst-td-month {
+  background: #374151;
+}
+
+.dark-mode .pst-row-total td {
+  background: #4a5568 !important;
+}
+
+.dark-mode .pst-trend-table-wrapper {
+  background: #374151;
+}
+
+.dark-mode .pst-positive {
+  color: #68d391;
+  background: rgba(104, 211, 145, 0.1) !important;
+}
+
+.dark-mode .pst-warning {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1) !important;
+}
+
+.dark-mode .pst-negative {
+  color: #fc8181;
+  background: rgba(252, 129, 129, 0.1) !important;
+}
+
+.dark-mode .pst-no-data {
+  background: #374151 !important;
+  color: #a0aec0;
+}
+
+.dark-mode .pst-section-title {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .pst-footer {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .pst-export-btn {
+  background: #4299e1;
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .pst-export-btn:hover {
+  background: #3182ce;
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .pst-trend-tables {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .pst-container {
+    padding: 1rem;
+  }
+
+  .pst-table {
+    font-size: 0.75rem;
+  }
+
+  .pst-table th,
+  .pst-table td {
+    padding: 0.375rem 0.25rem;
+  }
+
+  .pst-table-compact {
+    font-size: 0.7rem;
+  }
+}

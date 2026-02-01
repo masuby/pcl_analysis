@@ -1,0 +1,76 @@
+/* ============================================
+   Marketing Analysis - Unique CSS Classes
+   Prefix: mkt-
+   ============================================ */
+
+.mkt-coming-soon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.mkt-coming-soon-content {
+  text-align: center;
+  max-width: 500px;
+}
+
+.mkt-coming-soon-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  animation: mkt-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mkt-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.mkt-coming-soon-title {
+  color: #2a5298;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
+}
+
+.mkt-coming-soon-message {
+  color: #d69e2e;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.mkt-coming-soon-description {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Dark mode support */
+.dark-mode .mkt-coming-soon-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .mkt-coming-soon-title {
+  color: #63b3ed;
+}
+
+.dark-mode .mkt-coming-soon-message {
+  color: #fbbf24;
+}
+
+.dark-mode .mkt-coming-soon-description {
+  color: #a0aec0;
+}

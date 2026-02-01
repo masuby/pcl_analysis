@@ -1,0 +1,350 @@
+/* ============================================
+   CallCenterPerformanceTracker - Unique CSS Classes
+   Prefix: cct-
+   ============================================ */
+
+.cct-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.cct-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.cct-title {
+  color: #2a5298;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cct-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.cct-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}
+
+.cct-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.cct-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.cct-table thead {
+  background: #f8f9fa;
+}
+
+.cct-table th {
+  padding: 0.625rem 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: white;
+  border: 1px solid #e1e5e9;
+  white-space: nowrap;
+}
+
+.cct-table td {
+  padding: 0.5rem;
+  border: 1px solid #e1e5e9;
+  color: #333;
+}
+
+/* Header colors */
+.cct-th-product {
+  background: #4472C4 !important;
+  min-width: 80px;
+}
+
+.cct-th-calls {
+  background: #5B9BD5 !important;
+}
+
+.cct-th-success {
+  background: #70AD47 !important;
+}
+
+.cct-th-fail {
+  background: #ED7D31 !important;
+}
+
+.cct-th-agents {
+  background: #FFC000 !important;
+  color: #333 !important;
+}
+
+/* Cell styling */
+.cct-td-product {
+  font-weight: 600;
+  color: #2a5298;
+  background: #E9EEF7;
+  text-align: left;
+}
+
+.cct-td-number {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.cct-td-percent {
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Conditional colors */
+.cct-positive {
+  color: #38a169;
+  background: #e6f4ea !important;
+}
+
+.cct-warning {
+  color: #d69e2e;
+  background: #fef3cd !important;
+}
+
+.cct-negative {
+  color: #e53e3e;
+  background: #f8d7da !important;
+}
+
+/* Agents section */
+.cct-agents-section {
+  margin-top: 1.5rem;
+}
+
+.cct-agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.cct-agents-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.cct-agents-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2a5298;
+  margin: 0 0 0.75rem 0;
+}
+
+.cct-agents-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.cct-agents-table thead {
+  background: white;
+}
+
+.cct-agents-table th {
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2a5298;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.cct-agents-table td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid #e1e5e9;
+  color: #333;
+}
+
+.cct-rank-cell {
+  font-weight: 600;
+  color: #2a5298;
+  width: 40px;
+}
+
+/* Hover effects */
+.cct-table tbody tr:hover td,
+.cct-agents-table tbody tr:hover {
+  filter: brightness(0.97);
+}
+
+/* No data */
+.cct-no-data {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 2rem !important;
+  background: #f8f9fa !important;
+}
+
+/* Footer */
+.cct-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.cct-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(42, 82, 152, 0.2);
+}
+
+.cct-export-btn:hover {
+  background: #1e3c72;
+  box-shadow: 0 4px 8px rgba(42, 82, 152, 0.3);
+  transform: translateY(-2px);
+}
+
+.cct-export-btn:active {
+  transform: translateY(0);
+}
+
+.cct-export-icon {
+  font-size: 1.25rem;
+}
+
+/* Dark mode support */
+.dark-mode .cct-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .cct-header {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .cct-title {
+  color: #63b3ed;
+}
+
+.dark-mode .cct-table thead {
+  background: #4a5568;
+}
+
+.dark-mode .cct-table th {
+  border-color: #4a5568;
+}
+
+.dark-mode .cct-table td {
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .cct-td-product {
+  background: #374151;
+  color: #63b3ed;
+}
+
+.dark-mode .cct-positive {
+  color: #68d391;
+  background: rgba(104, 211, 145, 0.1) !important;
+}
+
+.dark-mode .cct-warning {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1) !important;
+}
+
+.dark-mode .cct-negative {
+  color: #fc8181;
+  background: rgba(252, 129, 129, 0.1) !important;
+}
+
+.dark-mode .cct-agents-card {
+  background: #374151;
+}
+
+.dark-mode .cct-agents-title {
+  color: #63b3ed;
+}
+
+.dark-mode .cct-agents-table thead {
+  background: #2d3748;
+}
+
+.dark-mode .cct-agents-table th {
+  color: #63b3ed;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .cct-agents-table td {
+  border-bottom-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .cct-rank-cell {
+  color: #63b3ed;
+}
+
+.dark-mode .cct-no-data {
+  background: #374151 !important;
+  color: #a0aec0;
+}
+
+.dark-mode .cct-footer {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .cct-export-btn {
+  background: #4299e1;
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .cct-export-btn:hover {
+  background: #3182ce;
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .cct-agents-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .cct-container {
+    padding: 1rem;
+  }
+
+  .cct-table {
+    font-size: 0.75rem;
+  }
+
+  .cct-table th,
+  .cct-table td {
+    padding: 0.375rem 0.25rem;
+  }
+}

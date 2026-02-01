@@ -17,13 +17,15 @@ const ReportTypeSelector = ({
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isMenuHovered, setIsMenuHovered] = useState(false);
   const reportTypes = ['SUMMARY', 'MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE'];
-  const departments = ['CS', 'LBF', 'SME']; // Removed 'ALL' as it has no pages to render
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
   const menuRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
 
   const isAdmin = userData?.role === 'admin' || userData?.role === 'ALL';
+  
+  // Departments - only show CS, LBF, SME to Admin or users with ALL access
+  const departments = isAdmin ? ['CS', 'LBF', 'SME'] : [];
   
   // Get available departments for Challenge based on user role
   const getChallengeDepartments = () => {
@@ -51,7 +53,12 @@ const ReportTypeSelector = ({
     }
 
     // Show menu for CHALLENGE and other non-MANAGEMENT types (but not SUMMARY - it shows user's department only)
+    // For DEPARTMENTAL, only show menu if user is Admin/ALL Access (since departments array will be empty for non-admins)
     if (type !== 'MANAGEMENT' && type !== 'SUMMARY' && (isAdmin || type === 'CHALLENGE')) {
+      // For DEPARTMENTAL type, only show menu if user has access (isAdmin)
+      if (type === 'DEPARTMENTAL' && !isAdmin) {
+        return;
+      }
       const button = buttonRefs.current[type];
       if (button) {
         const rect = button.getBoundingClientRect();
@@ -164,7 +171,7 @@ const ReportTypeSelector = ({
                 {selectedType === type && selectedDepartment !== 'ALL' && type !== 'MANAGEMENT' && (
                   <span className="department-indicator">{selectedDepartment}</span>
                 )}
-                {type !== 'MANAGEMENT' && type !== 'SUMMARY' && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') && showDepartmentMenu && hoveredButton === type && (
+                {type !== 'MANAGEMENT' && type !== 'SUMMARY' && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') && (type !== 'DEPARTMENTAL' || isAdmin) && showDepartmentMenu && hoveredButton === type && (
                   <div className="hover-indicator"></div>
                 )}
               </button>
@@ -176,7 +183,7 @@ const ReportTypeSelector = ({
         </div>
       </div>
 
-      {showDepartmentMenu && hoveredButton && hoveredButton !== 'MANAGEMENT' && hoveredButton !== 'SUMMARY' && ((isAdmin && hoveredButton !== 'MANAGEMENT') || hoveredButton === 'CHALLENGE') && (
+      {showDepartmentMenu && hoveredButton && hoveredButton !== 'MANAGEMENT' && hoveredButton !== 'SUMMARY' && ((isAdmin && hoveredButton !== 'MANAGEMENT') || hoveredButton === 'CHALLENGE') && (hoveredButton !== 'DEPARTMENTAL' || isAdmin) && (
         <div 
           className="department-menu"
           ref={menuRef}

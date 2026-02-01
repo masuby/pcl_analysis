@@ -1,0 +1,64 @@
+/* ============================================
+   GapAnalysis - Unique CSS Classes
+   Prefix: gap-analysis-
+   ============================================ */
+
+.gap-analysis-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.gap-analysis-content {
+  text-align: center;
+  max-width: 500px;
+}
+
+.gap-analysis-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+
+.gap-analysis-title {
+  color: #2a5298;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 1rem 0;
+}
+
+.gap-analysis-message {
+  color: #d69e2e;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.gap-analysis-description {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Dark mode support */
+.dark-mode .gap-analysis-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .gap-analysis-title {
+  color: #63b3ed;
+}
+
+.dark-mode .gap-analysis-message {
+  color: #fbbf24;
+}
+
+.dark-mode .gap-analysis-description {
+  color: #a0aec0;
+}

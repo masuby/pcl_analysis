@@ -1,0 +1,406 @@
+/* ============================================
+   SalesComplianceSummary - Unique CSS Classes
+   Prefix: scs-
+   ============================================ */
+
+.scs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.scs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e1e5e9;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scs-title {
+  color: #2a5298;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.scs-mode-badge {
+  background: #f0f2f5;
+  color: #666;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.scs-content {
+  flex: 1;
+  overflow: hidden;
+}
+
+.scs-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}
+
+.scs-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.scs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  min-width: 2500px; /* Ensure table doesn't collapse */
+}
+
+/* Sticky headers */
+.scs-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Main header row */
+.scs-header-main th {
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  color: white;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+}
+
+/* Sub header row */
+.scs-header-sub th {
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: white;
+  border: 1px solid #ccc;
+  white-space: nowrap;
+}
+
+/* PRODUCT column - Dark Blue */
+.scs-th-product {
+  background: #4472C4 !important;
+  min-width: 80px;
+  position: sticky;
+  left: 0;
+  z-index: 25;
+}
+
+/* HOD column - Dark Blue */
+.scs-th-hod {
+  background: #4472C4 !important;
+  min-width: 150px;
+  position: sticky;
+  left: 80px;
+  z-index: 25;
+}
+
+/* SUB-PRODUCT column - Dark Blue */
+.scs-th-subproduct {
+  background: #4472C4 !important;
+  min-width: 120px;
+  position: sticky;
+  left: 230px;
+  z-index: 25;
+}
+
+/* DAY column - Green */
+.scs-th-day {
+  background: #70AD47 !important;
+  min-width: 90px;
+}
+
+/* SALES columns - Orange */
+.scs-th-sales {
+  background: #ED7D31 !important;
+}
+
+.scs-th-sales-sub {
+  background: #F4B183 !important;
+  color: #333 !important;
+}
+
+/* PORTFOLIO columns - Gray */
+.scs-th-portfolio {
+  background: #A5A5A5 !important;
+}
+
+.scs-th-portfolio-sub {
+  background: #C9C9C9 !important;
+  color: #333 !important;
+}
+
+/* CRM columns - Yellow */
+.scs-th-crm {
+  background: #FFC000 !important;
+  color: #333 !important;
+}
+
+.scs-th-crm-sub {
+  background: #FFE699 !important;
+  color: #333 !important;
+}
+
+/* CALL CENTER columns - Light Blue */
+.scs-th-callcenter {
+  background: #5B9BD5 !important;
+}
+
+.scs-th-cc-sub {
+  background: #9DC3E6 !important;
+  color: #333 !important;
+}
+
+/* Table body cells */
+.scs-table tbody tr {
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.scs-table td {
+  padding: 0.5rem 0.25rem;
+  border: 1px solid #e1e5e9;
+  text-align: center;
+  color: #333;
+  white-space: nowrap;
+}
+
+/* Sticky first 3 columns in body */
+.scs-td-product {
+  background: #E9EEF7;
+  font-weight: 600;
+  color: #2a5298;
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+.scs-td-hod {
+  background: #E9EEF7;
+  font-style: italic;
+  color: #666;
+  position: sticky;
+  left: 80px;
+  z-index: 10;
+}
+
+.scs-td-subproduct {
+  background: #E9EEF7;
+  font-weight: 500;
+  position: sticky;
+  left: 230px;
+  z-index: 10;
+}
+
+/* Day column */
+.scs-td-day {
+  background: #E2F0D9;
+  font-weight: 500;
+}
+
+/* Sales columns */
+.scs-td-sales {
+  background: #FCE4D6;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Portfolio columns */
+.scs-td-portfolio {
+  background: #EDEDED;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* CRM columns */
+.scs-td-crm {
+  background: #FFF2CC;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Call Center columns */
+.scs-td-cc {
+  background: #DEEBF7;
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Product start row - add top border for visual separation */
+.scs-row-product-start {
+  border-top: 3px solid #2a5298 !important;
+}
+
+/* Total/Average/Movement row - bold */
+.scs-row-total {
+  font-weight: 700;
+  background: rgba(42, 82, 152, 0.06) !important;
+}
+.scs-row-total td {
+  font-weight: 700;
+}
+
+/* Hover effect */
+.scs-table tbody tr:hover td {
+  filter: brightness(0.95);
+}
+
+/* No data message */
+.scs-no-data {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 2rem !important;
+  background: #f8f9fa !important;
+}
+
+/* Footer */
+.scs-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.scs-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(42, 82, 152, 0.2);
+}
+
+.scs-export-btn:hover {
+  background: #1e3c72;
+  box-shadow: 0 4px 8px rgba(42, 82, 152, 0.3);
+  transform: translateY(-2px);
+}
+
+.scs-export-btn:active {
+  transform: translateY(0);
+}
+
+.scs-export-icon {
+  font-size: 1.25rem;
+}
+
+/* Dark mode support */
+.dark-mode .scs-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .scs-header {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .scs-title {
+  color: #63b3ed;
+}
+
+.dark-mode .scs-mode-badge {
+  background: #4a5568;
+  color: #a0aec0;
+}
+
+.dark-mode .scs-table td {
+  border-color: #4a5568;
+}
+
+.dark-mode .scs-td-product,
+.dark-mode .scs-td-hod,
+.dark-mode .scs-td-subproduct {
+  background: #374151;
+  color: #63b3ed;
+}
+
+.dark-mode .scs-td-day {
+  background: #2d4a3a;
+}
+
+.dark-mode .scs-td-sales {
+  background: #4a3728;
+  color: #e2e8f0;
+}
+
+.dark-mode .scs-td-portfolio {
+  background: #3a3a3a;
+  color: #e2e8f0;
+}
+
+.dark-mode .scs-td-crm {
+  background: #4a4528;
+  color: #e2e8f0;
+}
+
+.dark-mode .scs-td-cc {
+  background: #2d3d4a;
+  color: #e2e8f0;
+}
+
+.dark-mode .scs-no-data {
+  background: #374151 !important;
+  color: #a0aec0;
+}
+
+.dark-mode .scs-footer {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .scs-export-btn {
+  background: #4299e1;
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .scs-export-btn:hover {
+  background: #3182ce;
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .scs-table {
+    font-size: 0.7rem;
+  }
+
+  .scs-header-sub th {
+    font-size: 0.65rem;
+  }
+
+  .scs-table td {
+    padding: 0.375rem 0.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .scs-container {
+    padding: 1rem;
+  }
+
+  .scs-table {
+    font-size: 0.65rem;
+  }
+}

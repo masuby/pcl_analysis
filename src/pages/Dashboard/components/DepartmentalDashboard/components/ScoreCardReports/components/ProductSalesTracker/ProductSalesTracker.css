@@ -1,0 +1,372 @@
+/* ============================================
+   ProductSalesTracker (MTD) - Unique CSS Classes
+   Prefix: mtd-
+   ============================================ */
+
+.mtd-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.mtd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.mtd-title {
+  color: #2a5298;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.mtd-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.mtd-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+}
+
+.mtd-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.mtd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.mtd-table thead {
+  background: #f8f9fa;
+}
+
+.mtd-table th {
+  padding: 0.625rem 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  color: white;
+  border: 1px solid #e1e5e9;
+  white-space: nowrap;
+}
+
+.mtd-table td {
+  padding: 0.5rem;
+  border: 1px solid #e1e5e9;
+  color: #333;
+}
+
+/* Header colors */
+.mtd-th-product {
+  background: #4472C4 !important;
+  min-width: 80px;
+}
+
+.mtd-th-value {
+  background: #70AD47 !important;
+}
+
+.mtd-th-loans {
+  background: #ED7D31 !important;
+}
+
+.mtd-th-performer {
+  background: #7030A0 !important;
+}
+
+/* Cell styling */
+.mtd-td-product {
+  font-weight: 600;
+  color: #2a5298;
+  background: #E9EEF7;
+  text-align: left;
+}
+
+.mtd-td-number {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* Performers section - scrollable left/right */
+.mtd-performers-section {
+  margin-top: 1.5rem;
+}
+
+.mtd-performers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.5rem;
+}
+
+.mtd-performers-grid.mtd-performers-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+  min-width: min(100%, 1200px);
+}
+
+.mtd-performers-card.mtd-performers-card-scroll {
+  min-width: 520px;
+}
+
+.mtd-performers-table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.mtd-performers-card {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.mtd-performers-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2a5298;
+  margin: 0 0 0.75rem 0;
+}
+
+.mtd-performers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+}
+
+.mtd-performers-table thead {
+  background: white;
+}
+
+.mtd-performers-table th {
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2a5298;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.mtd-performers-table td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid #e1e5e9;
+  color: #333;
+}
+
+.mtd-rank-cell {
+  font-weight: 600;
+  color: #2a5298;
+  width: 40px;
+}
+
+.mtd-th-rank, .mtd-th-name, .mtd-th-value, .mtd-th-pct, .mtd-th-target, .mtd-th-reps, .mtd-th-loans, .mtd-th-type {
+  white-space: nowrap;
+}
+
+.mtd-td-percent {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+.mtd-td-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mtd-type-badge {
+  font-size: 0.65rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: #e1e5e9;
+  color: #666;
+  text-transform: capitalize;
+}
+
+/* Whole Total row: bold, blue, separated by lines */
+.mtd-whole-total-row {
+  border-top: 2px solid #2E5090;
+  border-bottom: 2px solid #2E5090;
+  background: #D6DCE4;
+}
+.mtd-whole-total-row td {
+  font-weight: 700;
+  color: #2E5090;
+  border-top: 2px solid #2E5090;
+  border-bottom: 2px solid #2E5090;
+}
+.mtd-whole-total-cell {
+  background: #D6DCE4 !important;
+  color: #2E5090 !important;
+  font-weight: 700 !important;
+}
+
+/* Hover effects */
+.mtd-table tbody tr:hover td,
+.mtd-performers-table tbody tr:hover {
+  filter: brightness(0.97);
+}
+
+/* No data */
+.mtd-no-data {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 2rem !important;
+  background: #f8f9fa !important;
+}
+
+/* Footer */
+.mtd-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.mtd-export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(42, 82, 152, 0.2);
+}
+
+.mtd-export-btn:hover {
+  background: #1e3c72;
+  box-shadow: 0 4px 8px rgba(42, 82, 152, 0.3);
+  transform: translateY(-2px);
+}
+
+.mtd-export-btn:active {
+  transform: translateY(0);
+}
+
+.mtd-export-icon {
+  font-size: 1.25rem;
+}
+
+/* Dark mode support */
+.dark-mode .mtd-container {
+  background: #2d3748;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.dark-mode .mtd-header {
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .mtd-title {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-table thead {
+  background: #4a5568;
+}
+
+.dark-mode .mtd-table th {
+  border-color: #4a5568;
+}
+
+.dark-mode .mtd-table td {
+  border-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .mtd-td-product {
+  background: #374151;
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-performers-card {
+  background: #374151;
+}
+
+.dark-mode .mtd-performers-title {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-performers-table thead {
+  background: #2d3748;
+}
+
+.dark-mode .mtd-performers-table th {
+  color: #63b3ed;
+  border-bottom-color: #4a5568;
+}
+
+.dark-mode .mtd-performers-table td {
+  border-bottom-color: #4a5568;
+  color: #e2e8f0;
+}
+
+.dark-mode .mtd-rank-cell {
+  color: #63b3ed;
+}
+
+.dark-mode .mtd-type-badge {
+  background: #4a5568;
+  color: #a0aec0;
+}
+
+.dark-mode .mtd-no-data {
+  background: #374151 !important;
+  color: #a0aec0;
+}
+
+.dark-mode .mtd-footer {
+  border-top-color: #4a5568;
+}
+
+.dark-mode .mtd-export-btn {
+  background: #4299e1;
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.2);
+}
+
+.dark-mode .mtd-export-btn:hover {
+  background: #3182ce;
+  box-shadow: 0 4px 8px rgba(66, 153, 225, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .mtd-performers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .mtd-container {
+    padding: 1rem;
+  }
+
+  .mtd-table {
+    font-size: 0.75rem;
+  }
+
+  .mtd-table th,
+  .mtd-table td {
+    padding: 0.375rem 0.25rem;
+  }
+}
