@@ -80,8 +80,9 @@ export const exportToExcel = (data, sheetName, options = {}) => {
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   
-  // Write file
-  const fileName = options.fileName || `${sheetName}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  // Write file – ensure .xlsx extension
+  const base = options.fileName || `${sheetName}_${new Date().toISOString().split('T')[0]}`;
+  const fileName = base.toLowerCase().endsWith('.xlsx') ? base : `${base}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
 
@@ -119,7 +120,8 @@ export const exportMultipleSheets = (sheets, fileName) => {
     XLSX.utils.book_append_sheet(wb, ws, sheet.name);
   });
   
-  const finalFileName = fileName || `HOD_ScoreCard_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const base = fileName || `HOD_ScoreCard_${new Date().toISOString().split('T')[0]}`;
+  const finalFileName = base.toLowerCase().endsWith('.xlsx') ? base : `${base}.xlsx`;
   XLSX.writeFile(wb, finalFileName);
 };
 
@@ -174,7 +176,8 @@ export const exportMultipleSheetsWithColors = (sheets, fileName) => {
     XLSX.utils.book_append_sheet(wb, ws, sheet.name.substring(0, 31)); // Excel sheet names max 31 chars
   });
   
-  const finalFileName = fileName || `HOD_ScoreCard_${new Date().toISOString().split('T')[0]}.xlsx`;
+  const base = fileName || `HOD_ScoreCard_${new Date().toISOString().split('T')[0]}`;
+  const finalFileName = base.toLowerCase().endsWith('.xlsx') ? base : `${base}.xlsx`;
   XLSX.writeFile(wb, finalFileName);
 };
 

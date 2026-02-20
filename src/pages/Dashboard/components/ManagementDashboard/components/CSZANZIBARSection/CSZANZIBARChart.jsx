@@ -1,8 +1,10 @@
 // C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\CSZANZIBARSection\CSZANZIBARChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
+import { getMetricValue } from '../../utils/reportUtils';
 import CSZANZIBARSummary from './CSZANZIBARSummary';
 import ChartDataExport from '../Common/ChartDataExport';
+import ClientBreakdownModal from '../Common/ClientBreakdownModal';
 
 const CSZANZIBARChart = ({ 
   data, 
@@ -19,7 +21,8 @@ const CSZANZIBARChart = ({
   setTo, 
   reset,
   applyFilters,
-  columns 
+  columns,
+  sectionLabel = 'Zanzibar'
 }) => {
   // Sort by date for better visualization
   let sortedData = [...data].sort((a, b) => {
@@ -67,7 +70,8 @@ const CSZANZIBARChart = ({
         day: 'numeric' 
       }),
       dateValue: itemDate,
-      value: column && typeof item[column] === 'number' ? item[column] : 0
+      value: column ? getMetricValue(item, column) : 0,
+      [column]: column ? getMetricValue(item, column) : 0
     };
   });
 
@@ -164,7 +168,10 @@ const CSZANZIBARChart = ({
             columnName: column
           })}
         </ResponsiveContainer>
-        <ChartDataExport chartData={chartData} column={column} />
+        <div className="chart-action-buttons">
+          <ChartDataExport chartData={chartData} column={column} />
+          <ClientBreakdownModal data={allData} sectionLabel={sectionLabel} />
+        </div>
       </div>
       {allData && <CSZANZIBARSummary allData={allData} />}
     </div>

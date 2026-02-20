@@ -393,10 +393,19 @@ func UploadReport(c *gin.Context) {
 	_ = database.CacheDeletePattern("reports:*")
 	_ = database.CacheDeletePattern("dashboard:*")
 
-	// Parse Excel and store data (async)
+	// Parse Excel and store data (async) - same logic as batch-parse for reliability
 	go func() {
-		if err := services.ParseAndStoreExcelData(report.ID, fullPath, reportDate); err != nil {
-			fmt.Printf("Warning: Failed to parse Excel file %s: %v\n", fileName, err)
+		err := services.ParseAndStoreExcelData(report.ID, fullPath, reportDate)
+		if err != nil {
+			// Fallback: generic JSON parsing for CRM/CALL CENTER/MTD formats
+			jsonData, jsonErr := services.ParseExcelToJSON(fullPath)
+			if jsonErr != nil {
+				fmt.Printf("Warning: Failed to parse Excel file %s (structured: %v, generic: %v)\n", fileName, err, jsonErr)
+				return
+			}
+			if storeErr := services.StoreGenericReportData(report.ID, report.Type, jsonData, reportDate); storeErr != nil {
+				fmt.Printf("Warning: Failed to store generic data for %s: %v\n", fileName, storeErr)
+			}
 		}
 	}()
 

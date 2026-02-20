@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAllReports, searchReports } from '../../../services/reports';
-import { proceduresAPI } from '../../../services/api';
+import { proceduresAPI, adminAPI } from '../../../services/api';
+import { useReportRefresh } from '../../../contexts/ReportRefreshContext';
 import ReportTable from './ReportTable/ReportTable';
 import AddReportModal from './AddReportModal/AddReportModal';
 import ReportDetailModal from './ReportDetailModal/ReportDetailModal';
@@ -12,6 +13,7 @@ import SearchBar from '../UserManagement/SearchBar/SearchBar';
 import './ReportManagement.css';
 
 const ReportManagement = () => {
+  const { triggerRefresh } = useReportRefresh();
   const [reports, setReports] = useState([]);
   const [filteredReports, setFilteredReports] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,7 @@ const ReportManagement = () => {
   const [currentProcedure, setCurrentProcedure] = useState(null);
   const [loadingProcedure, setLoadingProcedure] = useState(false);
   const [procedureError, setProcedureError] = useState(null);
+  const [parsingReports, setParsingReports] = useState(false);
   
   const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
   const departments = ['CS', 'SME', 'LBF'];
@@ -161,6 +164,26 @@ const ReportManagement = () => {
     setReports(updatedReports);
     setFilteredReports(updatedReports);
     showToast('success', 'Report deleted successfully');
+  };
+
+  const handleParseReports = async () => {
+    setParsingReports(true);
+    try {
+      const result = await adminAPI.batchParseReports();
+      if (result.success) {
+        const details = result.details || {};
+        showToast('success', 
+          `Parsing complete: ${details.parsed || 0} parsed, ${details.skipped || 0} skipped, ${details.failed || 0} failed. Dashboard will refresh.`
+        );
+        triggerRefresh();
+      } else {
+        showToast('error', result.error || 'Failed to parse reports');
+      }
+    } catch (err) {
+      showToast('error', err.message || 'Failed to parse reports');
+    } finally {
+      setParsingReports(false);
+    }
   };
 
   const handleReportClick = (report) => {
@@ -365,14 +388,26 @@ const ReportManagement = () => {
             </button>
           </div>
           {activeView === 'reports' && (
-            <button 
-              className="add-report-button"
-              onClick={handleAddReport}
-              aria-label="Upload new report"
-            >
-              <span className="button-icon">📤</span>
-              <span className="button-text">Upload Report</span>
-            </button>
+            <div className="report-actions">
+              <button 
+                className="parse-reports-button"
+                onClick={handleParseReports}
+                disabled={parsingReports || reports.length === 0}
+                aria-label="Parse all reports for Dashboard"
+                title="Parse Excel files to populate Dashboard analytics"
+              >
+                <span className="button-icon">{parsingReports ? '⏳' : '🔄'}</span>
+                <span className="button-text">{parsingReports ? 'Parsing...' : 'Parse Reports'}</span>
+              </button>
+              <button 
+                className="add-report-button"
+                onClick={handleAddReport}
+                aria-label="Upload new report"
+              >
+                <span className="button-icon">📤</span>
+                <span className="button-text">Upload Report</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

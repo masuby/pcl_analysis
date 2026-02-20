@@ -230,7 +230,8 @@ const UnifiedSection = ({
       setTo,
       reset,
       applyFilters: applyDateFilter,
-      columns
+      columns,
+      sectionLabel: getSectionTitle()
     };
 
     switch (selectedSection) {

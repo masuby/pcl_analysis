@@ -376,9 +376,14 @@ export const downloadReportFile = async (reportId, fileName) => {
   }
 };
 
-// Get report file URL
+// Get report file URL (static files)
 export const getReportFileUrl = (filePath) => {
   return `${API_URL}/files/${filePath}`;
+};
+
+// Get API download URL for a report (for fetching blob with auth)
+export const getReportDownloadUrl = (reportId) => {
+  return `${API_URL}/api/reports/${reportId}/download`;
 };
 
 // Download all reports as ZIP

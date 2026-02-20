@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { downloadReportFile } from '../../../../services/supabase';
+import { downloadReportFile, getReportFileUrl } from '../../../../services/supabase';
+import { getReportDownloadUrl } from '../../../../services/reports';
 import './ExcelViewer.css';
 
-const ExcelViewer = ({ fileUrl, fileName, fileType, filePath }) => {
+const ExcelViewer = ({ reportId, fileUrl, fileName, fileType, filePath }) => {
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [headers, setHeaders] = useState([]);
@@ -67,14 +68,14 @@ const ExcelViewer = ({ fileUrl, fileName, fileType, filePath }) => {
   }, [data, searchQuery, searchFilters]);
 
   useEffect(() => {
-    if (!fileUrl && !filePath) {
+    if (!reportId && !fileUrl && !filePath) {
       setError('No file URL or path provided');
       setLoading(false);
       return;
     }
 
     fetchAndParseExcel();
-  }, [fileUrl, filePath]);
+  }, [reportId, fileUrl, filePath]);
 
   // Calculate column widths when data or headers change
   useEffect(() => {
@@ -146,8 +147,20 @@ const ExcelViewer = ({ fileUrl, fileName, fileType, filePath }) => {
 
       let excelData;
       let blob;
-      
-      if (filePath) {
+
+      // Prefer API download by reportId (most reliable, uses backend file path)
+      if (reportId) {
+        const url = getReportDownloadUrl(reportId);
+        const token = localStorage.getItem('pcl_token');
+        const response = await fetch(url, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load file (${response.status}): ${response.statusText}`);
+        }
+        blob = await response.blob();
+        excelData = await blob.arrayBuffer();
+      } else if (filePath) {
         const downloadResult = await downloadReportFile(filePath);
         if (!downloadResult.success) {
           throw new Error(`Failed to download: ${downloadResult.error}`);
@@ -500,8 +513,9 @@ const ExcelViewer = ({ fileUrl, fileName, fileType, filePath }) => {
     if (fileUrl) {
       window.open(fileUrl, '_blank');
     } else if (filePath) {
-      const downloadUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/Reports/${filePath}`;
-      window.open(downloadUrl, '_blank');
+      getReportFileUrl(filePath).then((url) => {
+        if (url) window.open(url, '_blank');
+      });
     }
   };
 

@@ -32,8 +32,18 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
     ...options,
     headers,
   });
-  
-  const data = await response.json();
+
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (e) {
+    // Server returned non-JSON (e.g. HTML 404 page)
+    const hint = response.status === 404
+      ? ' Endpoint may not exist. Ensure the backend is rebuilt and restarted.'
+      : '';
+    throw new Error(`Server returned invalid response (${response.status})${hint}`);
+  }
   
   // Check if token expired and try to refresh
   if ((response.status === 401 || 
@@ -395,6 +405,132 @@ export const proceduresAPI = {
   },
 };
 
+// ========== Email API ==========
+
+export const emailAPI = {
+  /**
+   * Send HOD Score Card report email to managers
+   * @param {Object} params - { recipients, subject, htmlBody, mode, attachmentBase64?, attachmentName? }
+   * @returns {Promise<{ success: boolean, message?: string, error?: string }>}
+   */
+  async sendScoreCard({ recipients, subject, htmlBody, mode = 'WEEKLY', attachmentBase64, attachmentName }) {
+    return apiRequest('/api/email/scorecard', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipients,
+        subject,
+        htmlBody,
+        mode,
+        attachmentBase64: attachmentBase64 || '',
+        attachmentName: attachmentName || '',
+      }),
+    });
+  },
+};
+
+// ========== Gap Analysis API ==========
+// Actual Reps: HOD fetches/saves; TL submits via token (no auth)
+
+export const gapAnalysisAPI = {
+  /** Get actual reps and recipient emails for a report (auth required) */
+  async getActualReps(reportId) {
+    const res = await apiRequest(`/api/gap-analysis/reports/${reportId}/actual-reps`);
+    return { data: res?.data ?? {}, recipientEmails: res?.recipientEmails ?? {} };
+  },
+
+  /** Upload Excel (Branch + RSM sheets) to update actual reps and emails (auth required) */
+  async uploadActualReps(reportId, file, product = 'CS') {
+    const formData = new FormData();
+    formData.append('file', file);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const token = localStorage.getItem('pcl_token');
+    const r = await fetch(`${API_URL}/api/gap-analysis/reports/${reportId}/actual-reps/upload?product=${encodeURIComponent(product)}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const text = await r.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      if (r.status === 404) {
+        throw new Error('Upload endpoint not found (404). Rebuild and restart the backend server.');
+      }
+      throw new Error(r.status === 401 ? 'Unauthorized. Please log in again.' : `Upload failed (${r.status}). ${text?.slice(0, 80) || 'Server returned non-JSON.'}`);
+    }
+    if (!r.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  /** Save one team leader's actual rep (HOD, auth required) */
+  async saveActualRep(reportId, teamLeaderKey, value, product = 'CS') {
+    return apiRequest(`/api/gap-analysis/reports/${reportId}/actual-reps`, {
+      method: 'POST',
+      body: JSON.stringify({ teamLeaderKey, value, product }),
+    });
+  },
+
+  /** Get signed URL for TL to submit their Actual Sales Rep (auth required) */
+  async getResponseLink(reportId, tlKey, product = 'CS') {
+    const params = new URLSearchParams({ reportId, tlKey, product });
+    const data = await apiRequest(`/api/gap-analysis/response-link?${params}`);
+    return data?.data?.url ?? '';
+  },
+
+  /** Get Google Sheet URL for TLs to submit Actual Sales Rep (auth required). Prefer this over token link when set. */
+  async getSheetUrl() {
+    const data = await apiRequest('/api/gap-analysis/sheet-url');
+    return data?.data?.url ?? '';
+  },
+
+  /** Get the uploaded Excel file for this report+product (auth required). Returns blob or null if 404. */
+  async getUploadedFile(reportId, product = 'CS') {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const token = localStorage.getItem('pcl_token');
+    const r = await fetch(`${API_URL}/api/gap-analysis/reports/${reportId}/uploaded-file?product=${encodeURIComponent(product)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.statusText || 'Failed to load file');
+    return r.blob();
+  },
+
+  /** Remove the saved uploaded file for this report+product (auth required). */
+  async deleteUploadedFile(reportId, product = 'CS') {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+    const token = localStorage.getItem('pcl_token');
+    const r = await fetch(`${API_URL}/api/gap-analysis/reports/${reportId}/uploaded-file?product=${encodeURIComponent(product)}`, {
+      method: 'DELETE',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Failed to remove file');
+    return data;
+  },
+};
+
+/** Submit Actual Sales Rep as Team Leader (no auth; token in body) */
+export async function submitGapActualRepWithToken(token, value) {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  const res = await fetch(`${API_URL}/api/gap-analysis/actual-reps`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, value: Number(value) }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to submit');
+  return data;
+}
+
+/** Verify token (for TL response page; no auth) */
+export async function verifyGapResponseToken(token) {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  const res = await fetch(`${API_URL}/api/gap-analysis/verify-token?token=${encodeURIComponent(token)}`);
+  const data = await res.json();
+  return data;
+}
+
 // ========== Admin API ==========
 
 export const adminAPI = {
@@ -448,6 +584,12 @@ export const adminAPI = {
       method: 'POST',
     });
   },
+
+  async batchParseReports() {
+    return apiRequest('/api/admin/batch-parse', {
+      method: 'POST',
+    });
+  },
 };
 
 // ========== Utility Functions ==========
@@ -471,6 +613,8 @@ export default {
   reports: reportsAPI,
   dashboard: dashboardAPI,
   challenges: challengesAPI,
+  email: emailAPI,
+  gapAnalysis: gapAnalysisAPI,
   admin: adminAPI,
   getFileUrl,
   healthCheck,

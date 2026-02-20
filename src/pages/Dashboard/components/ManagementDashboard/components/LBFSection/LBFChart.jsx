@@ -1,7 +1,9 @@
 // C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\LBFSection\LBFChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
+import { getMetricValue } from '../../utils/reportUtils';
 import ChartDataExport from '../Common/ChartDataExport';
+import ClientBreakdownModal from '../Common/ClientBreakdownModal';
 import LBFSummary from './LBFSummary';
 
 const LBFChart = ({ 
@@ -19,7 +21,8 @@ const LBFChart = ({
   setTo, 
   reset,
   applyFilters,
-  columns 
+  columns,
+  sectionLabel = 'LBF'
 }) => {
   // Sort by date for better visualization
   let sortedData = [...data].sort((a, b) => {
@@ -67,7 +70,8 @@ const LBFChart = ({
         day: 'numeric' 
       }),
       dateValue: itemDate,
-      value: column && typeof item[column] === 'number' ? item[column] : 0
+      value: column ? getMetricValue(item, column) : 0,
+      [column]: column ? getMetricValue(item, column) : 0
     };
   });
 
@@ -164,7 +168,10 @@ const LBFChart = ({
             columnName: column
           })}
         </ResponsiveContainer>
-        <ChartDataExport chartData={chartData} column={column} />
+        <div className="chart-action-buttons">
+          <ChartDataExport chartData={chartData} column={column} />
+          <ClientBreakdownModal data={allData} sectionLabel={sectionLabel} />
+        </div>
       </div>
       {allData && <LBFSummary allData={allData} />}
     </div>

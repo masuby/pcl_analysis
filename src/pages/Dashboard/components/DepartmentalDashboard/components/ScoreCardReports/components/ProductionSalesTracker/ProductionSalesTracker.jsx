@@ -7,7 +7,7 @@ import LoadingSpinner from '../../../../../../../../components/Common/Loading/Lo
 // Sub-products definitions
 const SUB_PRODUCTS = {
   CS: ['CS', 'Cs Asset Finance'],
-  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'],
+  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'],
   SME: ['SME'],
   AgriFinance: ['AgriFinance']
 };
@@ -232,9 +232,9 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
 
   const isLoading = !managementReports;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const section = getExportSheets()[0];
-    if (section) exportSingleSectionWithStyles(section, 'Production_Sales_Tracker');
+    if (section) await exportSingleSectionWithStyles(section, 'Production_Sales_Tracker');
   };
 
   const getExportSheets = () => {
@@ -270,7 +270,7 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
     }));
     if (yearRows.length > 0) tables.push({ title: 'Year to Year Comparison', data: yearRows, colWidths: [12, 22, 22, 14], headerColors: { 'Product': '#4472C4', 'This Year Disbursement': '#70AD47', 'Last Year Disbursement': '#ED7D31' } });
     if (tables.length === 0) return [];
-    return [{ name: 'Production Sales Tracker', tables, freeze: { row: 1, col: 0 } }];
+    return [{ name: 'Production Sales Tracker', tables }];
   };
 
   useImperativeHandle(ref, () => ({ getExportSheets }), [currentStatusData, monthComparisonData, yearComparisonData]);

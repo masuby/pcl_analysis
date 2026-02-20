@@ -177,10 +177,11 @@ const ReportTable = ({ reports, onDownload, onViewAnalysis, selectedDate, select
               <div className="excel-viewer-container">
                 <ExcelViewer
                   key={`${currentSelectedReport.id}-${currentSelectedReport.fileUrl || currentSelectedReport.filePath}`}
-                  fileUrl={currentSelectedReport.fileUrl} // From Firebase
+                  reportId={currentSelectedReport.id}
+                  fileUrl={currentSelectedReport.fileUrl}
                   fileName={currentSelectedReport.fileName}
                   fileType={currentSelectedReport.fileType}
-                  filePath={currentSelectedReport.filePath} // From Supabase storage
+                  filePath={currentSelectedReport.filePath}
                 />
               </div>
             </>

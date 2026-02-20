@@ -185,29 +185,34 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     
     const branchCol = headers[branchColIndex] || `Column_${branchColIndex}`;
     
-    // Extract data rows
+    // Extract data rows and capture Grand Total row (for Gap Analysis overall total)
     const mtdData = [];
+    let grandTotalRow = null;
     for (let i = headerRowIndex + 1; i < mtdRaw.length; i++) {
       const row = mtdRaw[i];
       if (row && row.length > 0) {
         const cellValue = row[branchColIndex];
         const cellStr = cellValue != null ? String(cellValue).trim() : '';
-        
-        if (cellStr && !cellStr.toUpperCase().includes('GRAND TOTAL')) {
-          const rowObj = {};
-          headers.forEach((header, idx) => {
-            if (header) {
-              rowObj[header] = row[idx];
-            }
-          });
-          // Also store the branch value with a known key
-          rowObj._branchValue = cellStr;
-          rowObj._rowIndex = i;
+        const isGrandTotal = cellStr && cellStr.toUpperCase().includes('GRAND TOTAL');
+
+        const rowObj = {};
+        headers.forEach((header, idx) => {
+          if (header) {
+            rowObj[header] = row[idx];
+          }
+        });
+        rowObj._branchValue = cellStr;
+        rowObj._rowIndex = i;
+
+        if (isGrandTotal) {
+          grandTotalRow = rowObj;
+          console.log('[MTD] Found Grand Total row');
+        } else if (cellStr) {
           mtdData.push(rowObj);
         }
       }
     }
-    
+
     console.log('[MTD] Extracted', mtdData.length, 'rows from MTD sheet');
     
     // ============================================
@@ -324,6 +329,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
       listingData,
       supervisions,
       groupedData,
+      grandTotalRow: grandTotalRow || null,
       branchCol,
       headerRowIndex,
       fileName,
@@ -424,11 +430,14 @@ export const useMTDData = (department, selectedDate = null) => {
     }
   }, [refreshTrigger, department, fetchMTDReports]);
 
+  // When department changes (e.g. CS → LBF in Gap Analysis), clear previous data and fetch the new department's reports
   useEffect(() => {
-    if (!initialLoadDone.current) {
-      fetchMTDReports();
-    }
-  }, [fetchMTDReports]);
+    setParsedData(null);
+    setReports([]);
+    setError(null);
+    initialLoadDone.current = false;
+    fetchMTDReports();
+  }, [department, fetchMTDReports]);
 
   useEffect(() => {
     if (reports.length > 0) {

@@ -475,18 +475,25 @@ export const useCRMData = (department, selectedDate = null) => {
       setError(null);
       
       // Use selected date report or most recent report
-      let targetReport = reports[0];
+      // When selectedDate is provided, ONLY use data for that exact date - do NOT fall back to latest
+      let targetReport = null;
       if (selectedDate) {
         const selected = reports.find(r => {
           const reportDate = r.date instanceof Date ? r.date : new Date(r.date);
           const selectDate = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
           return reportDate.toDateString() === selectDate.toDateString();
         });
-        if (selected) {
-          targetReport = selected;
-        }
+        targetReport = selected || null;
+      } else {
+        targetReport = reports[0];
       }
       const latestReport = targetReport;
+
+      if (!latestReport) {
+        setParsedData(null);
+        setLoading(false);
+        return;
+      }
       
       // Check cache first
       const cacheKey = `crm_${department}_${latestReport.id}`;

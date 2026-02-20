@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/pcl/pcl-api/internal/config"
@@ -23,7 +24,7 @@ func main() {
 	dbConfig := &config.DatabaseConfig{
 		Host:     getEnv("DB_HOST", "localhost"),
 		Port:     getEnv("DB_PORT", "5432"),
-		User:     getEnv("DB_USER", "masubi"),
+		User:     getEnv("DB_USER", "pcl_user"),
 		Password: getEnv("DB_PASSWORD", "Masubi98%"),
 		DBName:   getEnv("DB_NAME", "pcl_analysis"),
 		SSLMode:  getEnv("DB_SSLMODE", "disable"),
@@ -35,13 +36,18 @@ func main() {
 	}
 	defer database.Close()
 
-	// Get upload path - use absolute path or relative from backend directory
-	uploadPath := getEnv("UPLOAD_PATH", "../uploads")
-
-	// If running from scripts directory, adjust path
-	if _, err := os.Stat(uploadPath); os.IsNotExist(err) {
-		uploadPath = "/home/masubi/Desktop/code/pcl_analysis/backend/uploads"
+	// Resolve upload path: relative paths are resolved from backend dir (same as sync_readable_to_db)
+	cwd, _ := os.Getwd()
+	backendDir := cwd
+	if strings.HasSuffix(cwd, "scripts") || strings.Contains(filepath.ToSlash(cwd), "/scripts") {
+		backendDir = filepath.Dir(cwd)
 	}
+	uploadPath := getEnv("UPLOAD_PATH", filepath.Join(backendDir, "uploads"))
+	if !filepath.IsAbs(uploadPath) {
+		uploadPath = filepath.Join(backendDir, strings.TrimPrefix(uploadPath, "./"))
+	}
+	uploadPath, _ = filepath.Abs(uploadPath)
+	log.Printf("Upload path: %s", uploadPath)
 
 	// Get all reports
 	reports, _, err := models.GetAllReports("", "", 1000, 0)
@@ -58,9 +64,14 @@ func main() {
 		// Check if file exists
 		fullPath := filepath.Join(uploadPath, report.FilePath)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			log.Printf("File not found: %s", report.FileName)
+			log.Printf("File not found: %s (path: %s)", report.FileName, fullPath)
 			failed++
 			continue
+		}
+
+		// Delete old parsed data before re-inserting
+		if err := models.DeleteReportData(report.ID); err != nil {
+			log.Printf("Warning: DeleteReportData failed for %s: %v", report.FileName, err)
 		}
 
 		// Parse and store data

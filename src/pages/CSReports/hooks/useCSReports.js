@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   getReportsByDepartmentAndType, 
   downloadAllReportsAsZip,
+  downloadReportFile,
   getReportAnalysis,
   incrementReportViews,
   incrementReportDownloads
@@ -155,40 +156,15 @@ export const useCSReports = (department = 'CS') => {
 
   const handleDownload = async (report) => {
     try {
-      let downloadUrl = null;
-      
-      // Try multiple sources for the download URL
-      if (report.fileUrl && isValidUrl(report.fileUrl)) {
-        downloadUrl = report.fileUrl;
-      } else if (report.filePath) {
-        // Generate signed URL for download
-        downloadUrl = await getReportFileUrl(report.filePath);
+      // Use API download endpoint so the file is saved with the clean display name
+      // (e.g. "Management_Report2026-02.xlsx") instead of the stored path filename
+      // (e.g. "1770620297601_Management_Report2026-02.xlsx")
+      const displayName = report.fileName || report.file_name || 'report';
+      const result = await downloadReportFile(report.id, displayName);
+      if (!result.success) {
+        throw new Error(result.error || 'Download failed');
       }
-      
-      if (!downloadUrl) {
-        throw new Error('No valid download URL available');
-      }
-      
-      // Create a temporary anchor element for download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      
-      // Add timestamp to prevent caching issues
-      const timestamp = new Date().getTime();
-      const finalUrl = downloadUrl.includes('?') 
-        ? `${downloadUrl}&_t=${timestamp}`
-        : `${downloadUrl}?_t=${timestamp}`;
-      
-      link.href = finalUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Increment download count
-      await incrementReportDownloads(report.id);
-      
+      // Download count is incremented by the API when downloading
     } catch (error) {
       console.error('Download error:', error);
       setError(`Download failed: ${error.message}`);

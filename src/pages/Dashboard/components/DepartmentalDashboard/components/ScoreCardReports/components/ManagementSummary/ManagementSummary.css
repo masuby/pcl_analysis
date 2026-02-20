@@ -1,0 +1,130 @@
+.ms-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.ms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.ms-title {
+  color: #2a5298;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ms-badge {
+  background: #f0f2f5;
+  color: #666;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.ms-tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.ms-table-block {
+  flex: 1;
+  min-width: 280px;
+}
+
+.ms-table-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #444;
+  margin: 0 0 0.5rem 0;
+}
+
+.ms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+/* Excel-matching header colors */
+.ms-th-product {
+  background: #4472C4 !important;
+  color: white;
+}
+.ms-th-green {
+  background: #70AD47 !important;
+  color: white;
+}
+.ms-th-orange {
+  background: #ED7D31 !important;
+  color: white;
+}
+
+.ms-table th {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: white;
+}
+
+.ms-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #eee;
+}
+
+.ms-table tbody tr:hover:not(.ms-separator):not(.ms-total-row) {
+  background: #f8f9fa;
+}
+
+/* Separator line before totals */
+.ms-separator td {
+  padding: 0.15rem 0.75rem !important;
+  border: none !important;
+  border-top: 1px solid #d0d0d0 !important;
+  border-bottom: 2px solid #2a5298 !important;
+  background: transparent !important;
+  font-size: 0;
+  line-height: 0;
+}
+
+.ms-separator:hover {
+  background: transparent !important;
+}
+
+/* Totals row - matches Excel total row style */
+.ms-total-row {
+  background: #C5CAE9 !important;
+  font-weight: 600;
+  color: #2E5090;
+}
+
+.ms-total-row:hover {
+  background: #C5CAE9 !important;
+}
+
+.ms-footer {
+  padding-top: 0.5rem;
+}
+
+.ms-export-btn {
+  background: #4472C4;
+  color: white;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.ms-export-btn:hover {
+  background: #365a9e;
+}

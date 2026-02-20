@@ -18,6 +18,8 @@ const getUserFromStorage = () => {
 const setUserToStorage = (user) => localStorage.setItem('pcl_user', JSON.stringify(user));
 const removeUserFromStorage = () => localStorage.removeItem('pcl_user');
 
+const REQUEST_TIMEOUT_MS = 15000; // 15 seconds
+
 // API request helper with automatic token refresh
 const apiRequest = async (endpoint, options = {}, isRetry = false) => {
   const token = getToken();
@@ -31,13 +33,25 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers,
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      const hint = response.status === 404 ? ' Is the backend running?' : '';
+      throw new Error(`Invalid response (${response.status})${hint}`);
+    }
     
     // If token expired and this is not a retry, try to refresh
     if (!data.success && 
@@ -77,6 +91,10 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
     
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      return { success: false, error: 'Connection timed out. Is the backend API running at ' + API_URL + '?' };
+    }
     console.error('API Error:', error);
     return { success: false, error: error.message };
   }

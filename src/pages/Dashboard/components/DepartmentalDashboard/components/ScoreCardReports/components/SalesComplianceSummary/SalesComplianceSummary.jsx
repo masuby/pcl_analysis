@@ -5,7 +5,7 @@ import { useCRMData } from '../../../../../CRMdashboard/hooks/useCRMData';
 import { useMTDData } from '../../../../../MTDdashboard/hooks/useMTDData';
 import { useCallCenterData } from '../../../../../CallCenterDashboard/hooks/useCallCenterData';
 import { extractMetrics } from '../../../../../CRMdashboard/utils/crmUtils';
-import { calculateMetrics } from '../../../../../CallCenterDashboard/utils/callCenterUtils';
+import { calculateMetrics, REQUIRED_SUCCESS_CALLS_WEEKLY } from '../../../../../CallCenterDashboard/utils/callCenterUtils';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
 import LoadingSpinner from '../../../../../../../../components/Common/Loading/LoadingSpinner';
 
@@ -13,14 +13,14 @@ import LoadingSpinner from '../../../../../../../../components/Common/Loading/Lo
 const HOD_NAMES = {
   CS: 'KELVIN MWASALA',
   LBF: 'AUGUSTINE MPOLLO',
-  SME: 'ABDULKHARIM HAMIDU',
+  SME: 'ABDULAKHIM KHALFANI',
   AgriFinance: 'ALLAN RUHUZA'
 };
 
 // Sub-products definitions based on management data structure
 const SUB_PRODUCTS = {
   CS: ['CS', 'Cs Asset Finance'],
-  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'],
+  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'],
   SME: ['SME'],
   AgriFinance: ['AgriFinance'] // Will be added when available
 };
@@ -175,11 +175,18 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
     
     if (!data || Object.keys(data).length === 0) return null;
     
+    const activeClients = data['Active clients'] ?? data['Active Clients'] ?? 0;
+    const inactiveClients = data['Inactive clients'] ?? data['Inactive Clients'] ?? 0;
+    const numberOFClients = data['Number of Clients'] ?? data['Number of clients'] ?? ((activeClients + inactiveClients) || 0);
+    
     return {
       target: data['Target'] || data['Monthly Target'] || 0,
       disbursement: data['Disbursements This Month'] || data['Disbursement This Month'] || data['Disbursement this Month'] || 0,
       numberOfLoans: data['Number of loans'] || data['Number of Loans'] || data['No. of Loans'] || 0,
       activeReps: data['Active Reps'] || data['Active reps'] || data['ACTIVE REPS'] || 0,
+      activeClients,
+      inactiveClients,
+      totalClients: numberOFClients,
       inArrear: data['In arrears'] ?? data['In Arrear'] ?? data['In arrear'] ?? 0,
       valueInArrears: data['Value in arrears'] ?? data['Value In Arrears'] ?? data['Value in Arrears'] ?? data['Value in arrears'] ?? 0,
       par7: data['PAR>7'] || data['PAR > 7'] || data['Par>7'] || 0,
@@ -267,7 +274,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
     SME: [ccSME_0, ccSME_1, ccSME_2, ccSME_3, ccSME_4, ccSME_5]
   };
 
-  // Build summary data for Weekly mode: 6 days (Mon–Sat) + Total/Average/Movement row per product/subProduct
+  // Build summary data for Weekly mode: 6 days (Mon–Sat) per sub-product, then Total/Average/Movement per product at end
   const buildWeeklySummaryData = useMemo(() => {
     const { weekData, latestData } = getLatestWeekData(managementReports);
     const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
@@ -276,9 +283,10 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
     products.forEach(product => {
       const subProducts = SUB_PRODUCTS[product] || [product];
       const hod = HOD_NAMES[product] || 'TBD';
+      const subProductTotals = [];
 
       subProducts.forEach((subProduct, subIndex) => {
-        // 6 day rows (Mon–Sat)
+        // 6 day rows (Mon–Sat) for this sub-product
         WORK_DAYS.forEach((day, dayIndex) => {
           const report = weekData[day];
           const mgmtData = getManagementMetrics(report, product, subProduct);
@@ -307,7 +315,10 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                 ? ((mgmtData.disbursement / mgmtData.target) * 100).toFixed(1) + '%'
                 : '-',
               numberOfLoans: mgmtData?.numberOfLoans ?? '-',
-              activeReps: mgmtData?.activeReps ?? '-'
+              activeReps: mgmtData?.activeReps ?? '-',
+              activeClients: mgmtData?.activeClients ?? '-',
+              inactiveClients: mgmtData?.inactiveClients ?? '-',
+              totalClients: mgmtData?.totalClients ?? '-'
             },
             portfolio: {
               inArrear: mgmtData?.inArrear ?? '-',
@@ -327,125 +338,175 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
               agentCompletedAtLocation: crmData.agentCompletedAtLocation != null ? `${crmData.agentCompletedAtLocation} (${crmData.agentCompletedAtLocationPct.toFixed(1)}%)` : '-',
               tlsCompletedAtLocation: crmData.tlsCompletedAtLocation != null ? `${crmData.tlsCompletedAtLocation} (${crmData.tlsCompletedAtLocationPct.toFixed(1)}%)` : '-'
             } : null,
-            callCenter: showCallCenter && callCenterData ? {
-              totalCalls: callCenterData.totalCalls ?? '-',
-              successfulCalls: callCenterData.successfulCalls ?? '-',
-              unsuccessfulCalls: callCenterData.unsuccessfulCalls ?? '-',
-              percentSuccessful: callCenterData.percentSuccessful != null ? callCenterData.percentSuccessful.toFixed(1) + '%' : '-',
-              percentUnsuccessful: callCenterData.percentUnsuccessful != null ? callCenterData.percentUnsuccessful.toFixed(1) + '%' : '-',
-              totalAgents: callCenterData.totalAgents ?? '-',
-              agentsWithOver50Calls: callCenterData.agentsWithOver50Calls ?? '-',
-              percentAgentsOver50: callCenterData.percentAgentsOver50 != null ? callCenterData.percentAgentsOver50.toFixed(1) + '%' : '-',
-              agentsWithUnder50Calls: callCenterData.agentsWithUnder50Calls ?? '-',
-              percentAgentsUnder50: callCenterData.percentAgentsUnder50 != null ? callCenterData.percentAgentsUnder50.toFixed(1) + '%' : '-'
-            } : null
+            callCenter: showCallCenter && callCenterData ? (() => {
+              const success = callCenterData.successfulCalls ?? 0;
+              const pctReached = REQUIRED_SUCCESS_CALLS_WEEKLY > 0 ? (success / REQUIRED_SUCCESS_CALLS_WEEKLY * 100) : 0;
+              const pctNotReached = 100 - pctReached;
+              return {
+                totalCalls: callCenterData.totalCalls ?? '-',
+                successfulCalls: callCenterData.successfulCalls ?? '-',
+                unsuccessfulCalls: callCenterData.unsuccessfulCalls ?? '-',
+                percentSuccessful: callCenterData.percentSuccessful != null ? callCenterData.percentSuccessful.toFixed(1) + '%' : '-',
+                percentUnsuccessful: callCenterData.percentUnsuccessful != null ? callCenterData.percentUnsuccessful.toFixed(1) + '%' : '-',
+                percentCallsReached: pctReached.toFixed(1) + '%',
+                percentCallsNotReached: pctNotReached.toFixed(1) + '%',
+                totalAgents: callCenterData.totalAgents ?? '-',
+                agentsWithOver50Calls: callCenterData.agentsWithOver50Calls ?? '-',
+                percentAgentsOver50: callCenterData.percentAgentsOver50 != null ? callCenterData.percentAgentsOver50.toFixed(1) + '%' : '-',
+                agentsWithUnder50Calls: callCenterData.agentsWithUnder50Calls ?? '-',
+                percentAgentsUnder50: callCenterData.percentAgentsUnder50 != null ? callCenterData.percentAgentsUnder50.toFixed(1) + '%' : '-'
+              };
+            })() : null
           });
         });
 
-        // Total/Average/Movement row: use latest week values for Sales/Portfolio; aggregate for CRM/CC
+        // Accumulate Total/Average/Movement for this sub-product (for product-level total later)
         const latestReport = latestData || weekData[WORK_DAYS[5]] || weekData[WORK_DAYS[4]] || weekData[WORK_DAYS[3]] || weekData[WORK_DAYS[2]] || weekData[WORK_DAYS[1]] || weekData[WORK_DAYS[0]];
         const totalMgmt = getManagementMetrics(latestReport, product, subProduct);
-        let totalCrm = null;
-        let totalCc = null;
-        if (subIndex === 0 && product !== 'AgriFinance') {
-          const crmHooks = crmByProductDay[product];
-          const ccHooks = ccByProductDay[product];
-          if (crmHooks) {
-            let sumLeads = 0, sumProspect = 0;
-            let lastAgents = 0, lastLoggedAgents = 0, lastTLS = 0, lastLoggedTLS = 0;
-            let sumAgentAtLoc = 0, sumTlsAtLoc = 0, sumAgentPct = 0, sumTlsPct = 0, countAgentPct = 0, countTlsPct = 0;
-            crmHooks.forEach((h) => {
-              const m = getCRMMetricsFromParsed(h?.parsedData);
-              if (m) {
-                sumLeads += m.numberOfLeads || 0;
-                sumProspect += m.prospect || 0;
-                lastAgents = m.totalAgents ?? lastAgents;
-                lastLoggedAgents = m.loggedInAgents ?? lastLoggedAgents;
-                lastTLS = m.totalTLS ?? lastTLS;
-                lastLoggedTLS = m.loggedInTLS ?? lastLoggedTLS;
-                if (m.agentCompletedAtLocation != null) { sumAgentAtLoc += m.agentCompletedAtLocation; sumAgentPct += m.agentCompletedAtLocationPct || 0; countAgentPct += 1; }
-                if (m.tlsCompletedAtLocation != null) { sumTlsAtLoc += m.tlsCompletedAtLocation; sumTlsPct += m.tlsCompletedAtLocationPct || 0; countTlsPct += 1; }
-              }
-            });
-            const pctAgents = lastAgents > 0 ? (lastLoggedAgents / lastAgents * 100) : 0;
-            const pctTLS = lastTLS > 0 ? (lastLoggedTLS / lastTLS * 100) : 0;
-            const avgAgentAtLoc = countAgentPct > 0 ? sumAgentAtLoc / countAgentPct : null;
-            const avgTlsAtLoc = countTlsPct > 0 ? sumTlsAtLoc / countTlsPct : null;
-            const avgAgentPct = countAgentPct > 0 ? sumAgentPct / countAgentPct : 0;
-            const avgTlsPct = countTlsPct > 0 ? sumTlsPct / countTlsPct : 0;
-            totalCrm = {
-              numberOfLeads: sumLeads,
-              prospect: sumProspect,
-              totalAgents: lastAgents,
-              loggedInAgents: lastLoggedAgents,
-              percentLoggedInAgents: pctAgents.toFixed(1) + '%',
-              totalTLS: lastTLS,
-              loggedInTLS: lastLoggedTLS,
-              percentLoggedInTLS: pctTLS.toFixed(1) + '%',
-              agentCompletedAtLocation: avgAgentAtLoc != null ? `${avgAgentAtLoc.toFixed(0)} (${avgAgentPct.toFixed(1)}%)` : '-',
-              tlsCompletedAtLocation: avgTlsAtLoc != null ? `${avgTlsAtLoc.toFixed(0)} (${avgTlsPct.toFixed(1)}%)` : '-'
-            };
+        subProductTotals.push({
+          mgmt: totalMgmt,
+          subIndex,
+          product,
+          showCRM: subIndex === 0 && product !== 'AgriFinance',
+          showCallCenter: subIndex === 0 && product !== 'AgriFinance'
+        });
+      });
+
+      // Now add ONE Total/Average/Movement row per product (aggregating sub-products)
+      const latestReport = latestData || weekData[WORK_DAYS[5]] || weekData[WORK_DAYS[4]];
+      let aggTarget = 0, aggDisb = 0, aggLoans = 0, aggReps = 0;
+      let aggActiveClients = 0, aggInactiveClients = 0, aggTotalClients = 0;
+      let aggInArrear = 0, aggValueArrears = 0;
+      let par7Sum = 0, par30Sum = 0, par7Count = 0, par30Count = 0;
+      subProductTotals.forEach(({ mgmt }) => {
+        if (mgmt) {
+          aggTarget += Number(mgmt.target) || 0;
+          aggDisb += Number(mgmt.disbursement) || 0;
+          aggLoans += Number(mgmt.numberOfLoans) || 0;
+          aggReps += Number(mgmt.activeReps) || 0;
+          aggActiveClients += Number(mgmt.activeClients) || 0;
+          aggInactiveClients += Number(mgmt.inactiveClients) || 0;
+          aggTotalClients += Number(mgmt.totalClients) || 0;
+          aggInArrear += Number(mgmt.inArrear) || 0;
+          aggValueArrears += Number(mgmt.valueInArrears) || 0;
+          const p7 = Number(mgmt.par7);
+          const p30 = Number(mgmt.par30);
+          if (!Number.isNaN(p7) && p7 > 0) {
+            par7Sum += p7;
+            par7Count += 1;
           }
-          if (ccHooks) {
-            let sumCalls = 0, sumSuccess = 0, sumUnsuccess = 0, sumOver50 = 0, sumUnder50 = 0;
-            let lastTotalAgents = 0, lastOver50 = 0, lastUnder50 = 0;
-            ccHooks.forEach((h) => {
-              const m = getCallCenterMetricsFromParsed(h?.parsedData);
-              if (m) {
-                sumCalls += m.totalCalls || 0;
-                sumSuccess += m.successfulCalls || 0;
-                sumUnsuccess += m.unsuccessfulCalls || 0;
-                sumOver50 += m.agentsWithOver50Calls || 0;
-                sumUnder50 += m.agentsWithUnder50Calls || 0;
-                lastTotalAgents = m.totalAgents ?? lastTotalAgents;
-                lastOver50 = m.agentsWithOver50Calls ?? lastOver50;
-                lastUnder50 = m.agentsWithUnder50Calls ?? lastUnder50;
-              }
-            });
-            const pctSuccess = sumCalls > 0 ? (sumSuccess / sumCalls * 100) : 0;
-            const pctUnsuccess = sumCalls > 0 ? (sumUnsuccess / sumCalls * 100) : 0;
-            const pctOver50 = lastTotalAgents > 0 ? (lastOver50 / lastTotalAgents * 100) : 0;
-            const pctUnder50 = lastTotalAgents > 0 ? (lastUnder50 / lastTotalAgents * 100) : 0;
-            totalCc = {
-              totalCalls: sumCalls,
-              successfulCalls: sumSuccess,
-              unsuccessfulCalls: sumUnsuccess,
-              percentSuccessful: pctSuccess.toFixed(1) + '%',
-              percentUnsuccessful: pctUnsuccess.toFixed(1) + '%',
-              totalAgents: lastTotalAgents,
-              agentsWithOver50Calls: lastOver50,
-              percentAgentsOver50: pctOver50.toFixed(1) + '%',
-              agentsWithUnder50Calls: lastUnder50,
-              percentAgentsUnder50: pctUnder50.toFixed(1) + '%'
-            };
+          if (!Number.isNaN(p30) && p30 > 0) {
+            par30Sum += p30;
+            par30Count += 1;
           }
         }
+      });
+      const aggPar7 = par7Count > 0 ? par7Sum / par7Count : 0;
+      const aggPar30 = par30Count > 0 ? par30Sum / par30Count : 0;
 
-        rows.push({
-          product: subIndex === 0 ? product : '',
-          hod: subIndex === 0 ? hod : '',
-          subProduct: subProduct,
-          day: DAY_LABEL_TOTAL,
-          reportDate: latestReport?.date ? formatDayDate(new Date(latestReport.date)) : '-',
-          isTotalRow: true,
-          sales: {
-            target: totalMgmt?.target ?? '-',
-            disbursement: totalMgmt?.disbursement ?? '-',
-            percentage: totalMgmt?.target && totalMgmt?.disbursement
-              ? ((totalMgmt.disbursement / totalMgmt.target) * 100).toFixed(1) + '%'
-              : '-',
-            numberOfLoans: totalMgmt?.numberOfLoans ?? '-',
-            activeReps: totalMgmt?.activeReps ?? '-'
-          },
-          portfolio: {
-            inArrear: totalMgmt?.inArrear ?? '-',
-            valueInArrears: totalMgmt?.valueInArrears ?? '-',
-            par7: totalMgmt?.par7 ?? '-',
-            par30: totalMgmt?.par30 ?? '-'
-          },
-          crm: totalCrm,
-          callCenter: totalCc
-        });
+      let totalCrm = null;
+      let totalCc = null;
+      if (product !== 'AgriFinance') {
+        const crmHooks = crmByProductDay[product];
+        const ccHooks = ccByProductDay[product];
+        if (crmHooks) {
+          let sumLeads = 0, sumProspect = 0;
+          let lastAgents = 0, lastLoggedAgents = 0, lastTLS = 0, lastLoggedTLS = 0;
+          let sumAgentAtLoc = 0, sumTlsAtLoc = 0, sumAgentPct = 0, sumTlsPct = 0, countAgentPct = 0, countTlsPct = 0;
+          crmHooks.forEach((h) => {
+            const m = getCRMMetricsFromParsed(h?.parsedData);
+            if (m) {
+              sumLeads += m.numberOfLeads || 0;
+              sumProspect += m.prospect || 0;
+              lastAgents = m.totalAgents ?? lastAgents;
+              lastLoggedAgents = m.loggedInAgents ?? lastLoggedAgents;
+              lastTLS = m.totalTLS ?? lastTLS;
+              lastLoggedTLS = m.loggedInTLS ?? lastLoggedTLS;
+              if (m.agentCompletedAtLocation != null) { sumAgentAtLoc += m.agentCompletedAtLocation; sumAgentPct += m.agentCompletedAtLocationPct || 0; countAgentPct += 1; }
+              if (m.tlsCompletedAtLocation != null) { sumTlsAtLoc += m.tlsCompletedAtLocation; sumTlsPct += m.tlsCompletedAtLocationPct || 0; countTlsPct += 1; }
+            }
+          });
+          const pctAgents = lastAgents > 0 ? (lastLoggedAgents / lastAgents * 100) : 0;
+          const pctTLS = lastTLS > 0 ? (lastLoggedTLS / lastTLS * 100) : 0;
+          const avgAgentAtLoc = countAgentPct > 0 ? sumAgentAtLoc / countAgentPct : null;
+          const avgTlsAtLoc = countTlsPct > 0 ? sumTlsAtLoc / countTlsPct : null;
+          const avgAgentPct = countAgentPct > 0 ? sumAgentPct / countAgentPct : 0;
+          const avgTlsPct = countTlsPct > 0 ? sumTlsPct / countTlsPct : 0;
+          totalCrm = {
+            numberOfLeads: sumLeads,
+            prospect: sumProspect,
+            totalAgents: lastAgents,
+            loggedInAgents: lastLoggedAgents,
+            percentLoggedInAgents: pctAgents.toFixed(1) + '%',
+            totalTLS: lastTLS,
+            loggedInTLS: lastLoggedTLS,
+            percentLoggedInTLS: pctTLS.toFixed(1) + '%',
+            agentCompletedAtLocation: avgAgentAtLoc != null ? `${avgAgentAtLoc.toFixed(0)} (${avgAgentPct.toFixed(1)}%)` : '-',
+            tlsCompletedAtLocation: avgTlsAtLoc != null ? `${avgTlsAtLoc.toFixed(0)} (${avgTlsPct.toFixed(1)}%)` : '-'
+          };
+        }
+        if (ccHooks) {
+          let sumCalls = 0, sumSuccess = 0, sumUnsuccess = 0;
+          let lastTotalAgents = 0, lastOver50 = 0, lastUnder50 = 0;
+          ccHooks.forEach((h) => {
+            const m = getCallCenterMetricsFromParsed(h?.parsedData);
+            if (m) {
+              sumCalls += m.totalCalls || 0;
+              sumSuccess += m.successfulCalls || 0;
+              sumUnsuccess += m.unsuccessfulCalls || 0;
+              lastTotalAgents = m.totalAgents ?? lastTotalAgents;
+              lastOver50 = m.agentsWithOver50Calls ?? lastOver50;
+              lastUnder50 = m.agentsWithUnder50Calls ?? lastUnder50;
+            }
+          });
+          const pctSuccess = sumCalls > 0 ? (sumSuccess / sumCalls * 100) : 0;
+          const pctUnsuccess = sumCalls > 0 ? (sumUnsuccess / sumCalls * 100) : 0;
+          const pctOver50 = lastTotalAgents > 0 ? (lastOver50 / lastTotalAgents * 100) : 0;
+          const pctUnder50 = lastTotalAgents > 0 ? (lastUnder50 / lastTotalAgents * 100) : 0;
+          const pctReached = REQUIRED_SUCCESS_CALLS_WEEKLY > 0 ? (sumSuccess / REQUIRED_SUCCESS_CALLS_WEEKLY * 100) : 0;
+          const pctNotReached = 100 - pctReached;
+          totalCc = {
+            totalCalls: sumCalls,
+            successfulCalls: sumSuccess,
+            unsuccessfulCalls: sumUnsuccess,
+            percentSuccessful: pctSuccess.toFixed(1) + '%',
+            percentUnsuccessful: pctUnsuccess.toFixed(1) + '%',
+            percentCallsReached: pctReached.toFixed(1) + '%',
+            percentCallsNotReached: pctNotReached.toFixed(1) + '%',
+            totalAgents: lastTotalAgents,
+            agentsWithOver50Calls: lastOver50,
+            percentAgentsOver50: pctOver50.toFixed(1) + '%',
+            agentsWithUnder50Calls: lastUnder50,
+            percentAgentsUnder50: pctUnder50.toFixed(1) + '%'
+          };
+        }
+      }
+
+      rows.push({
+        product,
+        hod,
+        subProduct: DAY_LABEL_TOTAL,
+        day: DAY_LABEL_TOTAL,
+        reportDate: latestReport?.date ? formatDayDate(new Date(latestReport.date)) : '-',
+        isTotalRow: true,
+        sales: {
+          target: aggTarget || '-',
+          disbursement: aggDisb || '-',
+          percentage: aggTarget > 0 ? ((aggDisb / aggTarget) * 100).toFixed(1) + '%' : '-',
+          numberOfLoans: aggLoans || '-',
+          activeReps: aggReps || '-',
+          activeClients: aggActiveClients || '-',
+          inactiveClients: aggInactiveClients || '-',
+          totalClients: aggTotalClients || '-'
+        },
+        portfolio: {
+          inArrear: aggInArrear || '-',
+          valueInArrears: aggValueArrears || '-',
+          par7: aggPar7 || '-',
+          par30: aggPar30 || '-'
+        },
+        crm: totalCrm,
+        callCenter: totalCc
       });
     });
 
@@ -498,7 +559,10 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
               ? ((mgmtData.disbursement / mgmtData.target) * 100).toFixed(1) + '%' 
               : '-',
             numberOfLoans: mgmtData?.numberOfLoans || '-',
-            activeReps: mgmtData?.activeReps || '-'
+            activeReps: mgmtData?.activeReps || '-',
+            activeClients: mgmtData?.activeClients ?? '-',
+            inactiveClients: mgmtData?.inactiveClients ?? '-',
+            totalClients: mgmtData?.totalClients ?? '-'
           },
           portfolio: {
             inArrear: mgmtData?.inArrear || '-',
@@ -518,18 +582,25 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
             agentCompletedAtLocation: crmData.agentCompletedAtLocation != null ? `${crmData.agentCompletedAtLocation} (${crmData.agentCompletedAtLocationPct.toFixed(1)}%)` : '-',
             tlsCompletedAtLocation: crmData.tlsCompletedAtLocation != null ? `${crmData.tlsCompletedAtLocation} (${crmData.tlsCompletedAtLocationPct.toFixed(1)}%)` : '-'
           } : null,
-          callCenter: showCallCenter && callCenterData ? {
-            totalCalls: callCenterData.totalCalls ?? '-',
-            successfulCalls: callCenterData.successfulCalls ?? '-',
-            unsuccessfulCalls: callCenterData.unsuccessfulCalls ?? '-',
-            percentSuccessful: callCenterData.percentSuccessful != null ? callCenterData.percentSuccessful.toFixed(1) + '%' : '-',
-            percentUnsuccessful: callCenterData.percentUnsuccessful != null ? callCenterData.percentUnsuccessful.toFixed(1) + '%' : '-',
-            totalAgents: callCenterData.totalAgents ?? '-',
-            agentsWithOver50Calls: callCenterData.agentsWithOver50Calls ?? '-',
-            percentAgentsOver50: callCenterData.percentAgentsOver50 != null ? callCenterData.percentAgentsOver50.toFixed(1) + '%' : '-',
-            agentsWithUnder50Calls: callCenterData.agentsWithUnder50Calls ?? '-',
-            percentAgentsUnder50: callCenterData.percentAgentsUnder50 != null ? callCenterData.percentAgentsUnder50.toFixed(1) + '%' : '-'
-          } : null,
+          callCenter: showCallCenter && callCenterData ? (() => {
+            const success = callCenterData.successfulCalls ?? 0;
+            const pctReached = REQUIRED_SUCCESS_CALLS_WEEKLY > 0 ? (success / REQUIRED_SUCCESS_CALLS_WEEKLY * 100) : 0;
+            const pctNotReached = 100 - pctReached;
+            return {
+              totalCalls: callCenterData.totalCalls ?? '-',
+              successfulCalls: callCenterData.successfulCalls ?? '-',
+              unsuccessfulCalls: callCenterData.unsuccessfulCalls ?? '-',
+              percentSuccessful: callCenterData.percentSuccessful != null ? callCenterData.percentSuccessful.toFixed(1) + '%' : '-',
+              percentUnsuccessful: callCenterData.percentUnsuccessful != null ? callCenterData.percentUnsuccessful.toFixed(1) + '%' : '-',
+              percentCallsReached: pctReached.toFixed(1) + '%',
+              percentCallsNotReached: pctNotReached.toFixed(1) + '%',
+              totalAgents: callCenterData.totalAgents ?? '-',
+              agentsWithOver50Calls: callCenterData.agentsWithOver50Calls ?? '-',
+              percentAgentsOver50: callCenterData.percentAgentsOver50 != null ? callCenterData.percentAgentsOver50.toFixed(1) + '%' : '-',
+              agentsWithUnder50Calls: callCenterData.agentsWithUnder50Calls ?? '-',
+              percentAgentsUnder50: callCenterData.percentAgentsUnder50 != null ? callCenterData.percentAgentsUnder50.toFixed(1) + '%' : '-'
+            };
+          })() : null,
           _productIndex: products.indexOf(product),
           _subProductIndex: subIndex
         });
@@ -550,9 +621,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       mtdCS.loading, mtdLBF.loading, mtdSME.loading,
       callCenterCS.loading, callCenterLBF.loading, callCenterSME.loading]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const section = getExportSheets()[0];
-    if (section) exportSingleSectionWithStyles(section, `Sales_Compliance_Summary_${mode}`);
+    if (section) await exportSingleSectionWithStyles(section, `Sales_Compliance_Summary_${mode}`);
   };
 
   const getExportSheets = () => {
@@ -568,6 +639,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       'Percentage': row.sales.percentage,
       'Number of Loans': row.sales.numberOfLoans,
       'Active Reps': row.sales.activeReps,
+      'Active Clients': row.sales.activeClients,
+      'Inactive Clients': row.sales.inactiveClients,
+      'Total Clients': row.sales.totalClients,
       // Portfolio
       'In Arrear': row.portfolio.inArrear,
       'Value in Arrears': row.portfolio.valueInArrears,
@@ -590,6 +664,8 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       'Unsuccessful Calls': row.callCenter?.unsuccessfulCalls || '',
       '% Successful': row.callCenter?.percentSuccessful || '',
       '% Unsuccessful': row.callCenter?.percentUnsuccessful || '',
+      '% Calls Reached': row.callCenter?.percentCallsReached || '',
+      '% Calls Not Reached': row.callCenter?.percentCallsNotReached || '',
       'Total Agents (CC)': row.callCenter?.totalAgents || '',
       'Agents >50 Calls': row.callCenter?.agentsWithOver50Calls || '',
       '% Agents >50': row.callCenter?.percentAgentsOver50 || '',
@@ -597,13 +673,25 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       '% Agents <50': row.callCenter?.percentAgentsUnder50 || ''
     }));
     const totalRowIndices = summaryData.map((r, i) => r.isTotalRow ? i : null).filter(x => x != null);
-    const colWidths = [12, 18, 20, 12, 12, 15, 18, 12, 15, 12, 12, 15, 10, 10, 15, 12, 15, 15, 15, 12, 12, 15, 18, 15, 12, 12, 15, 15, 12, 12, 15, 15, 15];
-    const headerColors = { 'PRODUCT': '#4472C4', 'HOD': '#4472C4', 'SUB-PRODUCT': '#4472C4', 'DAY': '#70AD47', 'Target': '#ED7D31', 'In Arrear': '#A5A5A5', 'Number of Leads': '#FFC000', 'Total Calls': '#5B9BD5' };
+    const colWidths = [12, 18, 20, 12, 12, 15, 18, 12, 15, 12, 12, 15, 12, 12, 12, 10, 10, 15, 12, 15, 15, 15, 12, 12, 15, 18, 15, 12, 12, 14, 14, 15, 15, 12, 12, 15, 15, 15];
+    const headerColors = {
+      'PRODUCT': '#4472C4', 'HOD': '#4472C4', 'SUB-PRODUCT': '#4472C4', 'DAY': '#4472C4', 'DATE': '#4472C4',
+      'Target': '#ED7D31', 'Disbursement': '#ED7D31', 'Percentage': '#ED7D31', 'Number of Loans': '#ED7D31', 'Active Reps': '#ED7D31', 'Active Clients': '#ED7D31', 'Inactive Clients': '#ED7D31', 'Total Clients': '#ED7D31',
+      'In Arrear': '#A5A5A5', 'Value in Arrears': '#A5A5A5', 'PAR>7': '#A5A5A5', 'PAR>30': '#A5A5A5',
+      'Number of Leads': '#FFC000', 'Prospect': '#FFC000', 'Total Agents (CRM)': '#FFC000', 'Logged In Agents': '#FFC000',
+      '% Logged In Agents': '#FFC000', 'Total TLS': '#FFC000', 'Logged In TLS': '#FFC000', '% Logged In TLS': '#FFC000',
+      'Agent Completed at Location': '#FFC000', 'TLS Completed At Location': '#FFC000',
+      'Total Calls': '#5B9BD5', 'Successful Calls': '#5B9BD5', 'Unsuccessful Calls': '#5B9BD5', '% Successful': '#5B9BD5',
+      '% Unsuccessful': '#5B9BD5', '% Calls Reached': '#5B9BD5', '% Calls Not Reached': '#5B9BD5',
+      'Total Agents (CC)': '#5B9BD5', 'Agents >50 Calls': '#5B9BD5', '% Agents >50': '#5B9BD5',
+      'Agents <50 Calls': '#5B9BD5', '% Agents <50': '#5B9BD5'
+    };
+    const accountingColumns = ['Target', 'Disbursement', 'Number of Loans', 'Active Reps', 'Active Clients', 'Inactive Clients', 'Total Clients', 'In Arrear', 'Value in Arrears', 'PAR>7', 'PAR>30', 'Number of Leads', 'Prospect', 'Total Agents (CRM)', 'Logged In Agents', 'Total TLS', 'Logged In TLS', 'Total Calls', 'Successful Calls', 'Unsuccessful Calls', 'Total Agents (CC)', 'Agents >50 Calls', 'Agents <50 Calls'];
     if (exportData.length === 0) return [];
     return [{
       name: 'Sales Compliance Summary',
-      tables: [{ data: exportData, totalRowIndices, colWidths, headerColors }],
-      freeze: { row: 2, col: 3 }
+      tables: [{ data: exportData, totalRowIndices, colWidths, headerColors, accountingColumns }],
+      freeze: { row: 1, col: 5 }
     }];
   };
 
@@ -648,10 +736,10 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                 <th className="scs-th-hod" rowSpan="2">HOD</th>
                 <th className="scs-th-subproduct" rowSpan="2">SUB-PRODUCT</th>
                 <th className="scs-th-day" rowSpan="2">DAY</th>
-                <th className="scs-th-sales" colSpan="5">SALES</th>
+                <th className="scs-th-sales" colSpan="8">SALES</th>
                 <th className="scs-th-portfolio" colSpan="4">PORTFOLIO</th>
                 <th className="scs-th-crm" colSpan="10">CRM</th>
-                <th className="scs-th-callcenter" colSpan="10">CALL CENTER</th>
+                <th className="scs-th-callcenter" colSpan="12">CALL CENTER</th>
               </tr>
               {/* Sub-header row */}
               <tr className="scs-header-sub">
@@ -661,6 +749,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                 <th className="scs-th-sales-sub">%</th>
                 <th className="scs-th-sales-sub">No. Loans</th>
                 <th className="scs-th-sales-sub">Active Reps</th>
+                <th className="scs-th-sales-sub">Active Clients</th>
+                <th className="scs-th-sales-sub">Inactive Clients</th>
+                <th className="scs-th-sales-sub">Total Clients</th>
                 {/* Portfolio sub-headers */}
                 <th className="scs-th-portfolio-sub">In Arrear</th>
                 <th className="scs-th-portfolio-sub">Value</th>
@@ -683,6 +774,8 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                 <th className="scs-th-cc-sub">Unsuccess</th>
                 <th className="scs-th-cc-sub">% Success</th>
                 <th className="scs-th-cc-sub">% Unsuccess</th>
+                <th className="scs-th-cc-sub">% Reached</th>
+                <th className="scs-th-cc-sub">% Not Reached</th>
                 <th className="scs-th-cc-sub">Agents</th>
                 <th className="scs-th-cc-sub">&gt;50 Calls</th>
                 <th className="scs-th-cc-sub">% &gt;50</th>
@@ -704,6 +797,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                     <td className="scs-td-sales">{row.sales.percentage}</td>
                     <td className="scs-td-sales">{formatValue(row.sales.numberOfLoans)}</td>
                     <td className="scs-td-sales">{formatValue(row.sales.activeReps)}</td>
+                    <td className="scs-td-sales">{formatValue(row.sales.activeClients)}</td>
+                    <td className="scs-td-sales">{formatValue(row.sales.inactiveClients)}</td>
+                    <td className="scs-td-sales">{formatValue(row.sales.totalClients)}</td>
                     {/* Portfolio */}
                     <td className="scs-td-portfolio">{formatValue(row.portfolio.inArrear)}</td>
                     <td className="scs-td-portfolio">{formatValue(row.portfolio.valueInArrears)}</td>
@@ -726,6 +822,8 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                     <td className="scs-td-cc">{row.callCenter?.unsuccessfulCalls ?? '-'}</td>
                     <td className="scs-td-cc">{row.callCenter?.percentSuccessful ?? '-'}</td>
                     <td className="scs-td-cc">{row.callCenter?.percentUnsuccessful ?? '-'}</td>
+                    <td className="scs-td-cc">{row.callCenter?.percentCallsReached ?? '-'}</td>
+                    <td className="scs-td-cc">{row.callCenter?.percentCallsNotReached ?? '-'}</td>
                     <td className="scs-td-cc">{row.callCenter?.totalAgents ?? '-'}</td>
                     <td className="scs-td-cc">{row.callCenter?.agentsWithOver50Calls ?? '-'}</td>
                     <td className="scs-td-cc">{row.callCenter?.percentAgentsOver50 ?? '-'}</td>
@@ -735,7 +833,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="33" className="scs-no-data">No data available</td>
+                  <td colSpan="39" className="scs-no-data">No data available</td>
                 </tr>
               )}
             </tbody>

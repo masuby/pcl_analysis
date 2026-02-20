@@ -183,40 +183,69 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     const csData = {};
     const csBranches = { 'CS': {}, 'Cs Asset Finance': {} };
     const lbfData = {};
-    const lbfBranches = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {} };
+    const lbfBranches = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {}, 'LBF-FLEX': {} };
     const smeData = {};
     const zanzibarData = {};
     let agrifinanceData = {};
 
     const csBranchNames = ['CS', 'Cs Asset Finance'];
-    const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
+    const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'];
     const agriFinanceBranches = ['AgriFinance', 'Agrifinance'];
 
-    // Group data by branch and metric
+    // Normalize metric names to canonical form (handles "Active Clients" vs "Active clients")
+    const normalizeMetric = (m) => {
+      if (!m || typeof m !== 'string') return m;
+      const lower = m.toLowerCase();
+      if (lower === 'number of clients') return 'Number of Clients';
+      if (lower === 'active clients') return 'Active clients';
+      if (lower === 'inactive clients') return 'Inactive clients';
+      return m;
+    };
+
+    // First pass: build per-branch data (last value wins per branch+metric to avoid duplicate summing)
     data.forEach(row => {
       const branch = row.branch;
-      const metric = row.metric_name || row.metricName;
-      const value = row.metric_value || row.metricValue || 0;
+      const metric = normalizeMetric(row.metric_name || row.metricName);
+      const value = row.metric_value ?? row.metricValue ?? 0;
+      const numVal = typeof value === 'number' && !isNaN(value) ? value : parseFloat(value) || 0;
 
       if (branch === 'Country') {
-        countrywiseData[metric] = value;
+        countrywiseData[metric] = numVal;
       } else if (csBranchNames.includes(branch)) {
-        csData[metric] = (csData[metric] || 0) + value;
         if (!csBranches[branch]) csBranches[branch] = {};
-        csBranches[branch][metric] = value;
+        csBranches[branch][metric] = numVal; // Last value wins (deduplicates if backend has duplicate rows)
       } else if (lbfBranchNames.includes(branch)) {
-        lbfData[metric] = (lbfData[metric] || 0) + value;
         if (!lbfBranches[branch]) lbfBranches[branch] = {};
-        lbfBranches[branch][metric] = value;
+        lbfBranches[branch][metric] = numVal; // Last value wins
       } else if (branch === 'SME') {
-        smeData[metric] = value;
+        smeData[metric] = numVal;
       } else if (branch === 'ZANZIBAR') {
-        zanzibarData[metric] = value;
+        zanzibarData[metric] = numVal;
       } else if (agriFinanceBranches.includes(branch)) {
         if (!agrifinanceData) agrifinanceData = {};
-        agrifinanceData[metric] = value;
+        agrifinanceData[metric] = numVal;
       }
     });
+
+    // Second pass: sum branches to compute CS and LBF totals (avoids double summing if backend had duplicates)
+    const csMetrics = new Set();
+    const lbfMetrics = new Set();
+    csBranchNames.forEach((branch) => {
+      Object.keys(csBranches[branch] || {}).forEach((m) => csMetrics.add(m));
+    });
+    lbfBranchNames.forEach((branch) => {
+      Object.keys(lbfBranches[branch] || {}).forEach((m) => lbfMetrics.add(m));
+    });
+    csMetrics.forEach((metric) => {
+      csData[metric] = csBranchNames.reduce((sum, branch) => sum + (csBranches[branch]?.[metric] || 0), 0);
+    });
+    lbfMetrics.forEach((metric) => {
+      lbfData[metric] = lbfBranchNames.reduce((sum, branch) => sum + (lbfBranches[branch]?.[metric] || 0), 0);
+    });
+
+    // Prefer report_date from report_data (sync writes correct date) over report.date (may be stale)
+    const dataDate = data.find(r => r.report_date || r.reportDate);
+    const effectiveDate = (dataDate?.report_date || dataDate?.reportDate) || report.date || report.createdAt;
 
     return {
       ...report,
@@ -228,7 +257,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       sme: smeData,
       zanzibar: zanzibarData,
       agrifinance: agrifinanceData || {},
-      date: report.date || report.createdAt
+      date: effectiveDate
     };
   };
 

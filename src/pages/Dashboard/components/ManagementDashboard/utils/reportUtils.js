@@ -37,13 +37,56 @@ export const extractLBF = (rows) =>
         'MIF',
         'MIF Customs',
         'Lbf Yard Finance',
-        'LBF QUICKCASH'
+        'LBF QUICKCASH',
+        'LBF-FLEX'
       ].includes(r.Branch)
     )
     .reduce((sum, r) => sum + (r['Active Reps'] || 0), 0);
 
 export const extractSME = (rows) =>
   rows.find(r => r.Branch === 'SME')?.['Active Reps'] ?? 0;
+
+/** Management report client metrics - always include when Number of Clients exists */
+export const MANAGEMENT_CLIENT_METRICS = [
+  'Number of Clients',
+  'Active clients',
+  'Inactive clients'
+];
+
+/**
+ * Get numeric value from a data item for a given metric/column name.
+ * Handles key variations (case, "Clients" vs "clients") and string numbers.
+ */
+export const getMetricValue = (item, column) => {
+  if (!item || !column) return 0;
+  let val = item[column];
+  if (typeof val === 'number' && !isNaN(val)) return val;
+  if (val !== undefined && val !== null) {
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed) && isFinite(parsed)) return parsed;
+  }
+  // Case-insensitive / alias lookup
+  const colLower = String(column).toLowerCase();
+  for (const [key, value] of Object.entries(item)) {
+    if (key === 'date' || key === 'fileName' || key === 'xLabel' || key === 'dateLabel') continue;
+    if (String(key).toLowerCase() === colLower) {
+      const v = value;
+      if (typeof v === 'number' && !isNaN(v)) return v;
+      const p = parseFloat(v);
+      if (!isNaN(p) && isFinite(p)) return p;
+      return 0;
+    }
+  }
+  return 0;
+};
+
+const PREFERRED_METRIC_ORDER = [
+  'Number of Clients',
+  'Active clients',
+  'Inactive clients',
+  'Disbursements This Month',
+  'Active Reps'
+];
 
 export const getNumericColumns = (rows) => {
   if (!rows || !rows.length) return [];
@@ -78,6 +121,20 @@ export const getNumericColumns = (rows) => {
       });
     }
   });
+
+  // When we have management client data, ensure all three metrics appear in dropdown
+  const hasManagementData = rows.some(r => r && Object.prototype.hasOwnProperty.call(r, 'Number of Clients'));
+  if (hasManagementData) {
+    MANAGEMENT_CLIENT_METRICS.forEach(m => numericKeys.add(m));
+  }
   
-  return Array.from(numericKeys).sort();
+  const sorted = Array.from(numericKeys).sort();
+  return sorted.sort((a, b) => {
+    const idxA = PREFERRED_METRIC_ORDER.indexOf(a);
+    const idxB = PREFERRED_METRIC_ORDER.indexOf(b);
+    if (idxA >= 0 && idxB >= 0) return idxA - idxB;
+    if (idxA >= 0) return -1;
+    if (idxB >= 0) return 1;
+    return a.localeCompare(b);
+  });
 };

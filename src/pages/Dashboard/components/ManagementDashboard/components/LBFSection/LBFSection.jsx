@@ -101,7 +101,7 @@ const LBFSection = ({ data, branchesData = {} }) => {
   // Get section title based on selected branch
   const getSectionTitle = () => {
     if (selectedBranch === 'Total') {
-      return '💰 LBF (LBF, IPF, MIF, MIF Customs, Lbf Yard Finance, LBF QUICKCASH) Analysis';
+      return '💰 LBF (LBF, IPF, MIF, MIF Customs, Lbf Yard Finance, LBF QUICKCASH, LBF-FLEX) Analysis';
     }
     return `💰 LBF (${selectedBranch}) Analysis`;
   };

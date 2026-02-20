@@ -31,7 +31,7 @@ type DataPoint struct {
 var BranchMapping = map[string][]string{
 	"countrywise": {"Country"},
 	"cs":          {"CS", "Cs Asset Finance"},
-	"lbf":         {"LBF", "IPF", "MIF", "MIF Customs", "Lbf Yard Finance", "LBF QUICKCASH"},
+	"lbf":         {"LBF", "IPF", "MIF", "MIF Customs", "Lbf Yard Finance", "LBF QUICKCASH", "LBF-FLEX"},
 	"sme":         {"SME"},
 	"zanzibar":    {"ZANZIBAR"},
 }
@@ -312,23 +312,31 @@ func GetAvailableDates(c *gin.Context) {
 	})
 }
 
-// RefreshMaterializedView refreshes the dashboard materialized view
+// RefreshMaterializedView refreshes the dashboard materialized view and invalidates report caches
 func RefreshMaterializedView(c *gin.Context) {
-	_, err := database.DB.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_summary")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"error":   "Failed to refresh materialized view: " + err.Error(),
+	mvSuccess := true
+	if _, err := database.DB.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_summary"); err != nil {
+		mvSuccess = false
+		// Don't return - still clear caches so charts get fresh data
+	}
+
+	// Always invalidate caches so charts get fresh data (even if MV refresh failed)
+	_ = database.InvalidateDashboardCache()
+	_ = database.CacheDeletePattern("batch_report_data:*")
+	_ = database.CacheDeletePattern("cluster_data:*")
+	_ = database.CacheDeletePattern("regional_data:*")
+	_ = database.CacheDeletePattern("reports:*")
+
+	if !mvSuccess {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Caches cleared. Materialized view refresh failed (non-blocking).",
 		})
 		return
 	}
-
-	// Invalidate dashboard cache
-	_ = database.InvalidateDashboardCache()
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "Materialized view refreshed successfully",
+		"message": "Materialized view refreshed and caches cleared successfully",
 	})
 }
 

@@ -85,7 +85,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.25rem;
-  background: #5a6c7d;
+  background: #2a5298;
   color: white;
   border: none;
   border-radius: 8px;
@@ -93,10 +93,12 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(42, 82, 152, 0.2);
 }
 
 .scorecard-email-btn:hover {
-  background: #4a5c6d;
+  background: #1e3c72;
+  box-shadow: 0 4px 10px rgba(42, 82, 152, 0.3);
 }
 
 .scorecard-email-icon {
@@ -193,6 +195,50 @@
   color: #333;
 }
 
+/* Progress popup: sticky banner below header */
+.scorecard-progress-popup {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid #3b82f6;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-list {
+  margin: 0;
+  padding: 0;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-item {
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+}
+
+.scorecard-progress-popup .scorecard-send-progress-email {
+  color: #f1f5f9;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-ok {
+  color: #86efac;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-fail {
+  color: #fca5a5;
+}
+
+.scorecard-progress-popup .scorecard-send-progress-error {
+  color: #fca5a5;
+}
+
 .scorecard-modal-body {
   padding: 1.5rem;
   overflow-y: auto;
@@ -231,6 +277,40 @@
 
 .scorecard-add-recipient-btn:hover {
   background: #1e3c72;
+}
+
+.scorecard-recipient-list-actions {
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scorecard-copy-list-btn {
+  padding: 0.4rem 0.75rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.scorecard-copy-list-btn:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.scorecard-copy-list-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.scorecard-copy-body-btn {
+  background: #0f766e;
+}
+
+.scorecard-copy-body-btn:hover:not(:disabled) {
+  background: #0d9488;
 }
 
 .scorecard-recipients-list {
@@ -319,6 +399,191 @@
 .scorecard-modal-send:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Email Preview Section */
+.scorecard-preview-section {
+  margin-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+  padding-top: 1rem;
+}
+
+.scorecard-preview-toggle {
+  background: none;
+  border: none;
+  color: #2a5298;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.scorecard-preview-toggle:hover {
+  color: #1e3c72;
+  text-decoration: underline;
+}
+
+.scorecard-preview-container {
+  margin-top: 1rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafbfc;
+}
+
+.scorecard-preview-subject {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f0f4f8;
+  border-bottom: 1px solid #d0d5dd;
+}
+
+.scorecard-preview-subject label {
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.scorecard-subject-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.scorecard-preview-body {
+  padding: 0.75rem 1rem;
+}
+
+.scorecard-preview-body label {
+  display: block;
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.scorecard-preview-html {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.scorecard-preview-attachment {
+  padding: 0.75rem 1rem;
+  background: #e9f5ec;
+  color: #1a7f37;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-top: 1px solid #d0d5dd;
+  margin: 0;
+}
+
+/* Send progress popup: per-recipient status */
+.scorecard-send-progress {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.scorecard-send-progress-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.scorecard-send-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scorecard-send-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.scorecard-send-progress-item:last-child {
+  border-bottom: none;
+}
+
+.scorecard-send-progress-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.scorecard-send-progress-status {
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+}
+
+.scorecard-send-progress-dot {
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
+.scorecard-send-progress-spinner {
+  display: inline-block;
+  font-size: 1rem;
+  animation: scorecard-spin 0.8s linear infinite;
+}
+
+@keyframes scorecard-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.scorecard-send-progress-ok {
+  color: #16a34a;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.scorecard-send-progress-fail {
+  color: #dc2626;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.scorecard-send-progress-error {
+  width: 100%;
+  font-size: 0.8rem;
+  color: #dc2626;
+  margin-top: 0.25rem;
+  padding-left: 2rem;
+}
+
+.scorecard-send-progress-item--success {
+  background: rgba(22, 163, 74, 0.06);
+}
+
+.scorecard-send-progress-item--failed {
+  background: rgba(220, 38, 38, 0.06);
+}
+
+/* Wide modal for preview */
+.scorecard-modal--wide {
+  max-width: 800px !important;
+  width: 90% !important;
 }
 
 /* Dark mode support */

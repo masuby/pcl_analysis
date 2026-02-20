@@ -100,32 +100,42 @@ export const getStatusDistribution = (allCallData) => {
   return statusCount;
 };
 
+/** Weekly required successful calls: 50/day Mon-Fri (250) + 25 Saturday = 275 */
+export const REQUIRED_SUCCESS_CALLS_WEEKLY = 275;
+
 /**
- * Get top agents by successful calls
+ * Get top agents by success rate (highest first), then by successful calls
  */
 export const getTopAgents = (agentPerformance, limit = 10) => {
   if (!agentPerformance || agentPerformance.length === 0) return [];
 
   return agentPerformance
     .map(agent => {
-      // Handle success rate - could be a string with % or a number
+      const totalCalls = parseInt(agent['Total Calls'] || agent['Total_Calls'] || 0);
+      const successfulCalls = parseInt(agent['Successful Calls'] || agent['Successful_Calls'] || 0);
       let successRate = 0;
       const successRateValue = agent['Success Rate (%)'] || agent['Success_Rate'] || '0';
       if (typeof successRateValue === 'string') {
-        // Remove % sign and parse
         successRate = parseFloat(successRateValue.replace('%', '')) || 0;
       } else {
         successRate = parseFloat(successRateValue) || 0;
       }
+      if (totalCalls > 0 && successRate === 0) {
+        successRate = (successfulCalls / totalCalls) * 100;
+      }
 
       return {
         name: agent['Agent Name'] || agent['Agent_Name'] || 'Unknown',
-        successfulCalls: parseInt(agent['Successful Calls'] || agent['Successful_Calls'] || 0),
-        totalCalls: parseInt(agent['Total Calls'] || agent['Total_Calls'] || 0),
-        successRate: successRate
+        successfulCalls,
+        totalCalls,
+        successRate
       };
     })
-    .sort((a, b) => b.successfulCalls - a.successfulCalls)
+    .filter(a => a.totalCalls > 0)
+    .sort((a, b) => {
+      if (Math.abs(b.successRate - a.successRate) > 0.01) return b.successRate - a.successRate;
+      return b.successfulCalls - a.successfulCalls;
+    })
     .slice(0, limit);
 };
 

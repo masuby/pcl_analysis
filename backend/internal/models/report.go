@@ -49,6 +49,14 @@ type ReportUpdate struct {
 	ParsedDate *time.Time `json:"-"` // Internal use after parsing
 }
 
+// ReportFileUpdate is for updating report file path, name, title (used by sync_readable)
+type ReportFileUpdate struct {
+	Title    string `json:"title"`
+	FileName string `json:"fileName"`
+	FilePath string `json:"filePath"`
+	FileSize int64  `json:"fileSize"`
+}
+
 // ReportData represents pre-parsed data from Excel files
 type ReportData struct {
 	ID               int64      `json:"id"`
@@ -172,7 +180,7 @@ func GetAllReports(department, reportType string, limit, offset int) ([]*Report,
 	}
 
 	if reportType != "" {
-		whereClause += " AND type = $" + string(rune('0'+argCount))
+		whereClause += " AND UPPER(TRIM(type)) = UPPER(TRIM($" + string(rune('0'+argCount)) + "))"
 		args = append(args, reportType)
 		argCount++
 	}
@@ -236,7 +244,7 @@ func GetReportsByDepartmentAndType(department, reportType string) ([]*Report, er
 		FROM reports
 		WHERE is_active = true
 		AND (department = $1 OR department = 'ALL')
-		AND type = $2
+		AND UPPER(TRIM(type)) = UPPER(TRIM($2))
 		ORDER BY date DESC`
 
 	rows, err := database.DB.Query(query, department, reportType)
@@ -337,6 +345,35 @@ func UpdateReport(id uuid.UUID, input *ReportUpdate) (*Report, error) {
 	return report, nil
 }
 
+// UpdateReportFile updates a report's title, file_name, file_path, file_size
+func UpdateReportFile(id uuid.UUID, input *ReportFileUpdate) (*Report, error) {
+	report, err := GetReportByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Title != "" {
+		report.Title = input.Title
+	}
+	if input.FileName != "" {
+		report.FileName = input.FileName
+	}
+	if input.FilePath != "" {
+		report.FilePath = input.FilePath
+	}
+	if input.FileSize > 0 {
+		report.FileSize = input.FileSize
+	}
+	report.UpdatedAt = time.Now()
+
+	query := `UPDATE reports SET title = $1, file_name = $2, file_path = $3, file_size = $4, updated_at = $5 WHERE id = $6`
+	_, err = database.DB.Exec(query,
+		report.Title, report.FileName, report.FilePath, report.FileSize, report.UpdatedAt, id)
+	if err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
 // IncrementReportViews increments the view count
 func IncrementReportViews(id uuid.UUID) error {
 	query := `UPDATE reports SET views = views + 1, updated_at = $1 WHERE id = $2`
@@ -365,6 +402,12 @@ func DeleteReport(id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+// DeleteReportData removes all parsed data for a report (used before re-parsing)
+func DeleteReportData(reportID uuid.UUID) error {
+	_, err := database.DB.Exec(`DELETE FROM report_data WHERE report_id = $1`, reportID)
+	return err
 }
 
 // BatchInsertReportData inserts multiple report data rows efficiently

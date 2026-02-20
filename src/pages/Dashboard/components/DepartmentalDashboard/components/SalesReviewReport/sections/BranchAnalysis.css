@@ -1,0 +1,133 @@
+.metric-selector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.metric-selector label {
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.metric-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  color: #1e293b;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.metric-select:hover {
+  border-color: #94a3b8;
+}
+
+.metric-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.branch-chart-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: #fafafa;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.chart-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.branch-summary-table {
+  margin-top: 2rem;
+}
+
+.table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: white;
+}
+
+.branch-summary-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.branch-summary-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  text-align: left;
+  padding: 1rem;
+  font-size: 0.9rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.branch-summary-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+.branch-summary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.branch-summary-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.branch-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 0.5rem;
+}
+
+.value-cell {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.percentage-cell {
+  color: #64748b;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .metric-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .metric-select {
+    width: 100%;
+  }
+
+  .branch-chart-section {
+    padding: 1rem;
+  }
+
+  .branch-summary-table th,
+  .branch-summary-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
+  }
+}

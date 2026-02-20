@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -11,7 +9,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-pcl_secure_password_change_me}
       POSTGRES_DB: pcl_analysis
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Use named volume - bind mount ./data/postgres fails on WSL+Windows path (permission denied)
+      - pcl_postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
     ports:
       - "5432:5432"
@@ -30,7 +29,7 @@ services:
     restart: unless-stopped
     command: redis-server --appendonly yes
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     ports:
       - "6379:6379"
     healthcheck:
@@ -43,6 +42,7 @@ services:
 
   # Go API Server
   api:
+    image: pcl-api:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -65,8 +65,10 @@ services:
       - UPLOAD_PATH=/var/reports
       - MAX_FILE_SIZE=52428800
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - EMAIL_SENDER=${EMAIL_SENDER:-}
+      - EMAIL_APP_PASSWORD=${EMAIL_APP_PASSWORD:-}
     volumes:
-      - reports_data:/var/reports
+      - ./uploads:/var/reports
     ports:
       - "8080:8080"
     depends_on:
@@ -106,11 +108,7 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  reports_data:
+  pcl_postgres_data:
     driver: local
   frontend_build:
     driver: local

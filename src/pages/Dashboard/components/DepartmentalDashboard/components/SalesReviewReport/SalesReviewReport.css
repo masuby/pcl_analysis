@@ -1,0 +1,1349 @@
+/* ============================================
+   Sales Review Report - Header & Report Preview
+   Report page width: 520px (narrower than A4)
+   ============================================ */
+
+.sales-review-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: #e8ecf0;
+}
+
+.sales-review-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.sales-review-header-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.sales-review-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sales-review-date-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  color: #1e293b;
+  background: #fff;
+  cursor: pointer;
+}
+
+.sales-review-date-input:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 2px rgba(42, 82, 152, 0.15);
+}
+
+.sales-review-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.sales-review-download-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
+}
+
+.sales-review-download-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.sales-review-download-btn--pdf:hover:not(:disabled) {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.sales-review-download-btn--pptx:hover:not(:disabled) {
+  border-color: #2a5298;
+  color: #2a5298;
+}
+
+.sales-review-btn-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sales-review-btn-spinner {
+  display: inline-block;
+  animation: sales-review-spin 0.8s linear infinite;
+}
+
+@keyframes sales-review-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sales-review-btn-label {
+  font-weight: 500;
+}
+
+.sales-review-header-line {
+  height: 2px;
+  background: linear-gradient(90deg, #cbd5e1 0%, #94a3b8 50%, #cbd5e1 100%);
+  flex-shrink: 0;
+}
+
+/* ----- Report preview: wider width (760px) so chart and x-axis dates fit ----- */
+.sales-review-preview-wrapper {
+  flex: 1;
+  min-height: 1684px;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.sales-review-preview-inner {
+  width: 100%;
+  max-width: 760px;
+  min-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 2rem;
+}
+
+/* ----- Report page: 760px width on web, blue line at bottom, Book Antiqua ----- */
+.report-page {
+  width: 100%;
+  max-width: 760px;
+  min-width: 520px;
+  height: 842px;
+  box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font-family: 'Book Antiqua', 'Palatino Linotype', Palatino, serif;
+}
+
+.report-page-bottom-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #2a5298;
+  flex-shrink: 0;
+}
+
+@media print {
+  .report-page {
+    box-shadow: none;
+    page-break-after: always;
+  }
+}
+
+/* ========== Page 1: Cover (white, blue logo, blue line, blue text) ========== */
+.report-page--cover {
+  background: #fff;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3rem 2rem;
+}
+
+.report-cover-logo-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+}
+
+.report-cover-logo {
+  max-width: 220px;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  /* no filter - logo is blue */
+}
+
+.report-cover-line {
+  width: 80%;
+  max-width: 320px;
+  height: 2px;
+  background: #2a5298;
+  margin: 0 auto 2rem;
+}
+
+.report-cover-title-wrap {
+  text-align: center;
+  padding-bottom: 2rem;
+}
+
+.report-cover-title {
+  margin: 0 0 0.5rem;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #2a5298;
+  letter-spacing: 0.04em;
+}
+
+.report-cover-subtitle {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #1e3a6f;
+  letter-spacing: 0.02em;
+}
+
+/* ========== Thank You Page (end) ========== */
+.report-page--thank-you {
+  background: #fff;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.report-thank-you-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  max-width: 420px;
+}
+
+.report-thank-you-line {
+  width: 80%;
+  max-width: 280px;
+  height: 2px;
+  background: #2a5298;
+  margin-bottom: 2rem;
+}
+
+.report-thank-you-line-bottom {
+  margin-bottom: 0;
+  margin-top: 2rem;
+}
+
+.report-thank-you-title {
+  margin: 0 0 0.5rem;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2a5298;
+  letter-spacing: 0.04em;
+}
+
+.report-thank-you-subtitle {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-thank-you-logo {
+  margin-top: 2rem;
+  max-width: 160px;
+  max-height: 80px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* ========== Page 2: Table of Contents ========== */
+.report-page--toc {
+  background: #fff;
+  padding: 2rem 2rem;
+}
+
+.report-toc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.report-toc-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-toc-logo {
+  width: 90px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-toc-line {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #2a5298 0%, transparent 100%);
+  margin-bottom: 2rem;
+}
+
+.report-toc-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style: none;
+  counter-reset: toc;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #334155;
+}
+
+.report-toc-list > li {
+  counter-increment: toc;
+  position: relative;
+  padding-left: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.report-toc-list > li::before {
+  content: counter(toc) ". ";
+  position: absolute;
+  left: -1.5rem;
+  color: #2a5298;
+  font-weight: 700;
+}
+
+.report-toc-sublist {
+  margin: 0.5rem 0 0 1.25rem;
+  padding-left: 1rem;
+  list-style: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #475569;
+  counter-reset: sublist;
+}
+
+.report-toc-sublist li {
+  counter-increment: sublist;
+  position: relative;
+  margin-bottom: 0.4rem;
+}
+
+.report-toc-sublist li::before {
+  content: counter(toc) "." counter(sublist, lower-roman) " ";
+  position: absolute;
+  left: -1rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* ========== Page 3: General Performance - centered title, large logo only ========== */
+.report-page--general {
+  background: #fff;
+  padding: 2rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-general-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  flex: 1;
+}
+
+.report-general-logo {
+  width: 200px;
+  max-width: 70%;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-general-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2a5298;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+/* ========== Page 4: General Sales Trend ========== */
+.report-page--trend {
+  background: #fff;
+  padding: 1.5rem 2rem;
+}
+
+.report-trend-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.report-trend-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-trend-logo {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-trend-line {
+  width: 100%;
+  height: 2px;
+  background: #2a5298;
+  margin-bottom: 1rem;
+}
+
+.report-trend-chart-area {
+  flex: 1;
+  min-height: 280px;
+  margin-bottom: 1rem;
+}
+
+.report-trend-explanation {
+  padding: 1rem;
+  background: #f8fafc;
+  border-left: 4px solid #2a5298;
+  border-radius: 0 6px 6px 0;
+}
+
+.report-trend-explanation-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #334155;
+}
+
+/* Chart section */
+.sales-trend-chart-wrap {
+  width: 100%;
+  height: 280px;
+}
+
+.sales-trend-chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+  color: #64748b;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #e2e8f0;
+}
+
+/* ----- Page: Sales and Performance Summary ----- */
+.report-page--summary {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+}
+
+.report-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-summary-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-summary-logo {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-summary-line {
+  width: 100%;
+  height: 2px;
+  background: #2a5298;
+  margin: 0.75rem 0;
+}
+
+.report-summary-para {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.report-summary-split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 200px;
+}
+
+.report-summary-split-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 1rem;
+}
+
+.report-summary-split-left .report-summary-para {
+  margin: 0;
+}
+
+.report-summary-divider-vertical {
+  width: 2px;
+  flex-shrink: 0;
+  background: #2a5298;
+  margin: 0 1rem;
+}
+
+.report-summary-split-right {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.report-summary-pie-empty {
+  font-size: 0.9rem;
+  color: #64748b;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* ----- Page: Performance Comparison ----- */
+.report-page--comparison {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+}
+
+.report-comparison-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-comparison-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-comparison-logo {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-comparison-line {
+  width: 100%;
+  height: 2px;
+  background: #2a5298;
+  margin: 0.75rem 0;
+}
+
+.report-comparison-section {
+  margin: 0;
+}
+
+.report-comparison-section-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.report-comparison-list {
+  margin: 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.report-comparison-bullet {
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.report-comparison-value {
+  color: #2a5298;
+  font-weight: 700;
+}
+
+/* ----- New Business / Repeat Business pages: header, title, logo ----- */
+.report-page .report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  padding: 1rem 1.5rem 0;
+  flex-shrink: 0;
+}
+
+.report-page .report-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+}
+
+.report-page .report-logo {
+  width: 72px;
+  max-width: 72px;
+  height: auto;
+  max-height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.report-page .report-content {
+  flex: 1;
+  min-height: 0;
+  padding: 0 1.5rem 1rem;
+}
+
+/* ----- Page: Per Product Contribution ----- */
+.report-page--product-contribution {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+}
+
+.report-product-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.report-product-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+}
+
+.report-product-logo {
+  width: 80px;
+  height: auto;
+  object-fit: contain;
+}
+
+.report-product-line {
+  width: 100%;
+  height: 2px;
+  background: #2a5298;
+  margin: 0.75rem 0;
+}
+
+.report-product-subtitle {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.report-product-split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-height: 300px;
+}
+
+.report-product-left {
+  flex: 0 0 52%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.report-product-divider-vertical {
+  width: 2px;
+  flex-shrink: 0;
+  background: #2a5298;
+  margin: 0 1rem;
+}
+
+.report-product-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.report-product-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  table-layout: fixed;
+}
+
+.report-product-th {
+  text-align: left;
+  padding: 0.35rem 0.4rem;
+  background: linear-gradient(135deg, #2a5298 0%, #1e3a6f 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border: none;
+}
+
+.report-product-tr {
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.2s ease;
+}
+
+.report-product-tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.report-product-tr:hover {
+  background: #e8f0fe;
+}
+
+.report-product-td {
+  padding: 0.2rem 0.35rem;
+  color: #334155;
+}
+
+.report-product-td-rank {
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2a5298 0%, #4a90e2 100%);
+  width: 2rem;
+  text-align: center;
+  border-radius: 4px;
+  padding: 0.15rem 0.25rem;
+}
+
+.report-product-td-name {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.report-product-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.report-product-td-amount {
+  font-weight: 600;
+  color: #2a5298;
+}
+
+.report-product-td-pct {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.report-product-pie-empty {
+  font-size: 0.9rem;
+  color: #64748b;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Loading / Error states */
+.sales-review-loading,
+.sales-review-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.sales-review-loading p {
+  margin-top: 1rem;
+  font-size: 1.1rem;
+  color: #475569;
+}
+
+.error-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.sales-review-error h3 {
+  color: #dc2626;
+  margin: 0.5rem 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sales-review-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+  }
+
+  .sales-review-header-controls {
+    flex-wrap: wrap;
+  }
+
+  .sales-review-preview-wrapper {
+    min-height: 100vh;
+  }
+
+  .sales-review-preview-inner {
+    max-width: 100%;
+  }
+
+  .report-page {
+    height: auto;
+    min-height: 842px;
+    max-width: 100%;
+  }
+
+  .report-cover-logo-wrap {
+    min-height: 200px;
+  }
+
+  .report-cover-title {
+    font-size: 1.75rem;
+  }
+
+  .report-cover-subtitle {
+    font-size: 1.25rem;
+  }
+
+  .report-general-logo {
+    width: 160px;
+  }
+
+  .report-general-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* ========== Email Modal ========== */
+.sales-review-download-btn--email {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #fff;
+}
+
+.sales-review-download-btn--email:hover:not(:disabled) {
+  background: #d97706;
+  border-color: #b45309;
+}
+
+.sales-review-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+}
+
+.sales-review-modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.sales-review-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e1e5e9;
+}
+
+.sales-review-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.sales-review-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.sales-review-modal-close:hover {
+  color: #1e293b;
+}
+
+/* Progress popup: sticky banner below header, always visible */
+.sales-review-progress-popup {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  border-bottom: 2px solid #3b82f6;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.sales-review-progress-popup-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sales-review-progress-popup--preparing {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  flex-wrap: wrap;
+  color: #e2e8f0;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-item:last-child {
+  border-bottom: none;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: #f1f5f9;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-ok {
+  color: #86efac;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-fail {
+  color: #fca5a5;
+}
+
+.sales-review-progress-popup .sales-review-send-progress-error {
+  width: 100%;
+  font-size: 0.8rem;
+  color: #fca5a5;
+  padding-left: 0;
+}
+
+.sales-review-modal-body {
+  padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sales-review-input-group {
+  margin-bottom: 1rem;
+}
+
+.sales-review-input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.sales-review-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sales-review-input-row input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.sales-review-add-btn {
+  padding: 0.5rem 1rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sales-review-add-btn:hover {
+  background: #1e3c72;
+}
+
+.sales-review-recipient-list-actions {
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.sales-review-copy-list-btn {
+  padding: 0.4rem 0.75rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.sales-review-copy-list-btn:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.sales-review-copy-list-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sales-review-copy-body-btn {
+  background: #0f766e;
+}
+
+.sales-review-copy-body-btn:hover:not(:disabled) {
+  background: #0d9488;
+}
+
+.sales-review-recipient-list {
+  list-style: none;
+  margin: 0 0 1rem 0;
+  padding: 0;
+}
+
+.sales-review-recipient-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sales-review-recipient-email {
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.sales-review-recipient-remove {
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  border: 1px solid #ccc;
+  color: #666;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sales-review-recipient-remove:hover {
+  background: #fee;
+  color: #c00;
+  border-color: #c00;
+}
+
+.sales-review-error-msg {
+  margin: 0.75rem 0 0 0;
+  padding: 0.75rem;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #c00;
+}
+
+.sales-review-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.sales-review-modal-cancel {
+  padding: 0.5rem 1.25rem;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.sales-review-modal-cancel:hover {
+  background: #e0e0e0;
+}
+
+.sales-review-modal-send {
+  padding: 0.5rem 1.25rem;
+  background: #2a5298;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sales-review-modal-send:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.sales-review-modal-send:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sales-review-preview-section {
+  margin-top: 1rem;
+  border-top: 1px solid #e1e5e9;
+  padding-top: 1rem;
+}
+
+.sales-review-preview-toggle {
+  background: none;
+  border: none;
+  color: #2a5298;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.sales-review-preview-toggle:hover {
+  color: #1e3c72;
+  text-decoration: underline;
+}
+
+.sales-review-preview-content {
+  margin-top: 1rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafbfc;
+}
+
+.sales-review-preview-field {
+  padding: 0.75rem 1rem;
+}
+
+.sales-review-preview-field:first-child {
+  background: #f0f4f8;
+  border-bottom: 1px solid #d0d5dd;
+}
+
+.sales-review-preview-field label {
+  display: block;
+  font-weight: 600;
+  color: #2d3748;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.sales-review-preview-field input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.sales-review-preview-html {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  background: white;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+}
+
+/* Send progress: preparing + per-recipient status */
+.sales-review-send-progress {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.sales-review-send-progress--preparing {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.sales-review-send-progress-spinner {
+  display: inline-block;
+  font-size: 1.1rem;
+  animation: sales-review-spin 0.8s linear infinite;
+}
+
+@keyframes sales-review-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sales-review-send-progress-title {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.sales-review-send-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sales-review-send-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.sales-review-send-progress-item:last-child {
+  border-bottom: none;
+}
+
+.sales-review-send-progress-email {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.sales-review-send-progress-status {
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+}
+
+.sales-review-send-progress-dot {
+  color: #94a3b8;
+  font-size: 1rem;
+}
+
+.sales-review-send-progress-ok {
+  color: #16a34a;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sales-review-send-progress-fail {
+  color: #dc2626;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.sales-review-send-progress-error {
+  width: 100%;
+  font-size: 0.8rem;
+  color: #dc2626;
+  margin-top: 0.25rem;
+  padding-left: 2rem;
+}
+
+.sales-review-send-progress-item--success {
+  background: rgba(22, 163, 74, 0.06);
+}
+
+.sales-review-send-progress-item--failed {
+  background: rgba(220, 38, 38, 0.06);
+}

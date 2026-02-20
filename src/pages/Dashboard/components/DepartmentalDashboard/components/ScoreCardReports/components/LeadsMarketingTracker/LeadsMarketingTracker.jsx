@@ -1,5 +1,6 @@
 import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
 import './LeadsMarketingTracker.css';
+import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { useCRMData } from '../../../../../CRMdashboard/hooks/useCRMData';
 import { extractMetrics } from '../../../../../CRMdashboard/utils/crmUtils';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
@@ -15,16 +16,38 @@ const formatDayDate = (d) => {
 };
 
 const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
+  const { parsedReports: managementReports } = useManagementData();
   const crmCS = useCRMData('CS');
   const crmLBF = useCRMData('LBF');
   const crmSME = useCRMData('SME');
 
+  // Week dates from latest week in management reports (same as Sales Compliance Summary)
   const weekDates = useMemo(() => {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
+    if (!managementReports || managementReports.length === 0) {
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diff);
+      monday.setHours(0, 0, 0, 0);
+      const out = [];
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        out.push(d);
+      }
+      return out;
+    }
+    const sorted = [...managementReports].sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+      const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+      return dateB - dateA;
+    });
+    const latestDate = sorted[0].date ? new Date(sorted[0].date) : new Date(sorted[0].createdAt);
+    const dayOfWeek = latestDate.getDay();
     const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + diff);
+    const monday = new Date(latestDate);
+    monday.setDate(latestDate.getDate() + diff);
     monday.setHours(0, 0, 0, 0);
     const out = [];
     for (let i = 0; i < 6; i++) {
@@ -33,7 +56,7 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
       out.push(d);
     }
     return out;
-  }, []);
+  }, [managementReports]);
 
   const crmCS_0 = useCRMData('CS', weekDates[0]);
   const crmCS_1 = useCRMData('CS', weekDates[1]);
@@ -200,9 +223,9 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
     return v;
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const section = getExportSheets()[0];
-    if (section) exportSingleSectionWithStyles(section, 'Leads_Marketing_Tracker');
+    if (section) await exportSingleSectionWithStyles(section, 'Leads_Marketing_Tracker');
   };
 
   const getExportSheets = () => {
@@ -228,7 +251,8 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
     const totalRowIndices = trackerData.map((r, i) => r.isTotalRow ? i : null).filter(x => x != null);
     const colWidths = mode === 'WEEKLY' ? [12, 22, 12, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18] : [12, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18];
     const headerColors = { 'Product': '#4472C4', 'Day': '#70AD47', 'Number of Leads': '#70AD47', 'Total Agents': '#ED7D31', 'Total TLS': '#FFC000' };
-    return [{ name: 'Leads Marketing Tracker', tables: [{ data: exportData, totalRowIndices, colWidths, headerColors }] }];
+    const freezeCol = mode === 'WEEKLY' ? 3 : 1;
+    return [{ name: 'Leads Marketing Tracker', tables: [{ data: exportData, totalRowIndices, colWidths, headerColors }], freeze: { row: 1, col: freezeCol } }];
   };
 
   useImperativeHandle(ref, () => ({ getExportSheets }), [trackerData, mode]);

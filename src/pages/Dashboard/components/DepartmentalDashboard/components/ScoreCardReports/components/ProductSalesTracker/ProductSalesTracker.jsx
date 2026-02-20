@@ -1,45 +1,90 @@
 import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
 import './ProductSalesTracker.css';
 import { useMTDData } from '../../../../../MTDdashboard/hooks/useMTDData';
+import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
+import { exportToExcel } from '../../../../utils/excelExport';
 import LoadingSpinner from '../../../../../../../../components/Common/Loading/LoadingSpinner';
 
 const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
   const mtdCS = useMTDData('CS');
   const mtdLBF = useMTDData('LBF');
   const mtdSME = useMTDData('SME');
+  const { parsedReports: managementReports } = useManagementData();
 
   const trackerData = useMemo(() => {
     const departments = ['CS', 'LBF', 'SME'];
     const hooks = { CS: mtdCS, LBF: mtdLBF, SME: mtdSME };
 
     return departments.map(dept => {
+      // SME: use Management data (no MTD for SME); CS and LBF use MTD
+      if (dept === 'SME') {
+        if (!managementReports || managementReports.length === 0) return null;
+        const sorted = [...managementReports].sort((a, b) => {
+          const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+          const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+          return dateB - dateA;
+        });
+        const latestReport = sorted[0];
+        const data = latestReport.sme || {};
+        const target = Number(data['Target'] || data['Monthly Target'] || 0) || 0;
+        const value = Number(data['Disbursements This Month'] || data['Disbursement This Month'] || data['Disbursement this Month'] || 0) || 0;
+        const loans = Number(data['Number of loans'] || data['Number of Loans'] || data['No. of Loans'] || 0) || 0;
+        const activeReps = Number(data['Active Reps'] || data['Active reps'] || 0) || 0;
+        const supervisionRows = [{ name: 'SME', value, loans, target, activeReps }];
+        const wholeTotalRow = { name: 'Whole Total', value, loans, target, activeReps, isWholeTotal: true };
+        return {
+          product: 'SME',
+          totalValue: value,
+          totalLoans: loans,
+          totalTarget: target,
+          totalActiveReps: activeReps,
+          percentAchieved: target > 0 ? (value / target * 100) : 0,
+          percentUnachieved: target > 0 ? Math.max(0, (target - value) / target * 100) : 0,
+          averageLoanSize: loans > 0 ? value / loans : 0,
+          supervisionRows,
+          teamLeaderRows: [],
+          wholeTotalRow,
+          reportDate: latestReport.date ? new Date(latestReport.date) : (latestReport.createdAt ? new Date(latestReport.createdAt) : null)
+        };
+      }
+
       const hook = hooks[dept];
       if (!hook.parsedData || !hook.parsedData.groupedData) return null;
 
       const columnMap = hook.parsedData.columnMap || {};
       const termCol = columnMap.term || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => String(k).toUpperCase() === 'TERM');
       const amountCol = columnMap.amount || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => String(k).toUpperCase().includes('DISBURSE') && String(k).toUpperCase().includes('AMOUNT'));
+      const salesRepCol = columnMap.salesRep || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => {
+        const u = String(k).toUpperCase();
+        return u === 'SALES REP' || u === 'SALES REP. NAME';
+      });
 
-      let totalValue = 0;
-      let totalLoans = 0;
-      let totalTarget = 0;
-      let totalActiveReps = 0;
+      const countActiveReps = (salesReps) => {
+        if (!salesReps?.length || !salesRepCol) return 0;
+        const withTerm = salesReps.filter(rep => {
+          const term = termCol ? (rep[termCol] || rep['Term'] || rep['TERM']) : null;
+          return term != null && String(term).trim() !== '';
+        });
+        const uniqueReps = new Set(withTerm.map(rep => {
+          const name = rep[salesRepCol] || rep['SALES REP'] || rep['SALES REP. NAME'];
+          return name != null ? String(name).trim() : null;
+        }).filter(Boolean));
+        return uniqueReps.size;
+      };
+
       const supervisionRows = [];
       const teamLeaderRows = [];
 
       Object.values(hook.parsedData.groupedData).forEach(supervision => {
         const supTarget = Number(supervision.supervisionData?.['MONTH TARGET'] || supervision.supervisionData?.['Month Target'] || 0);
-        const supActiveReps = Number(supervision.supervisionData?.['NUMBER OF ACTIVE REPS'] || supervision.supervisionData?.['Active Reps'] || 0);
+        let supSalesReps = [];
         if (supervision.supervisionData) {
           const value = Number(supervision.supervisionData['VALUE'] || supervision.supervisionData['Value'] || 0);
           const loans = Number(supervision.supervisionData['NO. OF LOANS'] || supervision.supervisionData['No. of Loans'] || 0);
           const target = Number(supervision.supervisionData['MONTH TARGET'] || supervision.supervisionData['Month Target'] || 0);
-          const activeReps = Number(supervision.supervisionData['NUMBER OF ACTIVE REPS'] || supervision.supervisionData['Active Reps'] || 0);
-          totalValue += value;
-          totalLoans += loans;
-          totalTarget += target;
-          totalActiveReps += activeReps;
+          supervision.teamLeaders?.forEach(tl => { supSalesReps.push(...(tl.salesReps || [])); });
+          const activeReps = countActiveReps(supSalesReps);
           supervisionRows.push({ name: supervision.supervision || 'Unknown', value, loans, target, activeReps });
         }
         supervision.teamLeaders?.forEach(tl => {
@@ -47,11 +92,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
             const value = Number(tl.data['VALUE'] || tl.data['Value'] || 0);
             const loans = Number(tl.data['NO. OF LOANS'] || tl.data['No. of Loans'] || 0);
             const target = Number(tl.data['MONTH TARGET'] || tl.data['Month Target'] || supTarget) || 0;
-            const activeReps = Number(tl.data['NUMBER OF ACTIVE REPS'] || tl.data['Active Reps'] || 0) || 0;
-            totalValue += value;
-            totalLoans += loans;
-            totalTarget += target;
-            totalActiveReps += activeReps;
+            const activeReps = countActiveReps(tl.salesReps || []);
             const salesReps = tl.salesReps || [];
             const termData = {};
             salesReps.forEach(rep => {
@@ -67,20 +108,27 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
             const productsSold = Object.entries(termData)
               .map(([term, d]) => ({ term, count: d.count, value: d.value }))
               .sort((a, b) => b.value - a.value);
+            const pctAchieved = (target || supTarget) > 0 ? (value / (target || supTarget) * 100) : 0;
             teamLeaderRows.push({
               name: tl.name || 'Unknown',
               value,
               loans,
               target: target || supTarget,
-              activeReps: activeReps || supActiveReps,
-              productsSold
+              activeReps,
+              productsSold,
+              percentAchieved: pctAchieved
             });
           }
         });
       });
 
       supervisionRows.sort((a, b) => b.value - a.value);
-      teamLeaderRows.sort((a, b) => b.value - a.value);
+      teamLeaderRows.sort((a, b) => (b.percentAchieved || 0) - (a.percentAchieved || 0));
+
+      const totalValue = supervisionRows.reduce((s, r) => s + r.value, 0);
+      const totalLoans = supervisionRows.reduce((s, r) => s + r.loans, 0);
+      const totalTarget = supervisionRows.reduce((s, r) => s + r.target, 0);
+      const totalActiveReps = supervisionRows.reduce((s, r) => s + r.activeReps, 0);
 
       const wholeTotalRow = {
         name: 'Whole Total',
@@ -98,6 +146,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         totalTarget,
         totalActiveReps,
         percentAchieved: totalTarget > 0 ? (totalValue / totalTarget * 100) : 0,
+        percentUnachieved: totalTarget > 0 ? Math.max(0, (totalTarget - totalValue) / totalTarget * 100) : 0,
         averageLoanSize: totalLoans > 0 ? totalValue / totalLoans : 0,
         supervisionRows,
         teamLeaderRows,
@@ -105,7 +154,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         reportDate: hook.parsedData.reportDate
       };
     }).filter(Boolean);
-  }, [mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData]);
+  }, [mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData, managementReports]);
 
   const isLoading = mtdCS.loading || mtdLBF.loading || mtdSME.loading;
 
@@ -119,23 +168,34 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         'Total Loans': row.totalLoans,
         'Target': row.totalTarget,
         '% Achieved': row.percentAchieved.toFixed(1) + '%',
+        '% Unachieved': row.percentUnachieved.toFixed(1) + '%',
         'Average Loan Size': row.averageLoanSize.toFixed(2),
         'Active Reps': row.totalActiveReps
       });
-      exportData.push({ 'Product': 'Whole Total', 'Total Value': row.wholeTotalRow.value, 'Total Loans': row.wholeTotalRow.loans, 'Target': row.wholeTotalRow.target, '% Achieved': row.percentAchieved.toFixed(1) + '%', 'Average Loan Size': row.averageLoanSize.toFixed(2), 'Active Reps': row.wholeTotalRow.activeReps });
+      exportData.push({ 'Product': 'Whole Total', 'Total Value': row.wholeTotalRow.value, 'Total Loans': row.wholeTotalRow.loans, 'Target': row.wholeTotalRow.target, '% Achieved': row.percentAchieved.toFixed(1) + '%', '% Unachieved': row.percentUnachieved.toFixed(1) + '%', 'Average Loan Size': row.averageLoanSize.toFixed(2), 'Active Reps': row.wholeTotalRow.activeReps });
       exportData.push({});
       exportData.push({ 'Section': `${row.product} - SUPERVISION` });
-      exportData.push({ 'Name': 'Name', 'Value': 'Value', 'Loans': 'Loans', 'Month Target': 'Month Target', 'Active Reps': 'Active Reps' });
-      row.supervisionRows.forEach(r => exportData.push({ 'Name': r.name, 'Value': r.value, 'Loans': r.loans, 'Month Target': r.target, 'Active Reps': r.activeReps }));
-      exportData.push({ 'Name': 'Whole Total', 'Value': row.supervisionRows.reduce((s, r) => s + r.value, 0), 'Loans': row.supervisionRows.reduce((s, r) => s + r.loans, 0), 'Month Target': row.totalTarget, 'Active Reps': row.totalActiveReps });
+      exportData.push({ 'Name': 'Name', 'Value': 'Value', '% Achieved': '% Achieved', '% Unachieved': '% Unachieved', 'Loans': 'Loans', 'Month Target': 'Month Target', 'Active Reps': 'Active Reps' });
+      row.supervisionRows.forEach(r => {
+        const pctA = r.target > 0 ? (r.value / r.target * 100).toFixed(1) + '%' : '-';
+        const pctU = r.target > 0 ? Math.max(0, (r.target - r.value) / r.target * 100).toFixed(1) + '%' : '-';
+        exportData.push({ 'Name': r.name, 'Value': r.value, '% Achieved': pctA, '% Unachieved': pctU, 'Loans': r.loans, 'Month Target': r.target, 'Active Reps': r.activeReps });
+      });
+      const supVal = row.supervisionRows.reduce((s, r) => s + r.value, 0);
+      const supTarget = row.supervisionRows.reduce((s, r) => s + r.target, 0);
+      const supReps = row.supervisionRows.reduce((s, r) => s + r.activeReps, 0);
+      const pctA = supTarget > 0 ? (supVal / supTarget * 100).toFixed(1) + '%' : '-';
+      const pctU = supTarget > 0 ? Math.max(0, (supTarget - supVal) / supTarget * 100).toFixed(1) + '%' : '-';
+      exportData.push({ 'Name': 'Whole Total', 'Value': supVal, '% Achieved': pctA, '% Unachieved': pctU, 'Loans': row.supervisionRows.reduce((s, r) => s + r.loans, 0), 'Month Target': supTarget, 'Active Reps': supReps });
       exportData.push({});
       exportData.push({ 'Section': `${row.product} - TEAM LEADERS` });
       exportData.push({ 'Name': 'Name', 'Value': 'Value', '% of Target': '%', 'Month Target': 'Target', 'Active Reps': 'Reps', 'Loans': 'Loans', 'Products Sold (Term)': 'Products Sold' });
       row.teamLeaderRows.forEach(tl => {
+        const pct = (tl.target && tl.target > 0) ? (tl.value / tl.target * 100).toFixed(1) + '%' : '-';
         exportData.push({
           'Name': tl.name,
           'Value': tl.value,
-          '% of Target': row.totalTarget > 0 ? (tl.value / row.totalTarget * 100).toFixed(1) + '%' : '-',
+          '% of Target': pct,
           'Month Target': tl.target,
           'Active Reps': tl.activeReps,
           'Loans': tl.loans,
@@ -143,7 +203,8 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         });
         tl.productsSold.forEach(p => exportData.push({ 'Name': `  ${p.term}`, 'Value': p.value, '% of Target': '', 'Month Target': '', 'Active Reps': p.count, 'Loans': '', 'Products Sold (Term)': '' }));
       });
-      exportData.push({ 'Name': 'Whole Total', 'Value': row.wholeTotalRow.value, '% of Target': '100%', 'Month Target': row.totalTarget, 'Active Reps': row.wholeTotalRow.activeReps, 'Loans': row.wholeTotalRow.loans, 'Products Sold (Term)': '' });
+      const pctTotal = row.totalTarget > 0 ? (row.wholeTotalRow.value / row.totalTarget * 100).toFixed(1) + '%' : '-';
+      exportData.push({ 'Name': 'Whole Total', 'Value': row.wholeTotalRow.value, '% of Target': pctTotal, 'Month Target': row.totalTarget, 'Active Reps': row.wholeTotalRow.activeReps, 'Loans': row.wholeTotalRow.loans, 'Products Sold (Term)': '' });
       exportData.push({});
     });
     exportToExcel(exportData, 'Product_Sales_Tracker_MTD', { colWidths: [22, 18, 14, 16, 14, 12, 45] });
@@ -168,15 +229,19 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
       'Total Loans': row.totalLoans,
       'Target': row.totalTarget,
       '% Achieved': row.percentAchieved.toFixed(1) + '%',
+      '% Unachieved': row.percentUnachieved.toFixed(1) + '%',
       'Average Loan Size': Math.round(row.averageLoanSize * 100) / 100,
       'Active Reps': row.totalActiveReps
     }));
+    const sumVal = trackerData.reduce((s, r) => s + r.totalValue, 0);
+    const sumTarget = trackerData.reduce((s, r) => s + r.totalTarget, 0);
     const grandTotal = {
       'Product': 'Whole Total',
-      'Total Value': trackerData.reduce((s, r) => s + r.totalValue, 0),
+      'Total Value': sumVal,
       'Total Loans': trackerData.reduce((s, r) => s + r.totalLoans, 0),
-      'Target': trackerData.reduce((s, r) => s + r.totalTarget, 0),
-      '% Achieved': trackerData.reduce((s, r) => s + r.totalTarget, 0) > 0 ? (trackerData.reduce((s, r) => s + r.totalValue, 0) / trackerData.reduce((s, r) => s + r.totalTarget, 0) * 100).toFixed(1) + '%' : '-',
+      'Target': sumTarget,
+      '% Achieved': sumTarget > 0 ? (sumVal / sumTarget * 100).toFixed(1) + '%' : '-',
+      '% Unachieved': sumTarget > 0 ? Math.max(0, (sumTarget - sumVal) / sumTarget * 100).toFixed(1) + '%' : '-',
       'Average Loan Size': '-',
       'Active Reps': trackerData.reduce((s, r) => s + r.totalActiveReps, 0)
     };
@@ -184,46 +249,56 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
       title: 'Summary',
       data: [...summaryRows, grandTotal],
       totalRowIndices: [summaryRows.length],
-      colWidths: [12, 16, 14, 14, 12, 16, 12],
+      colWidths: [12, 16, 14, 14, 12, 14, 16, 12],
       headerColors: { 'Product': '#4472C4', 'Total Value': '#70AD47', 'Target': '#ED7D31' }
     });
     trackerData.filter(r => r.product !== 'SME').forEach(row => {
-      const supRows = row.supervisionRows.map(r => ({
-        'Name': r.name,
-        'Value': r.value,
-        'Loans': r.loans,
-        'Month Target': r.target,
-        'Active Reps': r.activeReps
-      }));
-      const supTotal = { 'Name': 'Whole Total', 'Value': row.supervisionRows.reduce((s, r) => s + r.value, 0), 'Loans': row.supervisionRows.reduce((s, r) => s + r.loans, 0), 'Month Target': row.totalTarget, 'Active Reps': row.totalActiveReps };
+      const supRows = row.supervisionRows.map(r => {
+        const pctA = r.target > 0 ? (r.value / r.target * 100).toFixed(1) + '%' : '-';
+        const pctU = r.target > 0 ? Math.max(0, (r.target - r.value) / r.target * 100).toFixed(1) + '%' : '-';
+        return { 'Name': r.name, 'Value': r.value, '% Achieved': pctA, '% Unachieved': pctU, 'Loans': r.loans, 'Month Target': r.target, 'Active Reps': r.activeReps };
+      });
+      const supVal = row.supervisionRows.reduce((s, r) => s + r.value, 0);
+      const supTarget = row.supervisionRows.reduce((s, r) => s + r.target, 0);
+      const supReps = row.supervisionRows.reduce((s, r) => s + r.activeReps, 0);
+      const supPctA = supTarget > 0 ? (supVal / supTarget * 100).toFixed(1) + '%' : '-';
+      const supPctU = supTarget > 0 ? Math.max(0, (supTarget - supVal) / supTarget * 100).toFixed(1) + '%' : '-';
+      const supTotal = { 'Name': 'Whole Total', 'Value': supVal, '% Achieved': supPctA, '% Unachieved': supPctU, 'Loans': row.supervisionRows.reduce((s, r) => s + r.loans, 0), 'Month Target': supTarget, 'Active Reps': supReps };
       if (supRows.length > 0) {
         tables.push({
           title: `${row.product} - Supervision`,
           data: [...supRows, supTotal],
           totalRowIndices: [supRows.length],
-          colWidths: [22, 16, 12, 14, 14],
+          colWidths: [22, 16, 12, 14, 12, 14, 14],
           headerColors: { 'Name': '#4472C4', 'Value': '#70AD47', 'Month Target': '#ED7D31' }
         });
       }
       const tlRows = [];
-      row.teamLeaderRows.forEach(tl => {
+      const emptyRow = { 'Name': '', 'Value': '', '% of Target': '', 'Month Target': '', 'Active Reps': '', 'Loans': '', 'Products Sold': '' };
+      row.teamLeaderRows.forEach((tl, tlIdx) => {
+        const pctTarget = (tl.target && tl.target > 0) ? (tl.value / tl.target * 100).toFixed(1) + '%' : '-';
         tlRows.push({
           'Name': tl.name,
           'Value': tl.value,
-          '% of Target': row.totalTarget > 0 ? (tl.value / row.totalTarget * 100).toFixed(1) + '%' : '-',
+          '% of Target': pctTarget,
           'Month Target': tl.target,
           'Active Reps': tl.activeReps,
           'Loans': tl.loans,
           'Products Sold': tl.productsSold.map(p => `${p.term} (${p.count}, ${formatVal(p.value)})`).join('; ') || '-'
         });
-        tl.productsSold.forEach(p => tlRows.push({ 'Name': `  ${p.term}`, 'Value': p.value, '% of Target': '', 'Month Target': '', 'Active Reps': p.count, 'Loans': '', 'Products Sold': '' }));
+        tl.productsSold.forEach(p => tlRows.push({ ...emptyRow, 'Name': `  ${p.term}`, 'Value': p.value, 'Active Reps': p.count }));
+        if (tlIdx < row.teamLeaderRows.length - 1) {
+          tlRows.push({ ...emptyRow, __separator: true });
+        }
       });
-      const tlTotal = { 'Name': 'Whole Total', 'Value': row.wholeTotalRow.value, '% of Target': '-', 'Month Target': row.totalTarget, 'Active Reps': row.wholeTotalRow.activeReps, 'Loans': row.wholeTotalRow.loans, 'Products Sold': '' };
+      const pctTotal = row.totalTarget > 0 ? (row.wholeTotalRow.value / row.totalTarget * 100).toFixed(1) + '%' : '-';
+      const tlTotal = { 'Name': 'Whole Total', 'Value': row.wholeTotalRow.value, '% of Target': pctTotal, 'Month Target': row.totalTarget, 'Active Reps': row.wholeTotalRow.activeReps, 'Loans': row.wholeTotalRow.loans, 'Products Sold': '' };
       if (tlRows.length > 0) {
+        const totalRowIdx = tlRows.length;
         tables.push({
           title: `${row.product} - Team Leaders`,
           data: [...tlRows, tlTotal],
-          totalRowIndices: [tlRows.length],
+          totalRowIndices: [totalRowIdx],
           colWidths: [22, 16, 12, 14, 12, 12, 40],
           headerColors: { 'Name': '#4472C4', 'Value': '#70AD47', 'Products Sold': '#7030A0' }
         });
@@ -236,7 +311,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
       if (smeRows.length > 0) tables.push({ title: 'SME', data: [...smeRows, smeTotal], totalRowIndices: [smeRows.length], colWidths: [22, 16, 12, 14, 14], headerColors: { 'Name': '#4472C4', 'Value': '#70AD47' } });
     });
     if (tables.length === 0) return [];
-    return [{ name: 'Product Sales Tracker (MTD)', tables, freeze: { row: 1, col: 0 } }];
+    return [{ name: 'Product Sales Tracker (MTD)', tables }];
   };
 
   useImperativeHandle(ref, () => ({ getExportSheets }), [trackerData]);
@@ -282,6 +357,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                 <th className="mtd-th-loans">Total Loans</th>
                 <th className="mtd-th-value">Target</th>
                 <th className="mtd-th-value">% Achieved</th>
+                <th className="mtd-th-value">% Unachieved</th>
                 <th className="mtd-th-loans">Avg Loan Size</th>
                 <th className="mtd-th-performer">Active Reps</th>
               </tr>
@@ -296,6 +372,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                       <td className="mtd-td-number">{formatValue(row.totalLoans)}</td>
                       <td className="mtd-td-number">{formatValue(row.totalTarget)}</td>
                       <td className="mtd-td-number">{row.percentAchieved.toFixed(1)}%</td>
+                      <td className="mtd-td-number">{row.percentUnachieved.toFixed(1)}%</td>
                       <td className="mtd-td-number">{formatValue(row.averageLoanSize)}</td>
                       <td className="mtd-td-number">{formatValue(row.totalActiveReps)}</td>
                     </tr>
@@ -306,13 +383,14 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                     <td className="mtd-td-number mtd-whole-total-cell">{formatValue(trackerData.reduce((s, r) => s + r.totalLoans, 0))}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{formatValue(trackerData.reduce((s, r) => s + r.totalTarget, 0))}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{trackerData.reduce((s, r) => s + r.totalTarget, 0) > 0 ? (trackerData.reduce((s, r) => s + r.totalValue, 0) / trackerData.reduce((s, r) => s + r.totalTarget, 0) * 100).toFixed(1) + '%' : '-'}</td>
+                    <td className="mtd-td-number mtd-whole-total-cell">{trackerData.reduce((s, r) => s + r.totalTarget, 0) > 0 ? (Math.max(0, (trackerData.reduce((s, r) => s + r.totalTarget, 0) - trackerData.reduce((s, r) => s + r.totalValue, 0)) / trackerData.reduce((s, r) => s + r.totalTarget, 0) * 100)).toFixed(1) + '%' : '-'}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">-</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{formatValue(trackerData.reduce((s, r) => s + r.totalActiveReps, 0))}</td>
                   </tr>
                 </>
               ) : (
                 <tr>
-                  <td colSpan="7" className="mtd-no-data">No data available</td>
+                  <td colSpan="8" className="mtd-no-data">No data available</td>
                 </tr>
               )}
             </tbody>
@@ -333,30 +411,37 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                         <th>#</th>
                         <th>Name</th>
                         <th>Value</th>
-                        <th>%</th>
+                        <th>% Achieved</th>
+                        <th>% Unachieved</th>
                         <th>Target</th>
                         <th>Active Reps</th>
                         <th>Loans</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {row.supervisionRows.map((r, i) => (
-                        <tr key={i}>
-                          <td className="mtd-rank-cell">{i + 1}</td>
-                          <td>{r.name}</td>
-                          <td className="mtd-td-number">{formatValue(r.value)}</td>
-                          <td className="mtd-td-percent">{row.totalTarget > 0 ? (r.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
-                          <td className="mtd-td-number">{formatValue(r.target)}</td>
-                          <td className="mtd-td-number">{formatValue(r.activeReps)}</td>
-                          <td className="mtd-td-number">{formatValue(r.loans)}</td>
-                        </tr>
-                      ))}
+                      {row.supervisionRows.map((r, i) => {
+                        const pctAch = r.target > 0 ? (r.value / r.target * 100) : 0;
+                        const pctUnach = r.target > 0 ? Math.max(0, (r.target - r.value) / r.target * 100) : 0;
+                        return (
+                          <tr key={i}>
+                            <td className="mtd-rank-cell">{i + 1}</td>
+                            <td>{r.name}</td>
+                            <td className="mtd-td-number">{formatValue(r.value)}</td>
+                            <td className="mtd-td-percent">{r.target > 0 ? pctAch.toFixed(1) + '%' : '-'}</td>
+                            <td className="mtd-td-percent">{r.target > 0 ? pctUnach.toFixed(1) + '%' : '-'}</td>
+                            <td className="mtd-td-number">{formatValue(r.target)}</td>
+                            <td className="mtd-td-number">{formatValue(r.activeReps)}</td>
+                            <td className="mtd-td-number">{formatValue(r.loans)}</td>
+                          </tr>
+                        );
+                      })}
                       <tr className="mtd-whole-total-row">
                         <td colSpan="2" className="mtd-whole-total-cell">Whole Total</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.supervisionRows.reduce((s, r) => s + r.value, 0))}</td>
-                        <td className="mtd-whole-total-cell">-</td>
-                        <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.totalTarget)}</td>
-                        <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.totalActiveReps)}</td>
+                        <td className="mtd-whole-total-cell">{row.totalTarget > 0 ? (row.supervisionRows.reduce((s, r) => s + r.value, 0) / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
+                        <td className="mtd-whole-total-cell">{row.totalTarget > 0 ? (Math.max(0, (row.totalTarget - row.supervisionRows.reduce((s, r) => s + r.value, 0)) / row.totalTarget * 100)).toFixed(1) + '%' : '-'}</td>
+                        <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.supervisionRows.reduce((s, r) => s + r.target, 0))}</td>
+                        <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.supervisionRows.reduce((s, r) => s + r.activeReps, 0))}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.supervisionRows.reduce((s, r) => s + r.loans, 0))}</td>
                       </tr>
                     </tbody>
@@ -395,7 +480,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                             <td className="mtd-rank-cell">{i + 1}</td>
                             <td className="mtd-td-name">{tl.name}</td>
                             <td className="mtd-td-number">{formatValue(tl.value)}</td>
-                            <td className="mtd-td-percent">{row.totalTarget > 0 ? (tl.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
+                            <td className="mtd-td-percent">{tl.target > 0 ? (tl.value / tl.target * 100).toFixed(1) + '%' : '-'}</td>
                             <td className="mtd-td-number">{formatValue(tl.target)}</td>
                             <td className="mtd-td-number">{formatValue(tl.activeReps)}</td>
                             <td className="mtd-td-number">{formatValue(tl.loans)}</td>
@@ -414,7 +499,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                       <tr className="mtd-whole-total-row">
                         <td colSpan="2" className="mtd-whole-total-cell">Whole Total</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.value)}</td>
-                        <td className="mtd-whole-total-cell">-</td>
+                        <td className="mtd-whole-total-cell">{row.totalTarget > 0 ? (row.wholeTotalRow.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.totalTarget)}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.activeReps)}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.loans)}</td>
@@ -452,7 +537,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                           <td className="mtd-rank-cell">{i + 1}</td>
                           <td>{r.name}</td>
                           <td className="mtd-td-number">{formatValue(r.value)}</td>
-                          <td className="mtd-td-percent">{row.totalTarget > 0 ? (r.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
+                          <td className="mtd-td-percent">{r.target > 0 ? (r.value / r.target * 100).toFixed(1) + '%' : '-'}</td>
                           <td className="mtd-td-number">{formatValue(r.target)}</td>
                           <td className="mtd-td-number">{formatValue(r.activeReps)}</td>
                           <td className="mtd-td-number">{formatValue(r.loans)}</td>
@@ -463,7 +548,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                           <td className="mtd-rank-cell">{row.supervisionRows.length + i + 1}</td>
                           <td>{tl.name}</td>
                           <td className="mtd-td-number">{formatValue(tl.value)}</td>
-                          <td className="mtd-td-percent">{row.totalTarget > 0 ? (tl.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
+                          <td className="mtd-td-percent">{tl.target > 0 ? (tl.value / tl.target * 100).toFixed(1) + '%' : '-'}</td>
                           <td className="mtd-td-number">{formatValue(tl.target)}</td>
                           <td className="mtd-td-number">{formatValue(tl.activeReps)}</td>
                           <td className="mtd-td-number">{formatValue(tl.loans)}</td>
@@ -472,7 +557,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                       <tr className="mtd-whole-total-row">
                         <td colSpan="2" className="mtd-whole-total-cell">Whole Total</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.value)}</td>
-                        <td className="mtd-whole-total-cell">-</td>
+                        <td className="mtd-whole-total-cell">{row.totalTarget > 0 ? (row.wholeTotalRow.value / row.totalTarget * 100).toFixed(1) + '%' : '-'}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.totalTarget)}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.activeReps)}</td>
                         <td className="mtd-td-number mtd-whole-total-cell">{formatValue(row.wholeTotalRow.loans)}</td>

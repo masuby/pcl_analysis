@@ -81,7 +81,7 @@ const ManagementDashboard = () => {
 
   // LBF individual branches data (ALL data)
   const lbfBranchesData = {};
-  const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'];
+  const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'];
   lbfBranchNames.forEach(branchName => {
     lbfBranchesData[branchName] = parsedReports
       .filter(report => report.lbfBranches && report.lbfBranches[branchName] && Object.keys(report.lbfBranches[branchName]).length > 0)
@@ -125,7 +125,8 @@ const ManagementDashboard = () => {
           <h2 className="analysis-view-title">
             {currentViewLabel}
           </h2>
-          <div className="analysis-view-selector">
+          <div className="analysis-view-actions">
+            <div className="analysis-view-selector">
             <label className="view-selector-label">View:</label>
             <select 
               value={analysisView} 
@@ -138,6 +139,7 @@ const ManagementDashboard = () => {
                 </option>
               ))}
             </select>
+            </div>
           </div>
         </div>
 

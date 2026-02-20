@@ -17,6 +17,23 @@ type Config struct {
 	Storage  StorageConfig
 	CORS     CORSConfig
 	Log      LogConfig
+	Email    EmailConfig
+	Gap      GapConfig
+}
+
+// GapConfig for Gap Analysis TL response links and storage
+type GapConfig struct {
+	FrontendURL    string // e.g. http://localhost:5173 for building TL response link
+	ResponseSecret string // secret to sign/verify TL response token (defaults to JWT secret if empty)
+	// Google Sheet: TLs open this link to enter Actual Sales Rep; we read from same sheet
+	GoogleSheetID  string // e.g. 1ABC... from https://docs.google.com/spreadsheets/d/1ABC.../edit
+	GoogleSheetGID string // optional sheet/tab ID (default "0" for first sheet)
+}
+
+// EmailConfig for sending score card reports
+type EmailConfig struct {
+	Sender     string
+	AppPassword string
 }
 
 type ServerConfig struct {
@@ -99,6 +116,16 @@ func Load() (*Config, error) {
 		Log: LogConfig{
 			Level: getEnv("LOG_LEVEL", "info"),
 			File:  getEnv("LOG_FILE", ""),
+		},
+		Email: EmailConfig{
+			Sender:     getEnv("EMAIL_SENDER", ""),
+			AppPassword: getEnv("EMAIL_APP_PASSWORD", ""),
+		},
+		Gap: GapConfig{
+			FrontendURL:    getEnv("FRONTEND_URL", "http://localhost:5173"),
+			ResponseSecret: getEnv("GAP_RESPONSE_SECRET", ""),
+			GoogleSheetID:  getEnv("GAP_GOOGLE_SHEET_ID", ""),
+			GoogleSheetGID: getEnv("GAP_GOOGLE_SHEET_GID", "0"),
 		},
 	}
 

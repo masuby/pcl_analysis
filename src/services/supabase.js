@@ -78,15 +78,21 @@ export const downloadReportFile = async (filePath) => {
   try {
     const token = getToken();
     const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
-    
-    const response = await fetch(`${API_URL}/files/${cleanPath}`, {
+    const url = `${API_URL}/files/${cleanPath}`;
+
+    const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
-    
-    if (!response.ok) throw new Error('Download failed');
-    
+
+    if (!response.ok) {
+      const msg = response.status === 404
+        ? `File not found (404): ${cleanPath}. Ensure backend serves from uploads/ and file exists.`
+        : `Download failed (${response.status}): ${response.statusText}`;
+      throw new Error(msg);
+    }
+
     const data = await response.blob();
     return { success: true, data };
   } catch (error) {

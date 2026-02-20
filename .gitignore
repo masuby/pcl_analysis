@@ -62,5 +62,10 @@ ui-debug.log
 # Supabase
 .supabase
 
-# Uploaded files
+# Uploaded files and Docker data (portable - copy backend/data/ when moving machines)
 backend/uploads/
+backend/data/
+
+# Backups (sensitive data)
+backend/backup/
+node_modules

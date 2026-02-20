@@ -6,7 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "reset-admin": "node scripts/reset-admin-password.mjs",
+    "backup-management-reports": "node scripts/management-reports-backup.mjs",
+    "populate-management-correction": "node scripts/populate-management-correction.mjs",
+    "populate-management-correction-from-api": "node scripts/populate-management-correction-from-api.mjs",
+    "restore-from-backup": "python scripts/restore_from_backup.py",
+    "correct-management-reports": "python scripts/correct_management_reports.py"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.87.3",
@@ -15,8 +21,11 @@
     "date-fns": "^2.30.0",
     "file-saver": "^2.0.5",
     "firebase": "^12.6.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.0.0",
     "jszip": "^3.10.1",
     "pg": "^8.17.1",
+    "pptxgenjs": "^4.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.2",

@@ -1,0 +1,136 @@
+.gap-response-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #f4f6f9 0%, #e2e8f0 100%);
+}
+
+.gap-response-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 32px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.gap-response-card h1 {
+  margin: 0 0 16px 0;
+  font-size: 1.35rem;
+  color: #2a5298;
+}
+
+.gap-response-intro {
+  margin: 0 0 24px 0;
+  color: #475569;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.gap-response-form label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #334155;
+  font-size: 0.9375rem;
+}
+
+.gap-response-form input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+
+.gap-response-form input:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+}
+
+.gap-response-form button {
+  width: 100%;
+  padding: 12px 20px;
+  background: #2a5298;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gap-response-form button:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.gap-response-form button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.gap-response-success {
+  margin: 16px 0 0 0;
+  color: #059669;
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+.gap-response-error {
+  margin: 16px 0 0 0;
+  color: #dc2626;
+  font-size: 0.9375rem;
+}
+
+/* Dark mode */
+.dark-mode .gap-response-page {
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+}
+
+.dark-mode .gap-response-card {
+  background: #2d3748;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .gap-response-card h1 {
+  color: #63b3ed;
+}
+
+.dark-mode .gap-response-intro {
+  color: #a0aec0;
+}
+
+.dark-mode .gap-response-form label {
+  color: #e2e8f0;
+}
+
+.dark-mode .gap-response-form input {
+  background: #4a5568;
+  border-color: #718096;
+  color: #e2e8f0;
+}
+
+.dark-mode .gap-response-form input:focus {
+  border-color: #63b3ed;
+}
+
+.dark-mode .gap-response-form button {
+  background: #2a5298;
+}
+
+.dark-mode .gap-response-form button:hover:not(:disabled) {
+  background: #1e3c72;
+}
+
+.dark-mode .gap-response-success {
+  color: #48bb78;
+}
+
+.dark-mode .gap-response-error {
+  color: #fc8181;
+}

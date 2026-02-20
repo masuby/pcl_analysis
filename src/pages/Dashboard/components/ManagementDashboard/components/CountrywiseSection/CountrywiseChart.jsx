@@ -1,8 +1,10 @@
 // C:\Users\Daniel\Desktop\code\Website\pcl_analysis\src\pages\Dashboard\components\ManagementDashboard\components\CountrywiseSection\CountrywiseChart.jsx
 import { ResponsiveContainer } from 'recharts';
 import { renderChart } from '../../utils/chartUtils';
+import { getMetricValue } from '../../utils/reportUtils';
 import CountrywiseSummary from './CountrywiseSummary';
 import ChartDataExport from '../Common/ChartDataExport';
+import ClientBreakdownModal from '../Common/ClientBreakdownModal';
 
 const CountrywiseChart = ({ 
   data, 
@@ -19,7 +21,8 @@ const CountrywiseChart = ({
   setTo, 
   reset,
   applyFilters,
-  columns 
+  columns,
+  sectionLabel = 'Countrywise'
 }) => {
   // Sort by date for better visualization
   let sortedData = [...data].sort((a, b) => {
@@ -47,8 +50,10 @@ const CountrywiseChart = ({
   }
 
   // Prepare chart data - use formatted date as x-axis
+  // Use getMetricValue for robust lookup (handles case variations, string numbers)
   const chartData = sortedData.map(item => {
     const itemDate = item.date instanceof Date ? item.date : new Date(item.date);
+    const numericValue = column ? getMetricValue(item, column) : 0;
     return {
       ...item,
       xLabel: dataType === 'monthly' 
@@ -67,7 +72,8 @@ const CountrywiseChart = ({
         day: 'numeric' 
       }),
       dateValue: itemDate,
-      value: column && typeof item[column] === 'number' ? item[column] : 0
+      value: numericValue,
+      [column]: numericValue // Ensure Recharts can read by yKey
     };
   });
 
@@ -164,7 +170,10 @@ const CountrywiseChart = ({
             columnName: column
           })}
         </ResponsiveContainer>
-        <ChartDataExport chartData={chartData} column={column} />
+        <div className="chart-action-buttons">
+          <ChartDataExport chartData={chartData} column={column} />
+          <ClientBreakdownModal data={allData} sectionLabel={sectionLabel} />
+        </div>
       </div>
       {allData && <CountrywiseSummary allData={allData} />}
     </div>

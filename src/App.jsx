@@ -13,6 +13,7 @@ import SMEReports from './pages/SMEReports/SMEReports';
 import AllReports from './pages/AllReports/AllReports';
 import Administration from './pages/Administration/Administration';
 import Profile from './pages/Profile/Profile';
+import GapResponse from './pages/GapResponse/GapResponse';
 import ThemeToggle from './components/Common/ThemeToggle/ThemeToggle';
 import './App.css';
 
@@ -25,6 +26,7 @@ function App() {
             <ThemeToggle />
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/gap-response" element={<GapResponse />} />
               <Route path="/" element={<PrivateRoute />}>
                 <Route element={<MainLayout />}>
                   <Route path="dashboard" element={<Dashboard />} />

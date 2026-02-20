@@ -10,14 +10,14 @@ import { calculateMetrics, getTopAgents } from '../../CallCenterDashboard/utils/
 const HOD_NAMES = {
   CS: 'KELVIN MWASALA',
   LBF: 'AUGUSTINE MPOLLO',
-  SME: 'ABDULKHARIM HAMIDU',
+  SME: 'ABDULAKHIM KHALFANI',
   AgriFinance: 'ALLAN RUHUZA'
 };
 
 // Sub-products definitions
 const SUB_PRODUCTS = {
   CS: ['CS', 'Cs Asset Finance'],
-  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH'],
+  LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'],
   SME: ['SME'],
   AgriFinance: ['AgriFinance']
 };

@@ -581,6 +581,7 @@ func ExtractBranchSections(filePath string) ([]BranchSectionData, error) {
 		"MIF Customs":      "lbf",
 		"Lbf Yard Finance": "lbf",
 		"LBF QUICKCASH":    "lbf",
+		"LBF-FLEX":         "lbf",
 		"SME":              "sme",
 		"ZANZIBAR":         "zanzibar",
 	}

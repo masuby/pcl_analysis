@@ -39,6 +39,14 @@ func main() {
 	// Initialize JWT
 	middleware.InitJWT(&cfg.JWT)
 
+	// Initialize email config for score card sending
+	handlers.EmailConfig.Sender = cfg.Email.Sender
+	handlers.EmailConfig.AppPassword = cfg.Email.AppPassword
+
+	// Initialize gap analysis (TL response links and upload storage)
+	handlers.InitGapHandlers(&cfg.Gap, cfg.JWT.Secret)
+	handlers.InitGapStorage(cfg.Storage.UploadPath)
+
 	// Initialize handlers
 	handlers.InitReportHandlers(&cfg.Storage)
 	handlers.InitProcedureHandlers(&cfg.Storage)
@@ -50,6 +58,16 @@ func main() {
 	router.Use(middleware.RecoveryMiddleware())
 	router.Use(middleware.LoggingMiddleware())
 	router.Use(middleware.CORSMiddleware(&cfg.CORS))
+
+	// Root redirect to health/docs
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"service": "pcl-api",
+			"status":  "running",
+			"health":  "/health",
+			"api":     "/api",
+		})
+	})
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -67,12 +85,27 @@ func main() {
 		{
 			public.POST("/auth/login", handlers.Login)
 			public.POST("/auth/register", handlers.Register)
+			// Team Leader submits Actual Sales Rep via token (no login)
+			public.POST("/gap-analysis/actual-reps", handlers.PostGapActualRepWithToken)
+			public.GET("/gap-analysis/verify-token", handlers.GetGapResponseTokenPayload)
 		}
 
 		// Protected routes (auth required)
 		protected := api.Group("")
-		protected.Use(middleware.AuthMiddleware())
+			protected.Use(middleware.AuthMiddleware())
 		{
+			// Email routes (score card report)
+			protected.POST("/email/scorecard", handlers.SendScoreCardEmail)
+
+			// Gap Analysis: fetch/save actual reps, upload Excel, get TL response link, Google Sheet URL
+			protected.GET("/gap-analysis/reports/:reportId/actual-reps", handlers.GetGapActualRepsByReport)
+			protected.POST("/gap-analysis/reports/:reportId/actual-reps", handlers.PostGapActualRepForReport)
+			protected.POST("/gap-analysis/reports/:reportId/actual-reps/upload", handlers.PostGapActualRepsUpload)
+			protected.GET("/gap-analysis/reports/:reportId/uploaded-file", handlers.GetGapUploadedFile)
+			protected.DELETE("/gap-analysis/reports/:reportId/uploaded-file", handlers.DeleteGapUploadedFile)
+			protected.GET("/gap-analysis/response-link", handlers.GetGapResponseLink)
+			protected.GET("/gap-analysis/sheet-url", handlers.GetGapSheetURL)
+
 			// Auth routes
 			auth := protected.Group("/auth")
 			{

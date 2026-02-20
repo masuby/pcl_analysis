@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useReportRefresh } from '../../../contexts/ReportRefreshContext';
 import { logoutUser } from '../../../services/auth';
 import Toast from '../../Common/Toast/Toast';
 import './Sidebar.css';
 
 const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }) => {
   const { user, userData } = useAuth();
+  const { triggerRefresh } = useReportRefresh();
   const navigate = useNavigate();
   const location = useLocation();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -95,9 +97,14 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
     setShowLogoutConfirm(false);
   };
 
-  const handleRefreshData = () => {
-    // Reload the page like Ctrl+R
-    window.location.reload();
+  const handleRefreshData = async () => {
+    try {
+      const { refreshDashboardViews } = await import('../../../services/dashboard');
+      await refreshDashboardViews();
+    } catch (e) {
+      // Ignore - admin may be required
+    }
+    triggerRefresh();
   };
 
   // Get user's accessible menu items - FIXED VERSION

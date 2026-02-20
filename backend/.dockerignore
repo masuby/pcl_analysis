@@ -1,0 +1,17 @@
+# Exclude files not needed for Go build
+.git
+.gitignore
+*.md
+.env
+env.example
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Exclude build outputs
+main
+*.exe
+
+# Exclude docs and config not needed in container
+nginx
+README*
