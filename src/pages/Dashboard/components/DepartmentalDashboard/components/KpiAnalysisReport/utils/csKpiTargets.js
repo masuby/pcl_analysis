@@ -81,18 +81,27 @@ export async function loadCsKpiTargets() {
     callCenter: {}
   };
 
-  // Sheet: KPI – PERFORMANCE STANDARDS (column A) and Weight (column B)
+  // Sheet: KPI – PERFORMANCE STANDARDS (col A or "KPI"/"PERFORMANCE STANDARDS") and Weight (col B or "Weight"/"Weight (%)").
+  // Weight can be decimal (0.1) or percentage (10) → we store as decimal.
   const kpiSheet = wb.Sheets['KPI'];
   if (kpiSheet) {
     const kpiRows = XLSX.utils.sheet_to_json(kpiSheet, { header: 1, defval: '' });
+    const headerRow = kpiRows[0] || [];
+    const nameCol = headerRow.findIndex((h) => /performance\s*standards|^kpi$/i.test(String(h || '').trim()));
+    const weightCol = headerRow.findIndex((h) => /weight/i.test(String(h || '').trim()));
+    const nameIdx = nameCol >= 0 ? nameCol : 0;
+    const weightIdx = weightCol >= 0 ? weightCol : 1;
     for (let i = 1; i <= 10 && i < kpiRows.length; i++) {
       const row = kpiRows[i] || [];
-      const name = row[0] != null ? String(row[0]).trim() : '';
-      const weight = Number(row[1]);
+      const name = row[nameIdx] != null ? String(row[nameIdx]).trim() : '';
+      let weight = Number(row[weightIdx]);
       if (name) {
+        // Normalize: if value > 1 assume it's stored as percentage (e.g. 10) → use 0.1
+        if (Number.isFinite(weight) && weight > 1) weight = weight / 100;
+        else if (!Number.isFinite(weight)) weight = 0;
         out.performanceStandards.push({
           name,
-          weight: Number.isFinite(weight) ? weight : 0
+          weight
         });
       }
     }
@@ -160,6 +169,28 @@ export async function loadCsKpiTargets() {
   }
 
   return out;
+}
+
+/**
+ * Get weight from performanceStandards by matching KPI name (so correct weight is used regardless of row order in file).
+ * @param {{ name: string, weight: number }[]} standards
+ * @param {'growth'|'regions_clusters'|'crm'|'data_consent'} key
+ * @returns {number} weight (decimal, e.g. 0.02 for 2%)
+ */
+export function getWeightForKpiKey(standards, key) {
+  if (!Array.isArray(standards)) return 0;
+  const lower = (s) => String(s || '').toLowerCase();
+  const match = (name, phrases) => phrases.every((p) => lower(name).includes(p));
+  const map = {
+    growth: ['growth', 'active client'],
+    regions_clusters: ['regions', 'cluster'],
+    crm: ['crm', 'proper usage'],
+    data_consent: ['data consent', 'consent']
+  };
+  const phrases = map[key];
+  if (!phrases) return 0;
+  const found = standards.find((s) => match(s.name, phrases));
+  return found && Number.isFinite(found.weight) ? found.weight : 0;
 }
 
 export function formatTzs(num) {

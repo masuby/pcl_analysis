@@ -1,9 +1,10 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import './SalesReviewReport.css';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
+import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
+import { formatTZS } from '../../../ManagementDashboard/utils/summaryUtils';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import { generateSalesReviewPPTX } from './utils/pptxGenerator';
-import { exportReportToPDF } from './utils/pdfGenerator';
 import { getMonthlyTrendData, getTrendExplanation } from './utils/trendDataUtils';
 import { getSummaryForMonth, getComparisonData } from './utils/summaryDataUtils';
 import { getProductContributionData, getProductContributionForSection } from './utils/productContributionUtils';
@@ -33,14 +34,95 @@ async function getLogoAsBase64() {
   });
 }
 
+/** Get total Active Reps from MTD: from sheet column if present, else by counting unique active reps per supervision (same as ProductSalesTracker) */
+function getMTDTotalActiveReps(parsedData) {
+  if (!parsedData?.groupedData) return null;
+  const headers = parsedData.headers || [];
+  const activeRepsKey = headers.find((h) => String(h || '').toUpperCase().includes('ACTIVE REP'));
+  let total = 0;
+  let usedSheet = false;
+  Object.values(parsedData.groupedData).forEach((supervision) => {
+    if (supervision.supervisionData) {
+      const fromSheet = activeRepsKey != null
+        ? Number(supervision.supervisionData[activeRepsKey] ?? supervision.supervisionData['NUMBER OF ACTIVE REPS'] ?? supervision.supervisionData['Active Reps'] ?? 0)
+        : 0;
+      if (fromSheet > 0) {
+        total += fromSheet;
+        usedSheet = true;
+      }
+    }
+  });
+  if (usedSheet && total > 0) return total;
+  total = 0;
+  Object.values(parsedData.groupedData).forEach((supervision) => {
+    total += countActiveRepsFromSupervision(supervision, parsedData.columnMap, parsedData.listingData);
+  });
+  return total;
+}
+
+/** Count active reps: unique sales reps that have a non-empty Term (from listing), same as ProductSalesTracker */
+function countActiveRepsFromSupervision(supervision, columnMap, listingData) {
+  const salesRepCol = columnMap?.salesRep ?? (listingData?.[0] && Object.keys(listingData[0]).find((k) => String(k).toUpperCase() === 'SALES REP')) ?? (listingData?.[0] && Object.keys(listingData[0]).find((k) => String(k).toUpperCase() === 'SALES REP. NAME'));
+  const termCol = columnMap?.term ?? (listingData?.[0] && Object.keys(listingData[0]).find((k) => String(k).toUpperCase() === 'TERM'));
+  let supSalesReps = [];
+  (supervision.teamLeaders || []).forEach((tl) => {
+    supSalesReps.push(...(tl.salesReps || []));
+  });
+  if (!supSalesReps.length || !salesRepCol) return 0;
+  const withTerm = supSalesReps.filter((rep) => {
+    const term = termCol ? rep[termCol] ?? rep['Term'] ?? rep['TERM'] : null;
+    return term != null && String(term).trim() !== '';
+  });
+  const uniqueNames = new Set(
+    withTerm.map((rep) => {
+      const name = rep[salesRepCol] ?? rep['SALES REP'] ?? rep['SALES REP. NAME'];
+      return name != null ? String(name).trim() : null;
+    }).filter(Boolean)
+  );
+  return uniqueNames.size;
+}
+
+/** Build supervision performance list from MTD for table/chart: name, target, value, percentage, activeReps, sorted by % desc */
+function getMTDSupervisionPerformance(parsedData) {
+  if (!parsedData?.groupedData) return null;
+  const headers = parsedData.headers || [];
+  const valueKey = headers.find((h) => String(h || '').toUpperCase().includes('VALUE'));
+  const targetKey = headers.find((h) => String(h || '').toUpperCase().includes('MONTH TARGET'));
+  const activeRepsKey = headers.find((h) => String(h || '').toUpperCase().includes('ACTIVE REP'));
+  const rows = [];
+  let totalTarget = 0;
+  let totalValue = 0;
+  let totalActiveReps = 0;
+  Object.values(parsedData.groupedData).forEach((sup) => {
+    const name = sup.supervision || '';
+    const target = Number(sup.supervisionData?.[targetKey] ?? sup.supervisionData?.['Month Target'] ?? 0) || 0;
+    const value = Number(sup.supervisionData?.[valueKey] ?? sup.supervisionData?.['Value'] ?? 0) || 0;
+    let activeReps = 0;
+    if (activeRepsKey != null && (sup.supervisionData?.[activeRepsKey] ?? sup.supervisionData?.['NUMBER OF ACTIVE REPS'] ?? sup.supervisionData?.['Active Reps']) != null) {
+      activeReps = Number(sup.supervisionData?.[activeRepsKey] ?? sup.supervisionData?.['NUMBER OF ACTIVE REPS'] ?? sup.supervisionData?.['Active Reps'] ?? 0) || 0;
+    }
+    if (activeReps === 0) {
+      activeReps = countActiveRepsFromSupervision(sup, parsedData.columnMap, parsedData.listingData);
+    }
+    const percentage = target > 0 ? (value / target) * 100 : 0;
+    rows.push({ name, target, value, percentage, activeReps });
+    totalTarget += target;
+    totalValue += value;
+    totalActiveReps += activeReps;
+  });
+  rows.sort((a, b) => b.percentage - a.percentage);
+  return { rows, totalTarget, totalValue, totalActiveReps };
+}
+
 const SalesReviewReport = ({ userData }) => {
   const { parsedReports, loading, error } = useManagementData();
+  const mtdLBF = useMTDData('LBF');
+  const mtdCS = useMTDData('CS');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   const [generatingPPTX, setGeneratingPPTX] = useState(false);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipients, setRecipients] = useState(() => {
     try {
@@ -211,14 +293,29 @@ const SalesReviewReport = ({ userData }) => {
   const newBusinessComparison = useMemo(() => getNewBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
   const repeatBusinessComparison = useMemo(() => getRepeatBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
 
+  const lbfMTDTotalActiveReps = useMemo(() => getMTDTotalActiveReps(mtdLBF.parsedData), [mtdLBF.parsedData]);
+  const lbfSupervisionData = useMemo(() => getMTDSupervisionPerformance(mtdLBF.parsedData), [mtdLBF.parsedData]);
+  const csSupervisionData = useMemo(() => getMTDSupervisionPerformance(mtdCS.parsedData), [mtdCS.parsedData]);
+
   const sectionsData = useMemo(() => {
     return REPORT_SECTIONS.map((section) => {
       const sectionData = section.getData(parsedReports);
       const monthlyTrend = getMonthlyTrendData(sectionData);
+      let summaryData = getSummaryForMonth(sectionData, selectedMonth);
+      // LBF section: use MTD total Active Reps instead of management-report sum
+      if (section.id === 'lbf' && lbfMTDTotalActiveReps != null) {
+        summaryData = {
+          ...summaryData,
+          activeReps: lbfMTDTotalActiveReps,
+          activeRepsFormatted: formatTZS(lbfMTDTotalActiveReps)
+        };
+      }
+      const isLBF = section.id === 'lbf';
+      const isCSMainland = section.id === 'cs-mainland';
       return {
         section,
         sectionData,
-        summaryData: getSummaryForMonth(sectionData, selectedMonth),
+        summaryData,
         comparisonData: getComparisonData(sectionData, selectedMonth),
         monthlyTrendData: monthlyTrend,
         trendExplanation: getTrendExplanation(monthlyTrend),
@@ -226,10 +323,11 @@ const SalesReviewReport = ({ userData }) => {
         newBusinessTrend: getNewBusinessTrendData(sectionData),
         repeatBusinessTrend: getRepeatBusinessTrendData(sectionData),
         newBusinessComparison: getNewBusinessComparison(sectionData, selectedMonth),
-        repeatBusinessComparison: getRepeatBusinessComparison(sectionData, selectedMonth)
+        repeatBusinessComparison: getRepeatBusinessComparison(sectionData, selectedMonth),
+        supervisionData: isLBF ? lbfSupervisionData : isCSMainland ? csSupervisionData : null
       };
     });
-  }, [parsedReports, selectedMonth]);
+  }, [parsedReports, selectedMonth, lbfMTDTotalActiveReps, lbfSupervisionData, csSupervisionData]);
 
   const handleDownloadPPTX = async () => {
     setGeneratingPPTX(true);
@@ -258,19 +356,6 @@ const SalesReviewReport = ({ userData }) => {
       alert('Failed to generate PowerPoint.');
     } finally {
       setGeneratingPPTX(false);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!reportContainerRef.current) return;
-    setGeneratingPDF(true);
-    try {
-      await exportReportToPDF(reportContainerRef.current, selectedMonth);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to generate PDF.');
-    } finally {
-      setGeneratingPDF(false);
     }
   };
 
@@ -313,25 +398,6 @@ const SalesReviewReport = ({ userData }) => {
           >
             <span className="sales-review-btn-icon">✉</span>
             <span className="sales-review-btn-label">Send Email</span>
-          </button>
-          <button
-            type="button"
-            className="sales-review-download-btn sales-review-download-btn--pdf"
-            onClick={handleDownloadPDF}
-            disabled={generatingPDF}
-            title="Download PDF"
-          >
-            {generatingPDF ? (
-              <span className="sales-review-btn-spinner" aria-hidden>⏳</span>
-            ) : (
-              <svg className="sales-review-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <path d="M12 18v-6" />
-                <path d="M9 15l3 3 3-3" />
-              </svg>
-            )}
-            <span className="sales-review-btn-label">PDF</span>
           </button>
           <button
             type="button"

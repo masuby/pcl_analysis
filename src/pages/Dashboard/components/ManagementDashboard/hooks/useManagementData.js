@@ -243,6 +243,18 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       lbfData[metric] = lbfBranchNames.reduce((sum, branch) => sum + (lbfBranches[branch]?.[metric] || 0), 0);
     });
 
+    // Average Loan Size (total) = Disbursement this month / Number of Loans (not sum of sub-product averages)
+    const csDisb = csData['Disbursements This Month'] ?? csData['Disbursement this Month'] ?? csData['Disbursement This Month'] ?? 0;
+    const csLoans = csData['Number of loans'] ?? csData['Number of Loans'] ?? 0;
+    if (csLoans > 0 && typeof csDisb === 'number' && typeof csLoans === 'number') {
+      csData['Average loan size'] = csDisb / csLoans;
+    }
+    const lbfDisb = lbfData['Disbursements This Month'] ?? lbfData['Disbursement this Month'] ?? lbfData['Disbursement This Month'] ?? 0;
+    const lbfLoans = lbfData['Number of loans'] ?? lbfData['Number of Loans'] ?? 0;
+    if (lbfLoans > 0 && typeof lbfDisb === 'number' && typeof lbfLoans === 'number') {
+      lbfData['Average loan size'] = lbfDisb / lbfLoans;
+    }
+
     // Prefer report_date from report_data (sync writes correct date) over report.date (may be stale)
     const dataDate = data.find(r => r.report_date || r.reportDate);
     const effectiveDate = (dataDate?.report_date || dataDate?.reportDate) || report.date || report.createdAt;

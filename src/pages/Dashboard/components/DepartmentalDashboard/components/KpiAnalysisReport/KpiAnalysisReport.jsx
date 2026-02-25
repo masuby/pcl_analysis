@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './KpiAnalysisReport.css';
-import { loadCsKpiTargets, formatTzs, CS_KPI_TARGET_FILE_URL } from './utils/csKpiTargets';
+import { loadCsKpiTargets, formatTzs, CS_KPI_TARGET_FILE_URL, getWeightForKpiKey } from './utils/csKpiTargets';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
 import { getReportFileUrl } from '../../../../../../services/supabase';
@@ -42,6 +42,19 @@ function getColorForPct(pct) {
   if (pct >= 25) return '#EAB308';   // yellow
   if (pct > 10) return '#F97316';    // orange
   return '#EF4444';                  // red
+}
+
+/** Blend hex with white; ratio 0.6 = 60% color + 40% white. Returns 6-char hex for rowFillColors. */
+function blendHexWithWhite(hex, ratio = 0.6) {
+  const h = String(hex || '#FFFFFF').replace(/^#/, '');
+  if (h.length !== 6) return h;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const r2 = Math.round(r * ratio + 255 * (1 - ratio));
+  const g2 = Math.round(g * ratio + 255 * (1 - ratio));
+  const b2 = Math.round(b * ratio + 255 * (1 - ratio));
+  return [r2, g2, b2].map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
 /** Normalize PAR >30 value to percentage. Some reports (e.g. Dec) store as decimal (0.0582 = 5.82%); others as percentage (5.82). If value is less than 1, treat as decimal and convert. */
@@ -223,7 +236,7 @@ const KpiAnalysisReport = () => {
     const activeNumPrev = toNumVal(activePrevVal);
     const monthlyGrowth = Number.isFinite(activeNumPrev) && activeNumPrev > 0 && Number.isFinite(activeNumCur) ? ((activeNumCur - activeNumPrev) / activeNumPrev) * 100 : null;
     const annualizedGrowth = monthlyGrowth != null ? monthlyGrowth * 12 : null;
-    const w7 = standards[6]?.weight ?? 0.02;
+    const w7 = getWeightForKpiKey(standards, 'growth') || 0.02;
     const ws7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / 20) * 100) / 100) * w7 : 0;
 
     // KPI 8: Regions and Clusters hit target
@@ -236,7 +249,7 @@ const KpiAnalysisReport = () => {
     const totalR = supervisionsList.length;
     const totalC = clusterBranches.length;
     const regionsClustersPct = (totalR + totalC) > 0 ? ((regionsHit + clustersHit) / (totalR + totalC)) * 100 : null;
-    const w8 = standards[7]?.weight ?? 0.05;
+    const w8 = getWeightForKpiKey(standards, 'regions_clusters') || 0.05;
     const ws8 = regionsClustersPct != null ? (Math.min(100, regionsClustersPct) / 100) * w8 : 0;
 
     // KPI 9 & 10: 90% CRM usage and 65% Data consent — use CRM data for selected month when available
@@ -250,26 +263,34 @@ const KpiAnalysisReport = () => {
     const totalWorkforce = tlTotal + loTotal;
     const totalLogged = tlLogged + loLogged;
     const overallUsagePct = totalWorkforce > 0 ? (totalLogged / totalWorkforce) * 100 : null;
-    const w9 = standards[8]?.weight ?? 0.05;
+    const w9 = getWeightForKpiKey(standards, 'crm') || 0.05;
     const ws9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / 90) * 100) / 100) * w9 : 0;
     const totalLeads = toN(crmMetrics.lead ?? crmMetrics.count_leads ?? crmMetrics['lead']);
     const consented = toN(crmMetrics.accepted_lead ?? crmMetrics['accepted lead']);
     const avgConsentPct = totalLeads > 0 ? (consented / totalLeads) * 100 : null;
-    const w10 = standards[9]?.weight ?? 0.05;
+    const w10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
     const ws10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / 65) * 100) / 100) * w10 : 0;
 
-    return [
+    // Use fixed KPI names for rows 6–9; add % weight scored and sort by it (best first)
+    const rows = [
       { kpi: standards[0]?.name ?? 'Sales target', target: salesTarget, achievedDisplay: Number.isFinite(salesAchieved) ? salesAchieved : '—', pct: pctSales, weight: w1, weightScored: ws1 },
       { kpi: standards[1]?.name ?? 'Branch sales', target: '85%', achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', pct: pctBranches100, weight: w2, weightScored: ws2 },
       { kpi: standards[2]?.name ?? 'Mainland 65%', target: '65%', achievedDisplay: pctMainland65 != null ? pctMainland65.toFixed(2) + '%' : '—', pct: pctMainland65, weight: w3, weightScored: ws3 },
       { kpi: standards[3]?.name ?? 'Zanzibar 70%', target: '70%', achievedDisplay: pctZan70 != null ? pctZan70.toFixed(2) + '%' : '—', pct: pctZan70, weight: w4, weightScored: ws4 },
       { kpi: standards[4]?.name ?? 'Portfolio growth', target: '~1%', achievedDisplay: growthPct != null ? growthPct.toFixed(2) + '%' : '—', pct: growthPct, weight: w5, weightScored: ws5 },
       { kpi: standards[5]?.name ?? 'PAR 30', target: '0.5% improvement', achievedDisplay: par30Improvement != null ? par30Improvement.toFixed(2) + '%' : '—', pct: null, weight: w6, weightScored: ws6 },
-      { kpi: standards[6]?.name ?? 'Growth of active client base 20% annually', target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', pct: annualizedGrowth, weight: w7, weightScored: ws7 },
-      { kpi: standards[7]?.name ?? 'Ensure all Regions and Clusters hit their target', target: '100% hit', achievedDisplay: regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', pct: regionsClustersPct, weight: w8, weightScored: ws8 },
-      { kpi: standards[8]?.name ?? '90% proper usage of CRM', target: '90%', achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: w9, weightScored: ws9 },
-      { kpi: standards[9]?.name ?? '65% achieved of Data consent from each Cluster', target: '65%', achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: w10, weightScored: ws10 }
+      { kpi: 'Growth of active client base 20% annually', target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', pct: annualizedGrowth, weight: w7, weightScored: ws7 },
+      { kpi: 'Ensure all Regions and Clusters hit their target', target: '100% hit', achievedDisplay: regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', pct: regionsClustersPct, weight: w8, weightScored: ws8 },
+      { kpi: '90% proper usage of CRM', target: '90%', achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: w9, weightScored: ws9 },
+      { kpi: '65% achieved of Data consent from each Cluster', target: '65%', achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: w10, weightScored: ws10 }
     ];
+    const withPct = rows.map((r) => {
+      const w = Number(r.weight) || 0;
+      const ws = Number(r.weightScored) || 0;
+      const pctWeightScored = w > 0 ? (ws / w) * 100 : 0;
+      return { ...r, pctWeightScored };
+    });
+    return withPct.sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
   }, [targets, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, branchSummaryData, crmParsedDataForMonth]);
 
   useEffect(() => {
@@ -585,7 +606,7 @@ const KpiAnalysisReport = () => {
     const monthlyGrowthPct = Number.isFinite(activePrevNum) && activePrevNum > 0 && Number.isFinite(activeNum)
       ? ((activeNum - activePrevNum) / activePrevNum) * 100 : null;
     const annualizedGrowth = monthlyGrowthPct != null ? monthlyGrowthPct * 12 : null;
-    const weight7 = standards[6]?.weight ?? 0.02;
+    const weight7 = getWeightForKpiKey(standards, 'growth') || 0.02;
     const targetGrowth20 = 20;
     const weightScored7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / targetGrowth20) * 100) / 100) * weight7 : 0;
     const sheet7Tables = [{
@@ -605,7 +626,7 @@ const KpiAnalysisReport = () => {
       colWidths: [45, 18, 16, 12, 16]
     }];
     summaryRows.push({
-      kpi: standards[6]?.name ?? 'Growth of active client base 20% annually',
+      kpi: 'Growth of active client base 20% annually',
       target: targetGrowth20 + '% (annualized)',
       achieved: annualizedGrowth,
       achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—',
@@ -635,7 +656,7 @@ const KpiAnalysisReport = () => {
     }));
     const sortedSupervisionRows = [...supervisionRows].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
     const sortedClusterRows = [...clusterRows].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
-    const weight8 = standards[7]?.weight ?? 0.05;
+    const weight8 = getWeightForKpiKey(standards, 'regions_clusters') || 0.05;
     const totalRegions = supervisionRows.length;
     const totalClusters = clusterRows.length;
     const regionsHit = supervisionRows.filter(r => r.hit).length;
@@ -662,7 +683,7 @@ const KpiAnalysisReport = () => {
       { title: 'Summary', data: [{ 'KPI': standards[7]?.name ?? 'Ensure all Regions and Clusters hit their target', 'Regions hit': regionsHit, 'Regions total': totalRegions, 'Clusters hit': clustersHit, 'Clusters total': totalClusters, '% Hit': regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight8 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored8 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Regions hit': '#70AD47', 'Regions total': '#70AD47', 'Clusters hit': '#70AD47', 'Clusters total': '#70AD47', '% Hit': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [40, 12, 12, 12, 12, 10, 12, 16] }
     ];
     summaryRows.push({
-      kpi: standards[7]?.name ?? 'Ensure all Regions and Clusters hit their target',
+      kpi: 'Ensure all Regions and Clusters hit their target',
       target: '100% hit',
       achieved: regionsClustersPct,
       achievedDisplay: regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—',
@@ -706,37 +727,48 @@ const KpiAnalysisReport = () => {
     const totalLoggedIn = crmUsageRows.reduce((s, r) => s + (Number(r['Logged in']) || 0), 0);
     const overallUsagePct = totalWorkforce > 0 ? (totalLoggedIn / totalWorkforce) * 100 : null;
     const crmUsageTotalRow = { 'Date': 'Total', 'Role': '—', 'Total workforce': totalWorkforce, 'Logged in': totalLoggedIn, 'Percentage logged in': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—' };
-    const weight9 = standards[8]?.weight ?? 0.05;
+    const weight9 = getWeightForKpiKey(standards, 'crm') || 0.05;
     const targetUsage90 = 90;
     const weightScored9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / targetUsage90) * 100) / 100) * weight9 : 0;
     const avgConsentPct = totalLeadsSum > 0 ? (totalConsentedSum / totalLeadsSum) * 100 : null;
-    const weight10 = standards[9]?.weight ?? 0.05;
+    const weight10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
     const targetConsent65 = 65;
     const weightScored10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / targetConsent65) * 100) / 100) * weight10 : 0;
     const sheet9Data = crmUsageRows.length ? [...crmUsageRows, crmUsageTotalRow] : [{ 'Date': '—', 'Role': '—', 'Total workforce': '—', 'Logged in': '—', 'Percentage logged in': '—' }];
+    const sheet9RowFillColors = crmUsageRows.length ? crmUsageRows.map((r) => r['Role'] === 'Team Leader' ? blendHexWithWhite('FFEB3B', 0.6) : blendHexWithWhite('87CEEB', 0.6)) : [];
     const sheet10TotalRow = { __totalRow: true, 'Date': 'Total', 'Total Leads': totalLeadsSum, 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': avgConsentPct != null ? `${totalConsentedSum} (${avgConsentPct.toFixed(2)}%)` : String(totalConsentedSum) };
     const sheet10Data = crmConsentRows.length ? crmConsentRows.concat([sheet10TotalRow]) : [{ 'Date': '—', 'Total Leads': '—', 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': '—' }];
+    const sheet10RowFillColors = crmConsentRows.length ? crmConsentRows.map((_, i) => (i % 2 === 0 ? blendHexWithWhite('FFEB3B', 0.4) : blendHexWithWhite('87CEEB', 0.4))) : [];
     const sheet9Tables = [
-      { title: `90% proper usage of CRM — ${monthLabel}`, data: sheet9Data, headerColors: { 'Date': '#4472C4', 'Role': '#4472C4', 'Total workforce': '#70AD47', 'Logged in': '#70AD47', 'Percentage logged in': '#70AD47' }, colWidths: [14, 14, 16, 12, 18], totalRowIndices: crmUsageRows.length ? [sheet9Data.length - 1] : [], accountingColumns: ['Total workforce', 'Logged in'] },
+      { title: `90% proper usage of CRM — ${monthLabel}`, data: sheet9Data, headerColors: { 'Date': '#4472C4', 'Role': '#4472C4', 'Total workforce': '#70AD47', 'Logged in': '#70AD47', 'Percentage logged in': '#70AD47' }, colWidths: [14, 14, 16, 12, 18], totalRowIndices: crmUsageRows.length ? [sheet9Data.length - 1] : [], accountingColumns: ['Total workforce', 'Logged in'], rowFillColors: sheet9RowFillColors },
       { title: 'Summary', data: [{ 'KPI': standards[8]?.name ?? '90% proper usage of CRM', 'Target': targetUsage90 + '%', 'Achieved': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', 'Weight (%)': (weight9 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored9 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [32, 12, 14, 12, 16] }
     ];
     const sheet10Tables = [
-      { title: `65% achieved of Data consent from each Cluster — ${monthLabel}`, data: sheet10Data, headerColors: { 'Date': '#4472C4', 'Total Leads': '#70AD47', 'Rejected Leads': '#ED7D31', 'Not Provided Leads': '#ED7D31', 'Consented Leads': '#70AD47' }, colWidths: [12, 14, 20, 22, 18], totalRowIndices: crmConsentRows.length ? [sheet10Data.length - 1] : [], accountingColumns: ['Total Leads'] },
+      { title: `65% achieved of Data consent from each Cluster — ${monthLabel}`, data: sheet10Data, headerColors: { 'Date': '#4472C4', 'Total Leads': '#70AD47', 'Rejected Leads': '#ED7D31', 'Not Provided Leads': '#ED7D31', 'Consented Leads': '#70AD47' }, colWidths: [12, 14, 20, 22, 18], totalRowIndices: crmConsentRows.length ? [sheet10Data.length - 1] : [], accountingColumns: ['Total Leads'], rowFillColors: sheet10RowFillColors },
       { title: 'Summary', data: [{ 'KPI': standards[9]?.name ?? '65% achieved of Data consent from each Cluster', 'Target': targetConsent65 + '%', 'Average consent': avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight10 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored10 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Average consent': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [42, 12, 16, 12, 16] }
     ];
-    summaryRows.push({ kpi: standards[8]?.name ?? '90% proper usage of CRM', target: targetUsage90 + '%', achieved: overallUsagePct, achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: weight9, weightScored: weightScored9 });
-    summaryRows.push({ kpi: standards[9]?.name ?? '65% achieved of Data consent from each Cluster', target: targetConsent65 + '%', achieved: avgConsentPct, achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: weight10, weightScored: weightScored10 });
+    summaryRows.push({ kpi: '90% proper usage of CRM', target: targetUsage90 + '%', achieved: overallUsagePct, achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: weight9, weightScored: weightScored9 });
+    summaryRows.push({ kpi: '65% achieved of Data consent from each Cluster', target: targetConsent65 + '%', achieved: avgConsentPct, achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: weight10, weightScored: weightScored10 });
 
-    // ----- KPI Summary (first sheet): Weight/Weight Scored as %, Achieved as value or % as appropriate, total row -----
+    // ----- KPI Summary (first sheet): add % weight scored, sort by it (best first), colour rows like Branch Sales -----
     const totalWeight = summaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
     const totalWeightScored = summaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
-    const summaryTableDataWithDisplay = summaryRows.map((r) => ({
+    const totalPctWeightScored = totalWeight > 0 ? (totalWeightScored / totalWeight) * 100 : 0;
+    const summaryRowsWithPct = summaryRows.map((r) => {
+      const w = Number(r.weight) || 0;
+      const ws = Number(r.weightScored) || 0;
+      const pctWeightScored = w > 0 ? (ws / w) * 100 : 0;
+      return { ...r, pctWeightScored };
+    });
+    const sortedSummaryRows = [...summaryRowsWithPct].sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
+    const summaryTableDataWithDisplay = sortedSummaryRows.map((r) => ({
       'KPI': r.kpi,
       'Target': r.target,
       'Achieved': r.achievedDisplay !== undefined ? r.achievedDisplay : (r.achieved != null ? String(r.achieved) : '—'),
       '% Achieved': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
       'Weight (%)': (Number(r.weight) * 100).toFixed(2) + '%',
-      'Weight Scored (%)': r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—'
+      'Weight Scored (%)': r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—',
+      '% Weight Scored': Number.isFinite(r.pctWeightScored) ? r.pctWeightScored.toFixed(2) + '%' : '—'
     }));
     summaryTableDataWithDisplay.push({
       __totalRow: true,
@@ -745,15 +777,18 @@ const KpiAnalysisReport = () => {
       'Achieved': '',
       '% Achieved': '',
       'Weight (%)': (totalWeight * 100).toFixed(2) + '%',
-      'Weight Scored (%)': (totalWeightScored * 100).toFixed(2) + '%'
+      'Weight Scored (%)': (totalWeightScored * 100).toFixed(2) + '%',
+      '% Weight Scored': totalPctWeightScored.toFixed(2) + '%'
     });
+    const kpiSummaryRowFillColors = sortedSummaryRows.map((r) => getColorForPct(r.pctWeightScored ?? 0));
 
     const kpiSummaryTable = {
       title: `KPI Summary — ${monthLabel}`,
       data: summaryTableDataWithDisplay,
-      headerColors: { 'KPI': '#1e3a5f', 'Target': '#c45a11', 'Achieved': '#2d6a2d', '% Achieved': '#2d6a2d', 'Weight (%)': '#1a3a6e', 'Weight Scored (%)': '#1a3a6e' },
-      colWidths: [50, 18, 16, 14, 12, 16],
-      totalRowIndices: [summaryTableDataWithDisplay.length - 1]
+      headerColors: { 'KPI': '#1e3a5f', 'Target': '#c45a11', 'Achieved': '#2d6a2d', '% Achieved': '#2d6a2d', 'Weight (%)': '#1a3a6e', 'Weight Scored (%)': '#1a3a6e', '% Weight Scored': '#1a3a6e' },
+      colWidths: [50, 18, 16, 14, 12, 16, 16],
+      totalRowIndices: [summaryTableDataWithDisplay.length - 1],
+      rowFillColors: kpiSummaryRowFillColors
     };
 
     const fileName = `CS_KPI_REPORT_${monthLabel.replace(/\s+/g, '_')}.xlsx`;
@@ -1017,29 +1052,37 @@ const KpiAnalysisReport = () => {
                   <th>% Achieved</th>
                   <th>Weight (%)</th>
                   <th>Weight Scored (%)</th>
+                  <th>% Weight Scored</th>
                 </tr>
               </thead>
               <tbody>
                 {dashboardSummaryRows.map((r, i) => (
-                  <tr key={i}>
+                  <tr key={i} style={{ backgroundColor: getColorForPct(r.pctWeightScored ?? 0) }}>
                     <td>{r.kpi}</td>
                     <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
                     <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
                     <td className="kpi-ar-num">{r.pct != null ? r.pct.toFixed(2) + '%' : '—'}</td>
                     <td className="kpi-ar-num">{(Number(r.weight) * 100).toFixed(2)}%</td>
                     <td className="kpi-ar-num">{r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—'}</td>
+                    <td className="kpi-ar-num">{r.pctWeightScored != null ? r.pctWeightScored.toFixed(2) + '%' : '—'}</td>
                   </tr>
                 ))}
-                {dashboardSummaryRows.length > 0 && (
-                  <tr className="kpi-ar-table-total">
-                    <td>Total</td>
-                    <td className="kpi-ar-num" />
-                    <td className="kpi-ar-num" />
-                    <td className="kpi-ar-num" />
-                    <td className="kpi-ar-num">{(dashboardSummaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0) * 100).toFixed(2)}%</td>
-                    <td className="kpi-ar-num">{(dashboardSummaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0) * 100).toFixed(2)}%</td>
-                  </tr>
-                )}
+                {dashboardSummaryRows.length > 0 && (() => {
+                  const tw = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
+                  const tws = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
+                  const totalPctWs = tw > 0 ? (tws / tw) * 100 : 0;
+                  return (
+                    <tr className="kpi-ar-table-total">
+                      <td>Total</td>
+                      <td className="kpi-ar-num" />
+                      <td className="kpi-ar-num" />
+                      <td className="kpi-ar-num" />
+                      <td className="kpi-ar-num">{(tw * 100).toFixed(2)}%</td>
+                      <td className="kpi-ar-num">{(tws * 100).toFixed(2)}%</td>
+                      <td className="kpi-ar-num">{totalPctWs.toFixed(2)}%</td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           </div>

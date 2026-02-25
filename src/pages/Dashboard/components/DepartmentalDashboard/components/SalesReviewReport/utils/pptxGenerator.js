@@ -8,8 +8,13 @@ const WHITE = 'FFFFFF';
 const DARK = '1e293b';
 const GRAY = '64748b';
 const ACCENT_BLUE = '4a90e2';
+const TEAL = '0d9488';
+const LIGHT_BG = 'f8fafc';
+const SOFT_BLUE = 'e0f2fe';
+const MUTED_GOLD = 'fef3c7';
 
-const FONT_FACE = 'Book Antiqua';
+const FONT_FACE = 'Segoe UI';
+const FONT_BODY = 'Segoe UI';
 
 // Bottom blue line: leave space so content is visible (content area ends at 5.5)
 const BOTTOM_LINE_Y = 5.85;
@@ -25,6 +30,39 @@ function formatLabel(val) {
   return String(Math.round(n));
 }
 
+/**
+ * Choose scale (B/M/K) and simple format so data labels display consistently in PowerPoint,
+ * Google Slides, and other viewers (many ignore Excel's scaling format codes like #,##0.0,,,"B").
+ * Returns scaled values and a simple format code (e.g. 0.0"B") so stored numbers are small.
+ * @param {number[][]} valueArrays - One or more arrays of raw numbers (e.g. [ [10e9, 5e9], [2e9 ] ])
+ * @returns {{ scale: number, suffix: string, formatCode: string, scaled: (arr: number[]) => number[], maxScaled: number }}
+ */
+function getChartScale(valueArrays) {
+  let maxVal = 0;
+  const flat = (valueArrays || []).flat().filter((v) => v != null && !isNaN(v));
+  flat.forEach((v) => { const n = Math.abs(Number(v)); if (n > maxVal) maxVal = n; });
+  let scale = 1;
+  let suffix = '';
+  if (maxVal >= 1e9) {
+    scale = 1e9;
+    suffix = 'B';
+  } else if (maxVal >= 1e6) {
+    scale = 1e6;
+    suffix = 'M';
+  } else if (maxVal >= 1e3) {
+    scale = 1e3;
+    suffix = 'K';
+  }
+  const formatCode = suffix ? `0.0"${suffix}"` : '0.0';
+  return {
+    scale,
+    suffix,
+    formatCode,
+    scaled: (arr) => (arr || []).map((v) => (v != null && !isNaN(v) ? Math.round((Number(v) / scale) * 10) / 10 : 0)),
+    maxScaled: flat.length ? Math.ceil((Math.max(...flat.map((v) => Math.abs(Number(v)))) / scale) * 1.15) : 1
+  };
+}
+
 function addBottomLine(slide, pres) {
   slide.addShape(pres.ShapeType.rect, {
     x: 0.5,
@@ -33,6 +71,28 @@ function addBottomLine(slide, pres) {
     h: BOTTOM_LINE_H,
     fill: { color: PRIMARY_BLUE },
     line: { type: 'none' }
+  });
+}
+
+/** Add floating bubble/circle shapes in the background for visual interest */
+function addFloatingBubbles(slide, pres) {
+  const bubbles = [
+    { x: 7.5, y: 0.2, w: 1.8, h: 1.8, color: ACCENT_BLUE, transparency: 88 },
+    { x: -0.3, y: 2.5, w: 1.4, h: 1.4, color: GOLD, transparency: 90 },
+    { x: 8.2, y: 4.8, w: 1.2, h: 1.2, color: SOFT_BLUE, transparency: 85 },
+    { x: -0.2, y: 5.5, w: 1.0, h: 1.0, color: PRIMARY_BLUE, transparency: 91 },
+    { x: 7.8, y: 6.2, w: 0.9, h: 0.9, color: MUTED_GOLD, transparency: 90 },
+    { x: 0.1, y: 0.8, w: 0.7, h: 0.7, color: TEAL, transparency: 89 }
+  ];
+  bubbles.forEach((b) => {
+    slide.addShape(pres.ShapeType.ellipse, {
+      x: b.x,
+      y: b.y,
+      w: b.w,
+      h: b.h,
+      fill: { color: b.color, transparency: b.transparency },
+      line: { type: 'none' }
+    });
   });
 }
 
@@ -53,9 +113,10 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
   const monthlyTrendData = (data && data.monthlyTrendData) || [];
   const trendExplanation = (data && data.trendExplanation) || 'Insufficient data to describe trend.';
 
-  // ----- SLIDE 1: Cover (white, blue logo, blue line, blue text) -----
+  // ----- SLIDE 1: Cover -----
   const slide1 = pptx.addSlide();
-  slide1.background = { color: WHITE };
+  slide1.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide1, pptx);
 
   if (logoBase64) {
     try {
@@ -74,9 +135,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   slide1.addShape(pptx.ShapeType.rect, {
     x: 1.0,
-    y: 3.0,
+    y: 2.95,
     w: 8,
-    h: 0.03,
+    h: 0.06,
     fill: { color: PRIMARY_BLUE },
     line: { type: 'none' }
   });
@@ -86,38 +147,39 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     y: 3.5,
     w: 9,
     h: 0.8,
-    fontSize: 36,
+    fontSize: 40,
     bold: true,
-    color: PRIMARY_BLUE,
+    color: PRIMARY_BLUE_DARK,
     align: 'center',
     fontFace: FONT_FACE
   });
 
   slide1.addText(monthLabel, {
     x: 0.5,
-    y: 4.3,
+    y: 4.35,
     w: 9,
     h: 0.5,
-    fontSize: 24,
-    color: PRIMARY_BLUE_DARK,
+    fontSize: 22,
+    color: TEAL,
     align: 'center',
-    fontFace: FONT_FACE
+    fontFace: FONT_BODY
   });
 
   addBottomLine(slide1, pptx);
 
   // ----- SLIDE 2: Table of Contents -----
   const slide2 = pptx.addSlide();
-  slide2.background = { color: WHITE };
+  slide2.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide2, pptx);
 
   slide2.addText('Table of Contents', {
     x: 0.5,
     y: 0.4,
     w: 5,
     h: 0.6,
-    fontSize: 28,
+    fontSize: 26,
     bold: true,
-    color: DARK,
+    color: TEAL,
     fontFace: FONT_FACE
   });
 
@@ -162,18 +224,19 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     y: 1.4,
     w: 8.8,
     h: CONTENT_END_Y - 1.4,
-    fontSize: 14,
+    fontSize: 13,
     color: DARK,
     valign: 'top',
     lineSpacing: 20,
-    fontFace: FONT_FACE
+    fontFace: FONT_BODY
   });
 
   addBottomLine(slide2, pptx);
 
-  // ----- SLIDE 3: General Performance - centered title, large logo only -----
+  // ----- SLIDE 3: General Performance -----
   const slide3 = pptx.addSlide();
-  slide3.background = { color: WHITE };
+  slide3.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide3, pptx);
 
   if (logoBase64) {
     try {
@@ -195,9 +258,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     y: 4.0,
     w: 9,
     h: 0.7,
-    fontSize: 26,
+    fontSize: 24,
     bold: true,
-    color: PRIMARY_BLUE,
+    color: PRIMARY_BLUE_DARK,
     align: 'center',
     fontFace: FONT_FACE
   });
@@ -206,16 +269,17 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   // ----- SLIDE 4: General Sales Trend -----
   const slide4 = pptx.addSlide();
-  slide4.background = { color: WHITE };
+  slide4.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide4, pptx);
 
   slide4.addText('GENERAL SALES TREND', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: TEAL,
     fontFace: FONT_FACE
   });
 
@@ -244,11 +308,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
   });
 
   if (monthlyTrendData.length > 0) {
+    const rawValues = monthlyTrendData.map((d) => d.disbursements);
+    const { scaled, formatCode, maxScaled } = getChartScale([rawValues]);
     const chartData = [
       {
         name: 'Disbursements & Loans',
         labels: monthlyTrendData.map((d) => d.label),
-        values: monthlyTrendData.map((d) => d.disbursements)
+        values: scaled(rawValues)
       }
     ];
     try {
@@ -267,15 +333,16 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
         showLabel: false,
         showCatName: false,
         dataLabelPosition: 'outEnd',
-        dataLabelFontSize: 12,
-        dataLabelFontBold: true,
-        dataLabelFontFace: FONT_FACE,
+        dataLabelFontSize: 9,
+        dataLabelFontBold: false,
+        dataLabelFontFace: FONT_BODY,
         dataLabelColor: PRIMARY_BLUE_DARK,
-        dataLabelFormatCode: '#,##0.0,,,"B"',
+        dataLabelFormatCode: formatCode,
+        valAxisLabelFormatCode: formatCode,
+        valAxisMaxVal: maxScaled,
         showDataTable: false,
         showCatAxisGridLines: false,
         showValAxisGridLines: false,
-        valAxisMaxVal: null,
         showValAxisTitle: false
       });
     } catch (e) {
@@ -332,16 +399,17 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
   // ----- SLIDE 5: Sales and Performance Summary -----
   const summaryData = (data && data.summaryData) || null;
   const slide5 = pptx.addSlide();
-  slide5.background = { color: WHITE };
+  slide5.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide5, pptx);
 
   slide5.addText('SALES AND PERFORMANCE', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: PRIMARY_BLUE_DARK,
     fontFace: FONT_FACE
   });
 
@@ -421,8 +489,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     const repeatVal = summaryData.repeatBusiness || 0;
     if (newVal > 0 || repeatVal > 0) {
       try {
+        const { scaled, formatCode } = getChartScale([[newVal, repeatVal]]);
         const pieChartData = [
-          { name: 'New vs Repeat', labels: ['New Business', 'Repeat Business'], values: [newVal, repeatVal] }
+          { name: 'New vs Repeat', labels: ['New Business', 'Repeat Business'], values: scaled([newVal, repeatVal]) }
         ];
         slide5.addChart(pptx.ChartType.pie, pieChartData, {
           x: 5.1,
@@ -439,9 +508,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
           showLabel: false,
           showPercent: true,
           dataLabelPosition: 'bestFit',
-          dataLabelFontSize: 10,
+          dataLabelFontSize: 9,
           dataLabelColor: WHITE,
-          dataLabelFormatCode: '#,##0.0,,,"B"'
+          dataLabelFormatCode: formatCode
         });
       } catch (e) {
         console.warn('Could not add pie chart', e);
@@ -511,16 +580,17 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
   // ----- SLIDE 6: Performance Comparison -----
   const comparisonData = (data && data.comparisonData) || null;
   const slide6 = pptx.addSlide();
-  slide6.background = { color: WHITE };
+  slide6.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide6, pptx);
 
   slide6.addText('PERFORMANCE COMPARISON', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: TEAL,
     fontFace: FONT_FACE
   });
 
@@ -655,15 +725,16 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   // ----- SLIDE 7: NEW BUSINESS SALES PERFORMANCE -----
   const slide7 = pptx.addSlide();
-  slide7.background = { color: WHITE };
+  slide7.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide7, pptx);
   slide7.addText('NEW BUSINESS SALES PERFORMANCE', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: PRIMARY_BLUE_DARK,
     fontFace: FONT_FACE
   });
   if (logoBase64) {
@@ -708,7 +779,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     
     const nbTrend = data.newBusinessTrend || [];
     if (nbTrend.length > 0) {
-      const chartData = [{ name: 'New Business', labels: nbTrend.map((d) => d.label), values: nbTrend.map((d) => d.newBusiness) }];
+      const rawVals = nbTrend.map((d) => d.newBusiness);
+      const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
+      const chartData = [{ name: 'New Business', labels: nbTrend.map((d) => d.label), values: scaled(rawVals) }];
       try {
         slide7.addChart(pptx.ChartType.line, chartData, {
           x: 0.5,
@@ -724,11 +797,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
           showLabel: false,
           showCatName: false,
           dataLabelPosition: 'outEnd',
-          dataLabelFontSize: 11,
-          dataLabelFontBold: true,
-          dataLabelFontFace: FONT_FACE,
+          dataLabelFontSize: 9,
+          dataLabelFontBold: false,
+          dataLabelFontFace: FONT_BODY,
           dataLabelColor: PRIMARY_BLUE_DARK,
-          dataLabelFormatCode: '#,##0.0,,,"B"',
+          dataLabelFormatCode: formatCode,
+          valAxisLabelFormatCode: formatCode,
+          valAxisMaxVal: maxScaled,
           showCatAxisGridLines: false,
           showValAxisGridLines: false
         });
@@ -741,15 +816,16 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   // ----- SLIDE 8: REPEAT BUSINESS SALES PERFORMANCE -----
   const slide8 = pptx.addSlide();
-  slide8.background = { color: WHITE };
+  slide8.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide8, pptx);
   slide8.addText('REPEAT BUSINESS SALES PERFORMANCE', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: TEAL,
     fontFace: FONT_FACE
   });
   if (logoBase64) {
@@ -794,7 +870,9 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     
     const rbTrend = data.repeatBusinessTrend || [];
     if (rbTrend.length > 0) {
-      const chartData = [{ name: 'Repeat Business', labels: rbTrend.map((d) => d.label), values: rbTrend.map((d) => d.repeatBusiness) }];
+      const rawVals = rbTrend.map((d) => d.repeatBusiness);
+      const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
+      const chartData = [{ name: 'Repeat Business', labels: rbTrend.map((d) => d.label), values: scaled(rawVals) }];
       try {
         slide8.addChart(pptx.ChartType.line, chartData, {
           x: 0.5,
@@ -810,11 +888,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
           showLabel: false,
           showCatName: false,
           dataLabelPosition: 'outEnd',
-          dataLabelFontSize: 11,
-          dataLabelFontBold: true,
-          dataLabelFontFace: FONT_FACE,
+          dataLabelFontSize: 9,
+          dataLabelFontBold: false,
+          dataLabelFontFace: FONT_BODY,
           dataLabelColor: PRIMARY_BLUE_DARK,
-          dataLabelFormatCode: '#,##0.0,,,"B"',
+          dataLabelFormatCode: formatCode,
+          valAxisLabelFormatCode: formatCode,
+          valAxisMaxVal: maxScaled,
           showCatAxisGridLines: false,
           showValAxisGridLines: false
         });
@@ -828,16 +908,17 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
   // ----- SLIDE 9: Per Product Contribution -----
   const productContributionData = (data && data.productContributionData) || null;
   const slide9 = pptx.addSlide();
-  slide9.background = { color: WHITE };
+  slide9.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide9, pptx);
 
   slide9.addText('PER PRODUCT CONTRIBUTION', {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: PRIMARY_BLUE_DARK,
     fontFace: FONT_FACE
   });
 
@@ -883,11 +964,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     });
 
     if (pieProducts.length > 0) {
+      const rawVals = pieProducts.map((p) => p.value);
+      const { scaled, formatCode } = getChartScale([rawVals]);
       const pieChartData = [
         {
           name: 'Products',
           labels: pieProducts.map((p) => p.name),
-          values: pieProducts.map((p) => p.value)
+          values: scaled(rawVals)
         }
       ];
       try {
@@ -907,7 +990,7 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
           dataLabelPosition: 'bestFit',
           dataLabelFontSize: 9,
           dataLabelColor: PRIMARY_BLUE_DARK,
-          dataLabelFormatCode: '#,##0.0,,,"B"'
+          dataLabelFormatCode: formatCode
         });
       } catch (e) {
         console.warn('Could not add product pie chart', e);
@@ -977,23 +1060,24 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   // ----- Thank you slide -----
   const slideThankYou = pptx.addSlide();
-  slideThankYou.background = { color: WHITE };
+  slideThankYou.background = { color: LIGHT_BG };
+  addFloatingBubbles(slideThankYou, pptx);
   slideThankYou.addShape(pptx.ShapeType.rect, {
     x: 0.5,
     y: 2.2,
     w: 9,
-    h: 0.02,
+    h: 0.05,
     fill: { color: PRIMARY_BLUE },
     line: { type: 'none' }
   });
   slideThankYou.addText('Thank You', {
     x: 0.5,
-    y: 2.6,
+    y: 2.5,
     w: 9,
-    h: 0.8,
-    fontSize: 44,
+    h: 0.9,
+    fontSize: 42,
     bold: true,
-    color: PRIMARY_BLUE,
+    color: PRIMARY_BLUE_DARK,
     align: 'center',
     fontFace: FONT_FACE
   });

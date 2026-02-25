@@ -11,10 +11,33 @@ const WHITE = 'FFFFFF';
 const DARK = '1e293b';
 const GRAY = '64748b';
 const ACCENT_BLUE = '4a90e2';
-const FONT_FACE = 'Book Antiqua';
+const TEAL = '0d9488';
+const LIGHT_BG = 'f8fafc';
+const SOFT_BLUE = 'e0f2fe';
+const MUTED_GOLD = 'fef3c7';
+const FONT_FACE = 'Segoe UI';
+const FONT_BODY = 'Segoe UI';
 const BOTTOM_LINE_Y = 5.85;
 const BOTTOM_LINE_H = 0.06;
 const CONTENT_END_Y = 5.5;
+
+/** Scale chart values to B/M/K and use simple format for cross-viewer data labels (PowerPoint, Google Slides, etc.) */
+function getChartScale(valueArrays) {
+  let maxVal = 0;
+  const flat = (valueArrays || []).flat().filter((v) => v != null && !isNaN(v));
+  flat.forEach((v) => { const n = Math.abs(Number(v)); if (n > maxVal) maxVal = n; });
+  let scale = 1;
+  let suffix = '';
+  if (maxVal >= 1e9) { scale = 1e9; suffix = 'B'; } else if (maxVal >= 1e6) { scale = 1e6; suffix = 'M'; } else if (maxVal >= 1e3) { scale = 1e3; suffix = 'K'; }
+  const formatCode = suffix ? `0.0"${suffix}"` : '0.0';
+  return {
+    scale,
+    suffix,
+    formatCode,
+    scaled: (arr) => (arr || []).map((v) => (v != null && !isNaN(v) ? Math.round((Number(v) / scale) * 10) / 10 : 0)),
+    maxScaled: flat.length ? Math.ceil((Math.max(...flat.map((v) => Math.abs(Number(v)))) / scale) * 1.15) : 1
+  };
+}
 
 function addBottomLine(slide, pptx) {
   slide.addShape(pptx.ShapeType.rect, {
@@ -27,15 +50,36 @@ function addBottomLine(slide, pptx) {
   });
 }
 
-function addSectionHeader(slide, pptx, title, logoBase64) {
+function addFloatingBubbles(slide, pres) {
+  const bubbles = [
+    { x: 7.5, y: 0.2, w: 1.8, h: 1.8, color: ACCENT_BLUE, transparency: 88 },
+    { x: -0.3, y: 2.5, w: 1.4, h: 1.4, color: GOLD, transparency: 90 },
+    { x: 8.2, y: 4.8, w: 1.2, h: 1.2, color: SOFT_BLUE, transparency: 85 },
+    { x: -0.2, y: 5.5, w: 1.0, h: 1.0, color: PRIMARY_BLUE, transparency: 91 },
+    { x: 7.8, y: 6.2, w: 0.9, h: 0.9, color: MUTED_GOLD, transparency: 90 },
+    { x: 0.1, y: 0.8, w: 0.7, h: 0.7, color: TEAL, transparency: 89 }
+  ];
+  bubbles.forEach((b) => {
+    slide.addShape(pres.ShapeType.ellipse, {
+      x: b.x,
+      y: b.y,
+      w: b.w,
+      h: b.h,
+      fill: { color: b.color, transparency: b.transparency },
+      line: { type: 'none' }
+    });
+  });
+}
+
+function addSectionHeader(slide, pptx, title, logoBase64, headlineColor = PRIMARY_BLUE_DARK) {
   slide.addText(title, {
     x: 0.5,
     y: 0.35,
     w: 5,
     h: 0.5,
-    fontSize: 24,
+    fontSize: 22,
     bold: true,
-    color: DARK,
+    color: headlineColor,
     fontFace: FONT_FACE
   });
   if (logoBase64) {
@@ -70,17 +114,114 @@ function addSectionHeader(slide, pptx, title, logoBase64) {
  * @param {string|null} logoBase64
  * @param {string} monthLabel
  */
+/** Full spectrum by percentage (0–100%): violet → indigo → blue → green → yellow → orange → red. */
+const PERCENTAGE_COLOR_BANDS = [
+  { min: 90, color: '7c3aed' },   // violet  (≥90%)
+  { min: 80, color: '4f46e5' },   // indigo  (80–90%)
+  { min: 70, color: '2563eb' },   // blue    (70–80%)
+  { min: 50, color: '16a34a' },   // green   (50–70%)
+  { min: 30, color: 'eab308' },   // yellow  (30–50%)
+  { min: 10, color: 'ea580c' },   // orange  (10–30%)
+  { min: 0, color: 'dc2626' }     // red     (<10%)
+];
+
+function getColorForPercentage(pct) {
+  const n = Math.min(100, Math.max(0, Number(pct) || 0));
+  for (let i = 0; i < PERCENTAGE_COLOR_BANDS.length; i++) {
+    if (n >= PERCENTAGE_COLOR_BANDS[i].min) return PERCENTAGE_COLOR_BANDS[i].color;
+  }
+  return PERCENTAGE_COLOR_BANDS[PERCENTAGE_COLOR_BANDS.length - 1].color;
+}
+
+function formatSupervisionValue(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(Math.round(n));
+}
+
+function addSupervisionSlide(pptx, section, supervisionData, logoBase64) {
+  const { rows, totalTarget, totalValue, totalActiveReps = 0 } = supervisionData;
+  if (!rows || rows.length === 0) return;
+  const slide = pptx.addSlide();
+  slide.background = { color: LIGHT_BG };
+  addFloatingBubbles(slide, pptx);
+  addSectionHeader(slide, pptx, 'SUPERVISION PERFORMANCE', logoBase64, TEAL);
+
+  const totalPct = totalTarget > 0 ? ((totalValue / totalTarget) * 100).toFixed(1) : '0';
+  const tableHeader = [
+    { text: 'Supervision', options: { bold: true, fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
+    { text: 'Target', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
+    { text: 'Value', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
+    { text: '%', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
+    { text: 'Active Reps', options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } }
+  ];
+  const rowColors = rows.map((r) => getColorForPercentage(r.percentage));
+  const dataRows = rows.map((r, idx) => {
+    const bg = rowColors[idx];
+    return [
+      { text: (r.name || '').slice(0, 24), options: { fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
+      { text: formatSupervisionValue(r.target), options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
+      { text: formatSupervisionValue(r.value), options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
+      { text: r.percentage.toFixed(1) + '%', options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
+      { text: String(r.activeReps ?? 0), options: { align: 'center', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } }
+    ];
+  });
+  const totalRow = [
+    { text: 'Total', options: { bold: true, fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
+    { text: formatSupervisionValue(totalTarget), options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
+    { text: formatSupervisionValue(totalValue), options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
+    { text: totalPct + '%', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
+    { text: String(totalActiveReps), options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } }
+  ];
+  try {
+    slide.addTable([tableHeader, ...dataRows, totalRow], {
+      x: 0.5, y: 1.05, w: 4.0, colW: [1.5, 0.6, 0.6, 0.45, 0.5], fontSize: 8, fontFace: FONT_BODY,
+      border: { type: 'solid', pt: 0.5, color: 'e2e8f0' }, margin: 2, valign: 'middle'
+    });
+  } catch (e) { console.warn('Supervision table error', e); }
+
+  const sepX = 4.55;
+  slide.addShape(pptx.ShapeType.rect, {
+    x: sepX, y: 1.0, w: 0.03, h: 3.4, fill: { color: PRIMARY_BLUE }, line: { type: 'none' }
+  });
+  slide.addShape(pptx.ShapeType.rect, {
+    x: sepX - 0.02, y: 1.0, w: 0.07, h: 0.02, fill: { color: TEAL }, line: { type: 'none' }
+  });
+  slide.addShape(pptx.ShapeType.rect, {
+    x: sepX - 0.02, y: 4.38, w: 0.07, h: 0.02, fill: { color: TEAL }, line: { type: 'none' }
+  });
+
+  const chartColors = rows.map((r) => getColorForPercentage(r.percentage));
+  const chartData = [{
+    name: '% of Target',
+    labels: rows.map((r) => (r.name || '').slice(0, 20)),
+    values: rows.map((r) => r.percentage)
+  }];
+  try {
+    slide.addChart(pptx.ChartType.bar, chartData, {
+      x: 4.7, y: 1.05, w: 4.7, h: 3.35, barDir: 'bar', chartColors,
+      showLegend: false, showTitle: false, valAxisLabelFontSize: 8, catAxisLabelFontSize: 7,
+      showValue: true, showLabel: false, dataLabelPosition: 'outEnd', dataLabelFontSize: 8,
+      dataLabelFontFace: FONT_BODY, dataLabelColor: DARK, dataLabelFormatCode: '0.0"%"',
+      showCatAxisGridLines: false, showValAxisGridLines: false
+    });
+  } catch (e) { console.warn('Supervision chart error', e); }
+  addBottomLine(slide, pptx);
+}
+
 export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLabel) {
-  const { summaryData, comparisonData, monthlyTrendData, trendExplanation, productContributionData } = sectionData;
+  const { summaryData, comparisonData, monthlyTrendData, trendExplanation, productContributionData, supervisionData } = sectionData;
 
   // 1. Section title slide (e.g. "2. CS PRODUCT PERFORMANCE HIGHLIGHTS")
   const slideTitle = pptx.addSlide();
-  slideTitle.background = { color: WHITE };
+  slideTitle.background = { color: LIGHT_BG };
+  addFloatingBubbles(slideTitle, pptx);
   slideTitle.addShape(pptx.ShapeType.rect, {
     x: 0.5,
     y: 2.8,
     w: 9,
-    h: 0.03,
+    h: 0.05,
     fill: { color: PRIMARY_BLUE },
     line: { type: 'none' }
   });
@@ -89,9 +230,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
     y: 3.2,
     w: 9,
     h: 0.8,
-    fontSize: 26,
+    fontSize: 24,
     bold: true,
-    color: PRIMARY_BLUE,
+    color: PRIMARY_BLUE_DARK,
     align: 'center',
     fontFace: FONT_FACE
   });
@@ -111,8 +252,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
 
   // 2. Summary slide (same layout as main summary: p1, line, p2 left + pie right, line, p3, line, p4)
   const slideSum = pptx.addSlide();
-  slideSum.background = { color: WHITE };
-  addSectionHeader(slideSum, pptx, 'SALES AND PERFORMANCE', logoBase64);
+  slideSum.background = { color: LIGHT_BG };
+  addFloatingBubbles(slideSum, pptx);
+  addSectionHeader(slideSum, pptx, 'SALES AND PERFORMANCE', logoBase64, TEAL);
   if (summaryData) {
     const ml = summaryData.monthLabel || monthLabel;
     slideSum.addText(`The total amount disbursed in the month of ${ml} is ${summaryData.disbursementsFormatted} TZS, having achieved ${summaryData.targetPct}% of the total target ${summaryData.targetFormatted} TZS.`, {
@@ -127,11 +269,12 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
     const repeatVal = summaryData.repeatBusiness || 0;
     if (newVal > 0 || repeatVal > 0) {
       try {
-        slideSum.addChart(pptx.ChartType.pie, [{ name: 'New vs Repeat', labels: ['New Business', 'Repeat Business'], values: [newVal, repeatVal] }], {
+        const { scaled, formatCode } = getChartScale([[newVal, repeatVal]]);
+        slideSum.addChart(pptx.ChartType.pie, [{ name: 'New vs Repeat', labels: ['New Business', 'Repeat Business'], values: scaled([newVal, repeatVal]) }], {
           x: 5.1, y: 1.9, w: 2.4, h: 1.4, showLegend: true, legendPos: 'r', legendFontSize: 9,
           chartColors: [PRIMARY_BLUE_DARK, GOLD], showTitle: false, fontFace: FONT_FACE,
           showValue: true, showLabel: false, showPercent: true, dataLabelPosition: 'bestFit',
-          dataLabelFontSize: 10, dataLabelColor: WHITE
+          dataLabelFontSize: 9, dataLabelColor: WHITE, dataLabelFormatCode: formatCode
         });
       } catch (e) {}
     }
@@ -150,16 +293,20 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
 
   // 3. Trend slide (chart + explanation)
   const slideTrend = pptx.addSlide();
-  slideTrend.background = { color: WHITE };
-  addSectionHeader(slideTrend, pptx, section.trendTitle || section.title, logoBase64);
+  slideTrend.background = { color: LIGHT_BG };
+  addFloatingBubbles(slideTrend, pptx);
+  addSectionHeader(slideTrend, pptx, section.trendTitle || section.title, logoBase64, PRIMARY_BLUE_DARK);
   if (monthlyTrendData && monthlyTrendData.length > 0) {
-    const chartData = [{ name: 'Disbursements', labels: monthlyTrendData.map((d) => d.label), values: monthlyTrendData.map((d) => d.disbursements) }];
+    const rawVals = monthlyTrendData.map((d) => d.disbursements);
+    const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
+    const chartData = [{ name: 'Disbursements', labels: monthlyTrendData.map((d) => d.label), values: scaled(rawVals) }];
       try {
         slideTrend.addChart(pptx.ChartType.bar, chartData, {
           x: 0.5, y: 1.15, w: 9, h: 2.5, barDir: 'col', chartColors: [ACCENT_BLUE], showLegend: false, showTitle: false,
           valAxisLabelFontSize: 10, catAxisLabelFontSize: 10, showValue: true, showLabel: false, showCatName: false,
-          dataLabelPosition: 'outEnd', dataLabelFontSize: 12, dataLabelFontBold: true, dataLabelFontFace: FONT_FACE,
-          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: '#,##0.0,,,"B"', showDataTable: false,
+          dataLabelPosition: 'outEnd', dataLabelFontSize: 9, dataLabelFontBold: false, dataLabelFontFace: FONT_BODY,
+          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode, valAxisLabelFormatCode: formatCode,
+          valAxisMaxVal: maxScaled, showDataTable: false,
           showCatAxisGridLines: false, showValAxisGridLines: false
         });
     } catch (e) {
@@ -174,8 +321,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
 
   // 4. Comparison slide
   const slideComp = pptx.addSlide();
-  slideComp.background = { color: WHITE };
-  addSectionHeader(slideComp, pptx, 'PERFORMANCE COMPARISON', logoBase64);
+  slideComp.background = { color: LIGHT_BG };
+  addFloatingBubbles(slideComp, pptx);
+  addSectionHeader(slideComp, pptx, 'PERFORMANCE COMPARISON', logoBase64, TEAL);
   const plain = (str) => ({ text: str, options: { fontFace: FONT_FACE } });
   const boldBlue = (str) => ({ text: str, options: { bold: true, color: PRIMARY_BLUE, fontFace: FONT_FACE } });
   const bulletRuns = (m) => [plain(' has '), boldBlue(m.dir), plain(' by '), boldBlue(m.pct + '%'), plain(' ('), boldBlue(m.currentFmt), plain(' vs '), boldBlue(m.prevFmt), plain(').')];
@@ -204,8 +352,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
   const newBusinessComparison = sectionData.newBusinessComparison;
   if (newBusinessComparison) {
     const slideNew = pptx.addSlide();
-    slideNew.background = { color: WHITE };
-    addSectionHeader(slideNew, pptx, 'NEW BUSINESS SALES PERFORMANCE', logoBase64);
+    slideNew.background = { color: LIGHT_BG };
+    addFloatingBubbles(slideNew, pptx);
+    addSectionHeader(slideNew, pptx, 'NEW BUSINESS SALES PERFORMANCE', logoBase64, PRIMARY_BLUE_DARK);
     const { monthLabel: nbMonth, lastMonthChange: nbLM, lastMonthLabel: nbLMLabel, lastYearChange: nbLY, lastYearLabel: nbLYLabel } = newBusinessComparison;
     const nbLMText = nbLM ? `${nbLM.dir} by ${nbLM.pct}%` : 'N/A';
     const nbLYText = nbLY ? `${nbLY.dir} by ${nbLY.pct}%` : 'N/A';
@@ -213,13 +362,16 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
     slideNew.addText(nbExplanation, { x: 0.5, y: 1.05, w: 8.5, h: 0.6, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE });
     const nbTrend = sectionData.newBusinessTrend || [];
     if (nbTrend.length > 0) {
-      const chartData = [{ name: 'New Business', labels: nbTrend.map((d) => d.label), values: nbTrend.map((d) => d.newBusiness) }];
+      const rawVals = nbTrend.map((d) => d.newBusiness);
+      const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
+      const chartData = [{ name: 'New Business', labels: nbTrend.map((d) => d.label), values: scaled(rawVals) }];
       try {
         slideNew.addChart(pptx.ChartType.line, chartData, {
           x: 0.5, y: 1.8, w: 9, h: 2.8, chartColors: [PRIMARY_BLUE], showLegend: false, showTitle: false,
           valAxisLabelFontSize: 10, catAxisLabelFontSize: 10, showValue: true, showLabel: false, showCatName: false,
-          dataLabelPosition: 'outEnd', dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelFontFace: FONT_FACE,
-          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: '#,##0.0,,,"B"', showCatAxisGridLines: false, showValAxisGridLines: false
+          dataLabelPosition: 'outEnd', dataLabelFontSize: 9, dataLabelFontBold: false, dataLabelFontFace: FONT_BODY,
+          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode, valAxisLabelFormatCode: formatCode,
+          valAxisMaxVal: maxScaled, showCatAxisGridLines: false, showValAxisGridLines: false
         });
       } catch (e) {}
     }
@@ -230,8 +382,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
   const repeatBusinessComparison = sectionData.repeatBusinessComparison;
   if (repeatBusinessComparison) {
     const slideRepeat = pptx.addSlide();
-    slideRepeat.background = { color: WHITE };
-    addSectionHeader(slideRepeat, pptx, 'REPEAT BUSINESS SALES PERFORMANCE', logoBase64);
+    slideRepeat.background = { color: LIGHT_BG };
+    addFloatingBubbles(slideRepeat, pptx);
+    addSectionHeader(slideRepeat, pptx, 'REPEAT BUSINESS SALES PERFORMANCE', logoBase64, TEAL);
     const { monthLabel: rbMonth, lastMonthChange: rbLM, lastMonthLabel: rbLMLabel, lastYearChange: rbLY, lastYearLabel: rbLYLabel } = repeatBusinessComparison;
     const rbLMText = rbLM ? `${rbLM.dir} by ${rbLM.pct}%` : 'N/A';
     const rbLYText = rbLY ? `${rbLY.dir} by ${rbLY.pct}%` : 'N/A';
@@ -239,13 +392,16 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
     slideRepeat.addText(rbExplanation, { x: 0.5, y: 1.05, w: 8.5, h: 0.6, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE });
     const rbTrend = sectionData.repeatBusinessTrend || [];
     if (rbTrend.length > 0) {
-      const chartData = [{ name: 'Repeat Business', labels: rbTrend.map((d) => d.label), values: rbTrend.map((d) => d.repeatBusiness) }];
+      const rawVals = rbTrend.map((d) => d.repeatBusiness);
+      const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
+      const chartData = [{ name: 'Repeat Business', labels: rbTrend.map((d) => d.label), values: scaled(rawVals) }];
       try {
         slideRepeat.addChart(pptx.ChartType.line, chartData, {
           x: 0.5, y: 1.8, w: 9, h: 2.8, chartColors: [PRIMARY_BLUE], showLegend: false, showTitle: false,
           valAxisLabelFontSize: 10, catAxisLabelFontSize: 10, showValue: true, showLabel: false, showCatName: false,
-          dataLabelPosition: 'outEnd', dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelFontFace: FONT_FACE,
-          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: '#,##0.0,,,"B"', showCatAxisGridLines: false, showValAxisGridLines: false
+          dataLabelPosition: 'outEnd', dataLabelFontSize: 9, dataLabelFontBold: false, dataLabelFontFace: FONT_BODY,
+          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode, valAxisLabelFormatCode: formatCode,
+          valAxisMaxVal: maxScaled, showCatAxisGridLines: false, showValAxisGridLines: false
         });
       } catch (e) {}
     }
@@ -256,18 +412,21 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
   const prodData = productContributionData;
   if (prodData && prodData.products && prodData.products.length > 0 && prodData.products.some((p) => p.value > 0)) {
     const slideProd = pptx.addSlide();
-    slideProd.background = { color: WHITE };
-    addSectionHeader(slideProd, pptx, 'PER PRODUCT CONTRIBUTION', logoBase64);
+    slideProd.background = { color: LIGHT_BG };
+    addFloatingBubbles(slideProd, pptx);
+    addSectionHeader(slideProd, pptx, 'PER PRODUCT CONTRIBUTION', logoBase64, PRIMARY_BLUE_DARK);
     slideProd.addText(`Contribution — ${prodData.monthLabel}. Total: ${prodData.totalFormatted} TZS`, {
       x: 0.5, y: 1.05, w: 8.5, h: 0.35, fontSize: 10, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
     });
     const pieProducts = prodData.products.filter((p) => p.value > 0);
     if (pieProducts.length > 0) {
       try {
-        slideProd.addChart(pptx.ChartType.pie, [{ name: 'Products', labels: pieProducts.map((p) => p.name), values: pieProducts.map((p) => p.value) }], {
+        const rawVals = pieProducts.map((p) => p.value);
+        const { scaled, formatCode } = getChartScale([rawVals]);
+        slideProd.addChart(pptx.ChartType.pie, [{ name: 'Products', labels: pieProducts.map((p) => p.name), values: scaled(rawVals) }], {
           x: 0.5, y: 1.5, w: 4.2, h: 2.8, showLegend: true, legendPos: 'b', legendFontSize: 8,
           chartColors: pieProducts.map((p) => (p.color || '').replace('#', '')), showTitle: false, fontFace: FONT_FACE,
-          showValue: true, showPercent: true, dataLabelPosition: 'bestFit', dataLabelFontSize: 9, dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: '#,##0.0,,,"B"'
+          showValue: true, showPercent: true, dataLabelPosition: 'bestFit', dataLabelFontSize: 9, dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode
         });
       } catch (e) {}
     }
@@ -298,5 +457,9 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
       });
     } catch (e) {}
     addBottomLine(slideProd, pptx);
+  }
+
+  if (supervisionData?.rows?.length > 0) {
+    addSupervisionSlide(pptx, section, supervisionData, logoBase64);
   }
 }
