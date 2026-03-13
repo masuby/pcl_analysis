@@ -30,10 +30,9 @@ const MTDSME = () => {
     return (
       <div className="mtd-empty-wrap">
         <div className="mtd-empty-icon">📊</div>
-        <h2>SME MTD Analysis Coming Soon</h2>
+        <h2>No SME MTD Reports Found</h2>
         <p className="mtd-empty-sub">
-          We're working on bringing you comprehensive Month-To-Date analytics for SME.
-          Check back soon!
+          Upload SME MTD reports in the Administration page to see analysis.
         </p>
       </div>
     );

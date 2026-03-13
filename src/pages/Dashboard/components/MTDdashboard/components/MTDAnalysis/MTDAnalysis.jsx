@@ -238,6 +238,24 @@ const MTDAnalysis = ({ parsedData, department }) => {
     );
   }, [rankedData, searchTerm]);
 
+  // VALUE column key (for active team leader check: non-zero VALUE in that month)
+  const valueColumnKey = useMemo(() => {
+    const headers = parsedData?.headers || [];
+    const found = headers.find(h => h && String(h).toUpperCase().trim() === 'VALUE');
+    return found || null;
+  }, [parsedData]);
+
+  // Actual vs Active Team Leaders (only when view is By Team Leader): exclude names containing "BLO"
+  const teamLeaderCounts = useMemo(() => {
+    if (viewMode !== 'teamleader' || !rankedData.length) return null;
+    const withoutBLO = rankedData.filter(item => !String(item.name || '').toUpperCase().includes('BLO'));
+    const actual = withoutBLO.length;
+    const active = valueColumnKey
+      ? withoutBLO.filter(item => (Number(item.data?.[valueColumnKey]) || 0) !== 0).length
+      : 0;
+    return { actual, active };
+  }, [viewMode, rankedData, valueColumnKey]);
+
   // Get summary data for selected item
   const summaryData = useMemo(() => {
     if (!selectedItem || !parsedData) return null;
@@ -467,6 +485,23 @@ const MTDAnalysis = ({ parsedData, department }) => {
             <div className="mtd-ranking-footer">
               Total: {filteredData.length} {viewMode === 'supervision' ? 'supervisions' : 'team leaders'}
             </div>
+          )}
+
+          {viewMode === 'teamleader' && teamLeaderCounts && (
+            <>
+              <div className="mtd-ranking-tl-divider" />
+              <div className="mtd-ranking-tl-summary">
+                <div className="mtd-ranking-tl-summary-side">
+                  <span className="mtd-ranking-tl-label">Active Team Leaders</span>
+                  <span className="mtd-ranking-tl-value">{teamLeaderCounts.active}</span>
+                </div>
+                <div className="mtd-ranking-tl-summary-divider" />
+                <div className="mtd-ranking-tl-summary-side">
+                  <span className="mtd-ranking-tl-label">Actual Team Leaders</span>
+                  <span className="mtd-ranking-tl-value">{teamLeaderCounts.actual}</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
 

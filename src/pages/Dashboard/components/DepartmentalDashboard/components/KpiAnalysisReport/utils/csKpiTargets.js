@@ -8,6 +8,10 @@ import * as XLSX from 'xlsx';
 export const CS_KPI_TARGET_FILE_URL = new URL('../CS KPI TARGET.xlsx', import.meta.url).href;
 const TARGET_FILE = CS_KPI_TARGET_FILE_URL;
 
+/** Public URL for cluster KPI target file (used when a cluster is selected). */
+export const CS_KPI_CLUSTER_TARGET_FILE_URL = new URL('../CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx', import.meta.url).href;
+const CLUSTER_TARGET_FILE = CS_KPI_CLUSTER_TARGET_FILE_URL;
+
 /**
  * Convert Excel serial (days since 1900-01-01, with 25569 = 1970-01-01) to YYYY-MM in UTC.
  * This is the single source of truth so January row always → "2026-01".
@@ -166,6 +170,75 @@ export async function loadCsKpiTargets() {
       if (!monthKey) continue;
       out.callCenter[monthKey] = Number(row[targetIdx]) || 0;
     }
+  }
+
+  return out;
+}
+
+const CLUSTER_SHEET_NAMES = ['Cluster 1', 'Cluster 2', 'Cluster 3', 'Zanzibar'];
+
+/**
+ * Load and parse CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx (KPI sheet + Cluster 1, Cluster 2, Cluster 3, Zanzibar).
+ * Returns: { performanceStandards: { name, weight }[], clusters: { [sheetName]: { [monthKey]: { newBusiness, repeatBusiness, total } } } }
+ */
+export async function loadCsKpiClusterTargets() {
+  const res = await fetch(CLUSTER_TARGET_FILE);
+  if (!res.ok) throw new Error('Failed to load CS cluster KPI target file');
+  const ab = await res.arrayBuffer();
+  const wb = XLSX.read(ab, { type: 'array', cellDates: false });
+
+  const out = {
+    /** @type {{ name: string, weight: number }[]} */
+    performanceStandards: [],
+    /** @type {{ [cluster: string]: { [monthKey: string]: { newBusiness: number, repeatBusiness: number, total: number } } }} */
+    clusters: {}
+  };
+
+  // KPI sheet – same structure as main target file
+  const kpiSheet = wb.Sheets['KPI'];
+  if (kpiSheet) {
+    const kpiRows = XLSX.utils.sheet_to_json(kpiSheet, { header: 1, defval: '' });
+    const headerRow = kpiRows[0] || [];
+    const nameCol = headerRow.findIndex((h) => /performance\s*standards|^kpi$/i.test(String(h || '').trim()));
+    const weightCol = headerRow.findIndex((h) => /weight/i.test(String(h || '').trim()));
+    const nameIdx = nameCol >= 0 ? nameCol : 0;
+    const weightIdx = weightCol >= 0 ? weightCol : 1;
+    for (let i = 1; i < kpiRows.length; i++) {
+      const row = kpiRows[i] || [];
+      const name = row[nameIdx] != null ? String(row[nameIdx]).trim() : '';
+      if (!name || /^\s*total\s*$/i.test(name)) continue; // skip empty and "Total" row
+      let weight = Number(row[weightIdx]);
+      if (Number.isFinite(weight) && weight > 1) weight = weight / 100;
+      else if (!Number.isFinite(weight)) weight = 0;
+      out.performanceStandards.push({ name, weight });
+    }
+  }
+
+  // Each cluster sheet: Month, New Business, Repeat Business, Total Target
+  for (const sheetName of CLUSTER_SHEET_NAMES) {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet) {
+      out.clusters[sheetName] = {};
+      continue;
+    }
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const headers = (rows[0] || []).map((h) => String(h || '').trim());
+    const monthIdx = headers.findIndex((h) => /month/i.test(h));
+    const newIdx = headers.findIndex((h) => /new\s*business/i.test(h));
+    const repeatIdx = headers.findIndex((h) => /repeat\s*business/i.test(h));
+    const totalIdx = headers.findIndex((h) => /total\s*target/i.test(h));
+    const byMonth = {};
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const monthKey = toMonthKey(row[monthIdx]);
+      if (!monthKey) continue;
+      byMonth[monthKey] = {
+        newBusiness: Number(row[newIdx]) || 0,
+        repeatBusiness: Number(row[repeatIdx]) || 0,
+        total: Number(row[totalIdx]) || 0
+      };
+    }
+    out.clusters[sheetName] = byMonth;
   }
 
   return out;

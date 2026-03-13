@@ -7,24 +7,35 @@ const fmtNum = (n) =>
   n != null && Number.isFinite(n)
     ? Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
     : '-';
+/** Integer format for people counts (Active/Actual Reps) – round to whole number */
+const fmtNumInt = (n) =>
+  n != null && Number.isFinite(n)
+    ? Math.round(Number(n)).toLocaleString('en-US')
+    : '-';
 const fmtPct = (n) => (n != null && Number.isFinite(n) ? Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%' : '-');
+
+const PEOPLE_ROW_LABELS = ['Active Reps', 'Actual Reps', 'Active', 'Actual'];
+const isPeopleRow = (rowLabel) => PEOPLE_ROW_LABELS.includes(String(rowLabel || '').trim());
 
 const columnsForProduct = (product) =>
   product === 'CS'
     ? ['rowLabel', 'Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment']
     : ['rowLabel', 'Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment'];
 
-/** Row to display values (row may have Grade and Comment from caller) */
-const rowToCells = (row, columns) =>
-  columns.map((col) => {
+/** Row to display values (row may have Grade and Comment from caller). Active/Actual Reps: Target and Achieved shown as integers. */
+const rowToCells = (row, columns) => {
+  const peopleRow = isPeopleRow(row.rowLabel);
+  return columns.map((col) => {
     if (col === 'rowLabel') return row.rowLabel ?? '';
     const v = row[col];
     if (col === 'Comment') return v ?? '';
     if (col === 'Grade') return v ?? '';
     if (typeof v === 'number' && (col === '% Achived' || col === '% Unachived')) return fmtPct(v);
+    if ((col === 'Target' || col === 'Achieved' || col === 'Remaining') && peopleRow && (v != null && (typeof v === 'number' || !Number.isNaN(Number(v))))) return fmtNumInt(v);
     if (typeof v === 'number') return fmtNum(v);
     return v ?? '';
   });
+};
 
 const defaultGradeColors = { A: '#7B1FA2', B: '#1976D2', C: '#388E3C', D: '#F57C00', E: '#C62828' };
 const defaultCommentColors = { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW STANDARD': '#F57C00', 'NOT ACCEPTABLE': '#C62828' };

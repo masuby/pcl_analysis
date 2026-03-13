@@ -37,7 +37,7 @@ const ACCOUNTING_HEADERS = new Set([
   'Total Calls', 'Successful Calls', 'Unsuccessful Calls', 'Total Agents', '>50 Calls', '<50 Calls',
   'Number of Leads', 'Prospect', 'Total Agents (CRM)', 'Logged In Agents', 'Total TLS', 'Logged In TLS',
   'Agents >50 Calls', 'Agents <50 Calls', 'Total Agents (CC)',
-  'Achieved', 'Remaining', '% Achived', '% Unachived'
+  'Achieved', 'Remaining', '% Achived', '% Unachived', 'Required to End', 'Active Client', 'Inactive Client', 'Total Clients', 'Average Loan Size'
 ]);
 
 /**
@@ -95,6 +95,10 @@ export const buildSheetFromTables = (tables, options = {}) => {
     const totalRowDarkBlue = table.totalRowDarkBlue === true;
     const gradeColors = table.gradeColors || {};
     const commentColors = table.commentColors || {};
+    const pctChangeColumn = table.pctChangeColumn || '';
+    const pctChangePositiveColor = table.pctChangePositiveColor || '#C8E6C9';
+    const pctChangeNegativeColor = table.pctChangeNegativeColor || '#FFCDD2';
+    const pctChangeNeutralColor = table.pctChangeNeutralColor || '#F0F0F0';
     const DARK_BLUE_BG = 'FF1A237E';
     const colWidths = table.colWidths || headers.map(() => 14);
     const accountingColumns = table.accountingColumns || [];
@@ -145,7 +149,7 @@ export const buildSheetFromTables = (tables, options = {}) => {
             fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFFFF' } }
           };
         } else {
-          const isPctCol = h === '% Achived' || h === '% Unachived';
+          const isPctCol = h === '% Achived' || h === '% Unachived' || h === '% Achieved' || h === 'Percentage Change' || h === 'Change %';
           if (twoDecimalPlaces && val !== null && val !== undefined && typeof val === 'number' && val === val) {
             if (!isPctCol && !Number.isInteger(val)) val = Math.round(val * 100) / 100;
           }
@@ -183,6 +187,15 @@ export const buildSheetFromTables = (tables, options = {}) => {
             const rowFillHex = rowFillColors[r];
             const gradeHex = h === 'Grade' && gradeColors[String(val).trim()];
             const commentHex = h === 'Comment' && commentColors[String(val).toUpperCase().trim()];
+            const isPctChangeCol = pctChangeColumn && (h === pctChangeColumn || h === 'Percentage Change' || h === 'Change %');
+            let pctChangeHex = null;
+            if (isPctChangeCol) {
+              if (typeof val === 'number' && !Number.isNaN(val)) {
+                pctChangeHex = val >= 0 ? pctChangePositiveColor : pctChangeNegativeColor;
+              } else if (val === '-' || val === '' || val == null) {
+                pctChangeHex = pctChangeNeutralColor;
+              }
+            }
             if (rowFillHex) {
               ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgb(rowFillHex) } };
               ws[ref].s.font = { bold: false, color: { rgb: 'FF000000' }, sz: 11 };
@@ -191,6 +204,9 @@ export const buildSheetFromTables = (tables, options = {}) => {
               ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
             } else if (commentHex) {
               ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: blendWithWhite(commentHex, 0.8) || toArgb(commentHex) } };
+              ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
+            } else if (pctChangeHex) {
+              ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgb(pctChangeHex) } };
               ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
             } else {
               const colFill = getColumnFill(c);

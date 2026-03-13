@@ -259,7 +259,7 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
 
   const formatValue = (value) => {
     if (value === null || value === undefined || value === 0) return '-';
-    if (typeof value === 'number') return value.toLocaleString();
+    if (typeof value === 'number') return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     return value;
   };
 

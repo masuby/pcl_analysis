@@ -279,6 +279,33 @@
   background: #1e3c72;
 }
 
+.scorecard-paste-btn {
+  background: #0f766e;
+}
+.scorecard-paste-btn:hover:not(:disabled) {
+  background: #0d9488;
+}
+
+.scorecard-paste-box-wrap {
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.scorecard-paste-box {
+  width: 100%;
+  min-height: 4.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.scorecard-paste-box::placeholder {
+  color: #999;
+}
+
 .scorecard-recipient-list-actions {
   margin-bottom: 0.5rem;
   display: flex;
@@ -622,6 +649,163 @@
 .dark-mode .scorecard-export-btn:hover {
   background: #3182ce;
   box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+}
+
+.dark-mode .scorecard-container {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-footer {
+  border-top-color: #334155;
+}
+
+.dark-mode .scorecard-modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.dark-mode .scorecard-modal {
+  background: #1e293b;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dark-mode .scorecard-modal-header {
+  border-bottom-color: #334155;
+}
+
+.dark-mode .scorecard-modal-title {
+  color: #93c5fd;
+}
+
+.dark-mode .scorecard-modal-close {
+  color: #94a3b8;
+}
+
+.dark-mode .scorecard-modal-close:hover {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-modal-body {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-modal-hint {
+  color: #94a3b8;
+}
+
+.dark-mode .scorecard-recipient-input {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-paste-box {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+.dark-mode .scorecard-paste-box::placeholder {
+  color: #64748b;
+}
+
+.dark-mode .scorecard-recipient-item {
+  border-bottom-color: #334155;
+}
+
+.dark-mode .scorecard-recipient-email {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-recipient-list-actions {
+  color: #94a3b8;
+}
+
+.dark-mode .scorecard-remove-recipient {
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark-mode .scorecard-remove-recipient:hover {
+  background: #7f1d1d;
+  color: #fecaca;
+  border-color: #991b1b;
+}
+
+.dark-mode .scorecard-modal-empty {
+  color: #64748b;
+}
+
+.dark-mode .scorecard-modal-footer {
+  border-top-color: #334155;
+}
+
+.dark-mode .scorecard-modal-cancel {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-modal-cancel:hover {
+  background: #475569;
+}
+
+.dark-mode .scorecard-preview-section {
+  border-top-color: #334155;
+}
+
+.dark-mode .scorecard-preview-container {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.dark-mode .scorecard-preview-subject {
+  background: #1e293b;
+  border-bottom-color: #334155;
+}
+
+.dark-mode .scorecard-preview-subject label {
+  color: #cbd5e1;
+}
+
+.dark-mode .scorecard-subject-input {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-preview-body label {
+  color: #cbd5e1;
+}
+
+.dark-mode .scorecard-preview-html {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.dark-mode .scorecard-preview-attachment {
+  background: #14532d;
+  color: #86efac;
+  border-top-color: #334155;
+}
+
+.dark-mode .scorecard-send-progress {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-mode .scorecard-send-progress-title {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-send-progress-item {
+  border-bottom-color: #334155;
+}
+
+.dark-mode .scorecard-send-progress-email {
+  color: #e2e8f0;
+}
+
+.dark-mode .scorecard-progress-popup {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  border-bottom-color: #3b82f6;
 }
 
 /* Responsive Design */

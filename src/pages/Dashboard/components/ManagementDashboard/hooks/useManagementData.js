@@ -3,6 +3,9 @@ import { getAllReports, getBatchReportData } from '../../../../../services/repor
 import { cacheGet, cacheSet, cacheInvalidate } from '../../../../../services/cache';
 import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 
+// Reports are fetched via getAllReports(limit 500, type MANAGEMENT). All management reports
+// are included in parsedReports; reports with no report_data get an empty-metrics shape so they still appear in the UI.
+
 // In-memory cache for parsed data (survives navigation)
 const parsedDataCache = new Map();
 let batchDataCache = null;
@@ -27,27 +30,63 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
   });
   const initialLoadDone = useRef(false);
 
-  // Listen for refresh events
+  const fetchReports = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const result = await getAllReports({ limit: 500, type: 'MANAGEMENT' });
+
+      if (result.success) {
+        const reportsData = (result.data || []).map(report => {
+          const createdAt = report.createdAt || report.created_at
+            ? new Date(report.createdAt || report.created_at)
+            : new Date();
+          const date = report.date != null && report.date !== ''
+            ? (report.date instanceof Date ? report.date : new Date(report.date))
+            : createdAt;
+          return {
+            id: report.id,
+            ...report,
+            fileName: report.fileName || report.file_name,
+            fileUrl: report.fileUrl || report.file_url,
+            filePath: report.filePath || report.file_path,
+            fileSize: report.fileSize || report.file_size,
+            createdAt,
+            date // Normalized report date for sorting (like CSReports)
+          };
+        });
+        setAllReports(reportsData);
+      } else {
+        setError(result.error || 'Failed to load reports');
+      }
+    } catch (err) {
+      console.error('Error fetching reports:', err);
+      setError('Failed to load reports from database');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Listen for refresh events (e.g. report metadata edited in Report Management)
   useEffect(() => {
     if (refreshTrigger > 0) {
       console.log('[ManagementDashboard] Refresh triggered, clearing cache and refetching');
-      // Clear all caches
       parsedDataCache.clear();
       batchDataCache = null;
       cacheInvalidate('reports');
       cacheInvalidate('dashboard');
-      // Reset and refetch
       initialLoadDone.current = false;
       fetchReports();
     }
-  }, [refreshTrigger]);
+  }, [refreshTrigger, fetchReports]);
 
   useEffect(() => {
     if (!initialLoadDone.current) {
       fetchReports();
       initialLoadDone.current = true;
     }
-  }, []);
+  }, [fetchReports]);
 
   useEffect(() => {
     filterReports();
@@ -60,37 +99,6 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       setParsedReports([]);
     }
   }, [managementReports]);
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const result = await getAllReports({ limit: 500, type: 'MANAGEMENT' });
-
-      if (result.success) {
-        const reportsData = (result.data || []).map(report => ({
-          id: report.id,
-          ...report,
-          fileName: report.fileName || report.file_name,
-          fileUrl: report.fileUrl || report.file_url,
-          filePath: report.filePath || report.file_path,
-          fileSize: report.fileSize || report.file_size,
-          createdAt: report.createdAt || report.created_at 
-            ? new Date(report.createdAt || report.created_at) 
-            : new Date()
-        }));
-        setAllReports(reportsData);
-      } else {
-        setError(result.error || 'Failed to load reports');
-      }
-    } catch (err) {
-      console.error('Error fetching reports:', err);
-      setError('Failed to load reports from database');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filterReports = useCallback(() => {
     if (!allReports.length) {
@@ -118,9 +126,10 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       return isManagement && matchesDepartment && isActive && inDateRange;
     });
 
+    // Sort by report date (latest first), like CSReports – so ordering stays correct after metadata edit
     const sorted = filtered.sort((a, b) => {
-      const dateA = a.createdAt?.getTime ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
-      const dateB = b.createdAt?.getTime ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      const dateA = (a.date || a.createdAt)?.getTime ? (a.date || a.createdAt).getTime() : new Date(a.date || a.createdAt).getTime();
+      const dateB = (b.date || b.createdAt)?.getTime ? (b.date || b.createdAt).getTime() : new Date(b.date || b.createdAt).getTime();
       return dateB - dateA;
     });
 
@@ -155,26 +164,42 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         console.log('[Cache] Using cached batch data');
       }
       
-      // Transform batch data to expected format for each report
+      // Transform batch data to expected format for each report. Include ALL reports so they are visible;
+      // reports with no parsed data get empty metrics (row-data-only) so analysis can show them too.
       const parsed = managementReports.map(report => {
         const reportData = batchData[report.id];
-        
-        if (!reportData || reportData.length === 0) {
-          return null;
+        if (reportData && reportData.length > 0) {
+          return transformBackendData(report, reportData);
         }
-
-        // Transform backend data to expected format
-        return transformBackendData(report, reportData);
+        return reportToParsedRow(report);
       });
 
-      const validParsed = parsed.filter(r => r !== null);
-      setParsedReports(validParsed);
+      setParsedReports(parsed);
     } catch (err) {
       console.error('Error loading parsed data:', err);
       setError('Failed to load report data');
     } finally {
       setParsing(false);
     }
+  };
+
+  // Build parsed-report shape with empty metrics so reports without report_data still appear in the UI
+  const reportToParsedRow = (report) => {
+    const emptyBranches = { 'CS': {}, 'Cs Asset Finance': {} };
+    const lbfEmpty = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {}, 'LBF-FLEX': {} };
+    const effectiveDate = report.date || report.createdAt;
+    return {
+      ...report,
+      countrywise: {},
+      cs: {},
+      csBranches: emptyBranches,
+      lbf: {},
+      lbfBranches: lbfEmpty,
+      sme: {},
+      zanzibar: {},
+      agrifinance: {},
+      date: effectiveDate
+    };
   };
 
   // Transform backend report_data rows into the expected frontend format
@@ -190,7 +215,8 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
 
     const csBranchNames = ['CS', 'Cs Asset Finance'];
     const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'];
-    const agriFinanceBranches = ['AgriFinance', 'Agrifinance'];
+    // Only the row named "Agrifinance" (or "AgriFinance") in the management report - no summing with other branches
+    const agriFinanceBranchNames = ['AgriFinance', 'Agrifinance'];
 
     // Normalize metric names to canonical form (handles "Active Clients" vs "Active clients")
     const normalizeMetric = (m) => {
@@ -221,9 +247,9 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         smeData[metric] = numVal;
       } else if (branch === 'ZANZIBAR') {
         zanzibarData[metric] = numVal;
-      } else if (agriFinanceBranches.includes(branch)) {
+      } else if (agriFinanceBranchNames.includes(branch)) {
         if (!agrifinanceData) agrifinanceData = {};
-        agrifinanceData[metric] = numVal;
+        agrifinanceData[metric] = numVal; // Use the Agrifinance row from management report only
       }
     });
 

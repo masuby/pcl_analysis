@@ -697,11 +697,11 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
 
   useImperativeHandle(ref, () => ({ getExportSheets }), [summaryData]);
 
-  // Format number for display
+  // Format number for display (accounting format)
   const formatValue = (value) => {
     if (value === '-' || value === null || value === undefined) return '-';
     if (typeof value === 'number') {
-      return value.toLocaleString();
+      return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
     return value;
   };

@@ -132,10 +132,11 @@ The report uses a consistent color palette:
 - Ensure management data is loaded
 - Verify pptxgenjs is installed
 
-### Missing Data
+### Missing Data  
 - Upload management reports first
 - Check date range selection
 - Verify data processing in backend
+
 
 ### Chart Not Displaying
 - Ensure recharts is installed

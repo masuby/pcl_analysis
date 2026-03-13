@@ -96,6 +96,18 @@ function findDisbursementsThisMonthColumn(headers) {
   return -1;
 }
 
+/** Find column by header containing keyword (e.g. "portfolio", "par", "par >30"). */
+function findColumnByKeyword(headers, ...keywords) {
+  for (let c = 0; c < headers.length; c++) {
+    const h = String(headers[c] ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    for (const k of keywords) {
+      const kNorm = String(k).trim().replace(/\s+/g, ' ').toLowerCase();
+      if (h.includes(kNorm) || kNorm.includes(h)) return c;
+    }
+  }
+  return -1;
+}
+
 /**
  * Parse the Country sheet: find Branch, Target, and Disbursements This Month columns;
  * add rows whose Branch is Cluster 1, Cluster 2, Cluster 3, or ZANZIBAR (first occurrence per name)
@@ -119,6 +131,9 @@ function parseCountrySheetClusters(wb, clusters) {
   const disbursementCol = findDisbursementsThisMonthColumn(headers);
   if (branchCol < 0 || targetCol < 0 || disbursementCol < 0) return;
 
+  const portfolioCol = findColumnByKeyword(headers, 'portfolio', 'portifolio', 'total portfolio', 'principle balance');
+  const par30Col = findColumnByKeyword(headers, 'par>30', 'par >30', 'par 30');
+
   const seen = new Set();
 
   for (let r = 1; r < raw.length; r++) {
@@ -135,12 +150,20 @@ function parseCountrySheetClusters(wb, clusters) {
     const target = toNumber(row[targetCol]);
     const disbursement = toNumber(row[disbursementCol]);
     const pct = target > 0 ? (disbursement / target) * 100 : 0;
+    const portfolio = portfolioCol >= 0 ? toNumber(row[portfolioCol]) : undefined;
+    let par30 = par30Col >= 0 ? row[par30Col] : undefined;
+    if (par30 != null && par30 !== '') {
+      const n = typeof par30 === 'number' ? par30 : parseFloat(String(par30).replace(/,/g, ''));
+      par30 = Number.isFinite(n) ? (n > 0 && n < 1 ? n * 100 : n) : undefined;
+    }
 
     clusters.push({
       branch: branchName,
       target,
       disbursement,
-      pct
+      pct,
+      ...(portfolio !== undefined && !Number.isNaN(portfolio) && { portfolio }),
+      ...(par30 !== undefined && !Number.isNaN(par30) && { par30 })
     });
   }
 }

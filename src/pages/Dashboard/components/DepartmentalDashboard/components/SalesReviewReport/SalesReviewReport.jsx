@@ -10,6 +10,8 @@ import { getSummaryForMonth, getComparisonData } from './utils/summaryDataUtils'
 import { getProductContributionData, getProductContributionForSection } from './utils/productContributionUtils';
 import { getNewBusinessTrendData, getRepeatBusinessTrendData, getNewBusinessComparison, getRepeatBusinessComparison } from './utils/newRepeatBusinessUtils';
 import { REPORT_SECTIONS } from './config/reportSectionConfig';
+import { gapAnalysisAPI } from '../../../../../../services/api';
+import { getActiveActualTotals, getActualRepsForSupervision } from '../GapAnalysis/utils/gapAnalysisUtils';
 import { sendSalesReviewEmail } from './utils/emailSalesReview';
 import { buildSalesReviewEmailHTML } from './utils/emailTemplateSalesReview';
 import GeneralSalesTrendChart from './sections/GeneralSalesTrendChart';
@@ -52,12 +54,12 @@ function getMTDTotalActiveReps(parsedData) {
       }
     }
   });
-  if (usedSheet && total > 0) return total;
+  if (usedSheet && total > 0) return Math.round(total);
   total = 0;
   Object.values(parsedData.groupedData).forEach((supervision) => {
     total += countActiveRepsFromSupervision(supervision, parsedData.columnMap, parsedData.listingData);
   });
-  return total;
+  return Math.round(total);
 }
 
 /** Count active reps: unique sales reps that have a non-empty Term (from listing), same as ProductSalesTracker */
@@ -104,6 +106,7 @@ function getMTDSupervisionPerformance(parsedData) {
     if (activeReps === 0) {
       activeReps = countActiveRepsFromSupervision(sup, parsedData.columnMap, parsedData.listingData);
     }
+    activeReps = Math.round(Number(activeReps) || 0);
     const percentage = target > 0 ? (value / target) * 100 : 0;
     rows.push({ name, target, value, percentage, activeReps });
     totalTarget += target;
@@ -111,17 +114,49 @@ function getMTDSupervisionPerformance(parsedData) {
     totalActiveReps += activeReps;
   });
   rows.sort((a, b) => b.percentage - a.percentage);
-  return { rows, totalTarget, totalValue, totalActiveReps };
+  return { rows, totalTarget, totalValue, totalActiveReps: Math.round(totalActiveReps) };
+}
+
+/** Augment supervision data with actual reps per row and total (from Gap Actual Reps overrides). */
+function augmentSupervisionWithActualReps(supervisionData, actualRepsOverrides) {
+  if (!supervisionData?.rows?.length) return supervisionData;
+  const rows = supervisionData.rows.map((r) => {
+    const raw = getActualRepsForSupervision(r.name, actualRepsOverrides);
+    return { ...r, actualReps: Math.round(Number(raw) || 0) };
+  });
+  const totalActualReps = Math.round(rows.reduce((s, r) => s + (r.actualReps ?? 0), 0));
+  return { ...supervisionData, rows, totalActualReps };
+}
+
+/** Get report ID for the end-of-month MTD report (Sales Review uses that report's uploaded Gap Actual Reps template). */
+function getEndOfMonthReportId(reports, selectedMonth) {
+  if (!reports?.length || !selectedMonth) return null;
+  const [y, m] = selectedMonth.split('-').map(Number);
+  if (!y || !m) return null;
+  const lastDay = new Date(y, m, 0).getDate();
+  const toDate = (r) => (r.date instanceof Date ? r.date : new Date(r.date));
+  const sameDay = (d, year, month, day) =>
+    d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+  const inMonth = (d) => d.getFullYear() === y && d.getMonth() === m - 1;
+  const endOfMonth = reports.find((r) => sameDay(toDate(r), y, m, lastDay));
+  if (endOfMonth) return endOfMonth.id;
+  const inMonthReports = reports.filter((r) => inMonth(toDate(r)));
+  if (inMonthReports.length > 0) {
+    inMonthReports.sort((a, b) => toDate(b) - toDate(a));
+    return inMonthReports[0].id;
+  }
+  return reports[0]?.id ?? null;
 }
 
 const SalesReviewReport = ({ userData }) => {
   const { parsedReports, loading, error } = useManagementData();
-  const mtdLBF = useMTDData('LBF');
-  const mtdCS = useMTDData('CS');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const mtdLBF = useMTDData('LBF', selectedMonth);
+  const mtdCS = useMTDData('CS', selectedMonth);
+  const mtdSME = useMTDData('SME', selectedMonth);
   const [generatingPPTX, setGeneratingPPTX] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipients, setRecipients] = useState(() => {
@@ -142,7 +177,37 @@ const SalesReviewReport = ({ userData }) => {
   const [emailBody, setEmailBody] = useState('');
   const [copiedList, setCopiedList] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
+  const [lbfActualRepsOverrides, setLbfActualRepsOverrides] = useState({});
+  const [csActualRepsOverrides, setCsActualRepsOverrides] = useState({});
+  const [smeActualRepsOverrides, setSmeActualRepsOverrides] = useState({});
   const reportContainerRef = useRef(null);
+
+  useEffect(() => {
+    const reportId = getEndOfMonthReportId(mtdLBF.reports || [], selectedMonth);
+    if (!reportId) {
+      setLbfActualRepsOverrides({});
+      return;
+    }
+    gapAnalysisAPI.getActualReps(reportId).then((res) => setLbfActualRepsOverrides(res?.data ?? {})).catch(() => setLbfActualRepsOverrides({}));
+  }, [mtdLBF.reports, selectedMonth]);
+
+  useEffect(() => {
+    const reportId = getEndOfMonthReportId(mtdCS.reports || [], selectedMonth);
+    if (!reportId) {
+      setCsActualRepsOverrides({});
+      return;
+    }
+    gapAnalysisAPI.getActualReps(reportId).then((res) => setCsActualRepsOverrides(res?.data ?? {})).catch(() => setCsActualRepsOverrides({}));
+  }, [mtdCS.reports, selectedMonth]);
+
+  useEffect(() => {
+    const reportId = getEndOfMonthReportId(mtdSME.reports || [], selectedMonth);
+    if (!reportId) {
+      setSmeActualRepsOverrides({});
+      return;
+    }
+    gapAnalysisAPI.getActualReps(reportId).then((res) => setSmeActualRepsOverrides(res?.data ?? {})).catch(() => setSmeActualRepsOverrides({}));
+  }, [mtdSME.reports, selectedMonth]);
 
   const copyRecipientList = () => {
     if (recipients.length === 0) return;
@@ -294,24 +359,103 @@ const SalesReviewReport = ({ userData }) => {
   const repeatBusinessComparison = useMemo(() => getRepeatBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
 
   const lbfMTDTotalActiveReps = useMemo(() => getMTDTotalActiveReps(mtdLBF.parsedData), [mtdLBF.parsedData]);
-  const lbfSupervisionData = useMemo(() => getMTDSupervisionPerformance(mtdLBF.parsedData), [mtdLBF.parsedData]);
-  const csSupervisionData = useMemo(() => getMTDSupervisionPerformance(mtdCS.parsedData), [mtdCS.parsedData]);
+  const lbfSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdLBF.parsedData), [mtdLBF.parsedData]);
+  const csSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdCS.parsedData), [mtdCS.parsedData]);
+  const smeSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdSME.parsedData), [mtdSME.parsedData]);
+  const lbfSupervisionData = useMemo(
+    () => augmentSupervisionWithActualReps(lbfSupervisionDataRaw, lbfActualRepsOverrides),
+    [lbfSupervisionDataRaw, lbfActualRepsOverrides]
+  );
+  const csSupervisionData = useMemo(
+    () => augmentSupervisionWithActualReps(csSupervisionDataRaw, csActualRepsOverrides),
+    [csSupervisionDataRaw, csActualRepsOverrides]
+  );
+  const smeSupervisionData = useMemo(
+    () => augmentSupervisionWithActualReps(smeSupervisionDataRaw, smeActualRepsOverrides),
+    [smeSupervisionDataRaw, smeActualRepsOverrides]
+  );
+
+  const lbfActiveActualTotals = useMemo(
+    () => (mtdLBF.parsedData ? getActiveActualTotals(mtdLBF.parsedData, 'LBF', lbfActualRepsOverrides) : null),
+    [mtdLBF.parsedData, lbfActualRepsOverrides]
+  );
+  const csActiveActualTotals = useMemo(
+    () => (mtdCS.parsedData ? getActiveActualTotals(mtdCS.parsedData, 'CS', csActualRepsOverrides) : null),
+    [mtdCS.parsedData, csActualRepsOverrides]
+  );
+  const smeMTDTotalActiveReps = useMemo(() => getMTDTotalActiveReps(mtdSME.parsedData), [mtdSME.parsedData]);
+  const smeActiveActualTotals = useMemo(
+    () => (mtdSME.parsedData ? getActiveActualTotals(mtdSME.parsedData, 'SME', smeActualRepsOverrides) : null),
+    [mtdSME.parsedData, smeActualRepsOverrides]
+  );
 
   const sectionsData = useMemo(() => {
     return REPORT_SECTIONS.map((section) => {
       const sectionData = section.getData(parsedReports);
       const monthlyTrend = getMonthlyTrendData(sectionData);
       let summaryData = getSummaryForMonth(sectionData, selectedMonth);
-      // LBF section: use MTD total Active Reps instead of management-report sum
-      if (section.id === 'lbf' && lbfMTDTotalActiveReps != null) {
+      const isLBF = section.id === 'lbf';
+      const isCSMainland = section.id === 'cs-mainland';
+      const isSME = section.id === 'sme';
+      // LBF section: use MTD total Active Reps and Active/Actual summary lines
+      if (isLBF && lbfMTDTotalActiveReps != null) {
         summaryData = {
           ...summaryData,
           activeReps: lbfMTDTotalActiveReps,
           activeRepsFormatted: formatTZS(lbfMTDTotalActiveReps)
         };
+        if (lbfActiveActualTotals) {
+          const { activeTarget, activeAchieved, actualTarget, actualAchieved } = lbfActiveActualTotals;
+          const activePct = activeTarget > 0 ? ((activeAchieved / activeTarget) * 100).toFixed(1) : '0';
+          const actualPct = actualTarget > 0 ? ((actualAchieved / actualTarget) * 100).toFixed(1) : '0';
+          summaryData = {
+            ...summaryData,
+            activeTarget,
+            activeAchieved,
+            actualTarget,
+            actualAchieved,
+            activePct,
+            actualPct
+          };
+        }
       }
-      const isLBF = section.id === 'lbf';
-      const isCSMainland = section.id === 'cs-mainland';
+      // CS Mainland: add Active/Actual summary lines when we have MTD totals
+      if (isCSMainland && csActiveActualTotals) {
+        const { activeTarget, activeAchieved, actualTarget, actualAchieved } = csActiveActualTotals;
+        const activePct = activeTarget > 0 ? ((activeAchieved / activeTarget) * 100).toFixed(1) : '0';
+        const actualPct = actualTarget > 0 ? ((actualAchieved / actualTarget) * 100).toFixed(1) : '0';
+        summaryData = {
+          ...summaryData,
+          activeTarget,
+          activeAchieved,
+          actualTarget,
+          actualAchieved,
+          activePct,
+          actualPct
+        };
+      }
+      // SME section: use MTD total Active Reps and Active/Actual summary lines (same as LBF/CS Mainland)
+      if (isSME && smeMTDTotalActiveReps != null) {
+        summaryData = {
+          ...summaryData,
+          activeReps: smeMTDTotalActiveReps,
+          activeRepsFormatted: formatTZS(smeMTDTotalActiveReps)
+        };
+        if (smeActiveActualTotals) {
+          const { activeTarget, activeAchieved, actualTarget, actualAchieved } = smeActiveActualTotals;
+          const activePct = activeTarget > 0 ? ((activeAchieved / activeTarget) * 100).toFixed(1) : '0';
+          const actualPct = actualTarget > 0 ? ((actualAchieved / actualTarget) * 100).toFixed(1) : '0';
+          summaryData = {
+            ...summaryData,
+            activeTarget,
+            activeAchieved,
+            actualTarget,
+            actualAchieved,
+            activePct,
+            actualPct
+          };
+        }
+      }
       return {
         section,
         sectionData,
@@ -324,10 +468,10 @@ const SalesReviewReport = ({ userData }) => {
         repeatBusinessTrend: getRepeatBusinessTrendData(sectionData),
         newBusinessComparison: getNewBusinessComparison(sectionData, selectedMonth),
         repeatBusinessComparison: getRepeatBusinessComparison(sectionData, selectedMonth),
-        supervisionData: isLBF ? lbfSupervisionData : isCSMainland ? csSupervisionData : null
+        supervisionData: isLBF ? lbfSupervisionData : isCSMainland ? csSupervisionData : isSME ? smeSupervisionData : null
       };
     });
-  }, [parsedReports, selectedMonth, lbfMTDTotalActiveReps, lbfSupervisionData, csSupervisionData]);
+  }, [parsedReports, selectedMonth, lbfMTDTotalActiveReps, lbfSupervisionData, csSupervisionData, smeSupervisionData, lbfActiveActualTotals, csActiveActualTotals, smeMTDTotalActiveReps, smeActiveActualTotals]);
 
   const handleDownloadPPTX = async () => {
     setGeneratingPPTX(true);
@@ -521,7 +665,7 @@ const SalesReviewReport = ({ userData }) => {
           <PerProductContribution productData={productContributionData} logoSrc={LOGO_SRC} />
 
           {/* Product sections (CS, LBF, IPF, SME, AgriFinance, etc.) - same flow per section */}
-          {sectionsData.map(({ section, summaryData: sSummary, comparisonData: sComparison, monthlyTrendData: sTrend, trendExplanation: sExplanation, productContributionData: sProduct, newBusinessTrend: sNewTrend, repeatBusinessTrend: sRepeatTrend, newBusinessComparison: sNewComp, repeatBusinessComparison: sRepeatComp }) => (
+          {sectionsData.map(({ section, summaryData: sSummary, comparisonData: sComparison, monthlyTrendData: sTrend, trendExplanation: sExplanation, productContributionData: sProduct, newBusinessTrend: sNewTrend, repeatBusinessTrend: sRepeatTrend, newBusinessComparison: sNewComp, repeatBusinessComparison: sRepeatComp, supervisionData: sSupervision }) => (
             <ProductPerformanceBlock
               key={section.id}
               section={section}
@@ -534,6 +678,7 @@ const SalesReviewReport = ({ userData }) => {
               newBusinessTrend={sNewTrend}
               repeatBusinessComparison={sRepeatComp}
               repeatBusinessTrend={sRepeatTrend}
+              supervisionData={sSupervision}
               monthLabel={monthLabel}
               logoSrc={LOGO_SRC}
             />

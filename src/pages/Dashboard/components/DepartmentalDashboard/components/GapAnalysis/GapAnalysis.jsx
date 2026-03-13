@@ -46,7 +46,8 @@ const buildFormUrlForTL = (reportId, tlKey, product, teamLeaderName = '', superv
 };
 
 const STORAGE_KEY_PREFIX = 'gap_analysis_actual_';
-const RECIPIENTS_STORAGE_KEY = 'gap_analysis_email_recipients';
+/** Email recipients are stored per product so CS, LBF and SME each have their own list */
+const getRecipientsStorageKey = (product) => `gap_analysis_email_recipients_${product || 'CS'}`;
 
 const getStorageKey = (reportId, product) => `${STORAGE_KEY_PREFIX}${reportId || 'unknown'}_${product}`;
 
@@ -73,14 +74,7 @@ const GapAnalysis = () => {
   const [actualRepsOverrides, setActualRepsOverrides] = useState({});
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showTLEmailModal, setShowTLEmailModal] = useState(null);
-  const [recipients, setRecipients] = useState(() => {
-    try {
-      const saved = localStorage.getItem(RECIPIENTS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [recipients, setRecipients] = useState([]);
   const [newRecipient, setNewRecipient] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -89,6 +83,8 @@ const GapAnalysis = () => {
   const [rsmRecipients, setRsmRecipients] = useState({});
   const [savedFeedbackKey, setSavedFeedbackKey] = useState(null);
   const [downloadTemplateFeedback, setDownloadTemplateFeedback] = useState(false);
+  const [copyEmailsFeedback, setCopyEmailsFeedback] = useState(false);
+  const [pasteBox, setPasteBox] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
@@ -105,13 +101,30 @@ const GapAnalysis = () => {
   const reportId = parsedData?.reportId;
   const reportDate = parsedData?.reportDate;
 
+  // Load recipients for current product when product changes (each product has its own list)
   useEffect(() => {
     try {
-      localStorage.setItem(RECIPIENTS_STORAGE_KEY, JSON.stringify(recipients));
+      const key = getRecipientsStorageKey(product);
+      let saved = localStorage.getItem(key);
+      if (!saved && product === 'CS') {
+        const legacy = localStorage.getItem('gap_analysis_email_recipients');
+        if (legacy) saved = legacy;
+      }
+      setRecipients(saved ? JSON.parse(saved) : []);
+    } catch {
+      setRecipients([]);
+    }
+  }, [product]);
+
+  // Save recipients for current product
+  useEffect(() => {
+    try {
+      const key = getRecipientsStorageKey(product);
+      localStorage.setItem(key, JSON.stringify(recipients));
     } catch (e) {
       console.warn('Could not save recipients', e);
     }
-  }, [recipients]);
+  }, [product, recipients]);
 
   // Load from localStorage when report/product changes
   useEffect(() => {
@@ -348,7 +361,7 @@ const GapAnalysis = () => {
       }
       lastSup = item.supervision;
       const branchName = item.teamLeaderName;
-      const tlName = (getTLRecipient(item)?.name || '').trim();
+      const tlName = (getTLRecipient(item)?.name || '').trim() || item.teamLeaderName || '';
       branchRows.push({
         Zone: item.supervision,
         Branch: branchName,
@@ -821,6 +834,47 @@ const GapAnalysis = () => {
     setRecipients((prev) => prev.filter((r) => r !== email));
   };
 
+  const copyAllEmails = () => {
+    if (recipients.length === 0) return;
+    const text = recipients.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      setSendError('');
+      setCopyEmailsFeedback(true);
+      setTimeout(() => setCopyEmailsFeedback(false), 2000);
+    }).catch(() => setSendError('Could not copy to clipboard'));
+  };
+
+  const parseEmailsFromText = (text) => {
+    const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return [...new Set(text.split(/\s*[\n,;\t]\s*/).map((s) => s.trim().toLowerCase()).filter((s) => emailLike.test(s)))];
+  };
+
+  const pasteEmails = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const toAdd = parseEmailsFromText(text).filter((e) => !recipients.includes(e));
+      if (toAdd.length === 0) {
+        setSendError(recipients.length === 0 ? 'No valid emails in clipboard. Paste lines or comma-separated addresses.' : 'No new valid emails to add.');
+        return;
+      }
+      setRecipients((prev) => [...prev, ...toAdd]);
+      setSendError('');
+    } catch {
+      setSendError('Clipboard access denied. Paste into the box below and click "Add pasted".');
+    }
+  };
+
+  const addPasteBoxEmails = () => {
+    const toAdd = parseEmailsFromText(pasteBox).filter((e) => !recipients.includes(e));
+    if (toAdd.length === 0) {
+      setSendError(pasteBox.trim() ? 'No valid emails in the box.' : 'Paste emails above (one per line or comma-separated), then click Add pasted.');
+      return;
+    }
+    setRecipients((prev) => [...prev, ...toAdd]);
+    setPasteBox('');
+    setSendError('');
+  };
+
   const separatorRow = () => ({ Supervision: '', Product: '', 'Team Leader Name': '', Email: '', Name: '', 'Actual Sales Reps': '', __separator: true });
 
   const handleDownloadTemplateForUpload = async () => {
@@ -852,7 +906,7 @@ const GapAnalysis = () => {
       branchRows.push({
         Supervision: item.supervision,
         Product: product,
-        'Team Leader Name': item.teamLeaderName,
+        'Team Leader Name': rec?.name ?? item.teamLeaderName ?? '',
         Email: rec?.email ?? '',
         Name: rec?.name ?? '',
         'Actual Sales Reps': getActual(item.key),
@@ -862,12 +916,13 @@ const GapAnalysis = () => {
 
     const rsmRows = [];
     rsmData.forEach((item) => {
+      const rsmRec = rsmMap[item.supervision];
       rsmRows.push({
         Supervision: item.supervision,
         Product: product,
-        'Team Leader Name': item.supervision,
-        Email: rsmMap[item.supervision]?.email ?? '',
-        Name: rsmMap[item.supervision]?.name ?? '',
+        'Team Leader Name': rsmRec?.name ?? item.supervision ?? '',
+        Email: rsmRec?.email ?? '',
+        Name: rsmRec?.name ?? '',
         'Actual Sales Reps': getActual(item.key),
       });
       rsmRows.push(separatorRow());
@@ -951,7 +1006,7 @@ const GapAnalysis = () => {
         const actualReps = row[5] != null && row[5] !== '' ? Number(row[5]) : undefined;
         if (!teamLeaderName && !supervision) continue;
         const key = teamLeaderName + '|' + supervision;
-        tlMap[key] = { email, name: name || teamLeaderName };
+        tlMap[key] = { email, name }; // name = template's "Name" column (E) only; generated Excel "Team Leader Name" uses this
         if (actualReps !== undefined && !Number.isNaN(actualReps)) actualRepsFromFile[key] = actualReps;
       }
       setTlRecipients(tlMap);
@@ -968,7 +1023,7 @@ const GapAnalysis = () => {
         const name = (row[4] != null ? String(row[4]) : '').trim();
         const actualReps = row[5] != null && row[5] !== '' ? Number(row[5]) : undefined;
         if (!supervision) continue;
-        rsmMap[supervision] = { email, name: name || teamLeaderName || supervision };
+        rsmMap[supervision] = { email, name }; // name = template's "Name" column (E) only
         if (actualReps !== undefined && !Number.isNaN(actualReps)) actualRepsFromFile['RSM:' + supervision] = actualReps;
       }
       setRsmRecipients(rsmMap);
@@ -1438,6 +1493,35 @@ const GapAnalysis = () => {
                 />
                 <button type="button" className="gap-analysis-add-recipient-btn" onClick={addRecipient}>
                   Add
+                </button>
+                <button
+                  type="button"
+                  className="gap-analysis-copy-paste-btn"
+                  onClick={copyAllEmails}
+                  disabled={recipients.length === 0}
+                  title="Copy all emails to clipboard"
+                >
+                  {copyEmailsFeedback ? 'Copied!' : 'Copy all'}
+                </button>
+                <button
+                  type="button"
+                  className="gap-analysis-copy-paste-btn"
+                  onClick={pasteEmails}
+                  title="Paste emails from clipboard (one per line or comma/semicolon separated)"
+                >
+                  Paste
+                </button>
+              </div>
+              <div className="gap-analysis-paste-box-wrap">
+                <textarea
+                  className="gap-analysis-paste-box"
+                  placeholder="Or paste emails here (one per line or comma/semicolon separated)"
+                  value={pasteBox}
+                  onChange={(e) => setPasteBox(e.target.value)}
+                  rows={2}
+                />
+                <button type="button" className="gap-analysis-copy-paste-btn" onClick={addPasteBoxEmails}>
+                  Add pasted
                 </button>
               </div>
               <ul className="gap-analysis-recipients-list">

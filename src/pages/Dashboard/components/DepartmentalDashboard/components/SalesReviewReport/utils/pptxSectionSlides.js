@@ -141,7 +141,7 @@ function formatSupervisionValue(n) {
 }
 
 function addSupervisionSlide(pptx, section, supervisionData, logoBase64) {
-  const { rows, totalTarget, totalValue, totalActiveReps = 0 } = supervisionData;
+  const { rows, totalTarget, totalValue, totalActiveReps = 0, totalActualReps = 0 } = supervisionData;
   if (!rows || rows.length === 0) return;
   const slide = pptx.addSlide();
   slide.background = { color: LIGHT_BG };
@@ -154,7 +154,8 @@ function addSupervisionSlide(pptx, section, supervisionData, logoBase64) {
     { text: 'Target', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
     { text: 'Value', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
     { text: '%', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
-    { text: 'Active Reps', options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } }
+    { text: 'Active Reps', options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } },
+    { text: 'Actual Reps', options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE } } }
   ];
   const rowColors = rows.map((r) => getColorForPercentage(r.percentage));
   const dataRows = rows.map((r, idx) => {
@@ -164,7 +165,8 @@ function addSupervisionSlide(pptx, section, supervisionData, logoBase64) {
       { text: formatSupervisionValue(r.target), options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
       { text: formatSupervisionValue(r.value), options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
       { text: r.percentage.toFixed(1) + '%', options: { align: 'right', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
-      { text: String(r.activeReps ?? 0), options: { align: 'center', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } }
+      { text: String(r.activeReps ?? 0), options: { align: 'center', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } },
+      { text: String(r.actualReps ?? 0), options: { align: 'center', fontFace: FONT_BODY, fontSize: 8, color: WHITE, fill: { color: bg } } }
     ];
   });
   const totalRow = [
@@ -172,11 +174,12 @@ function addSupervisionSlide(pptx, section, supervisionData, logoBase64) {
     { text: formatSupervisionValue(totalTarget), options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
     { text: formatSupervisionValue(totalValue), options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
     { text: totalPct + '%', options: { bold: true, align: 'right', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
-    { text: String(totalActiveReps), options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } }
+    { text: String(totalActiveReps), options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } },
+    { text: String(totalActualReps), options: { bold: true, align: 'center', fontFace: FONT_FACE, fontSize: 9, color: WHITE, fill: { color: PRIMARY_BLUE_DARK } } }
   ];
   try {
     slide.addTable([tableHeader, ...dataRows, totalRow], {
-      x: 0.5, y: 1.05, w: 4.0, colW: [1.5, 0.6, 0.6, 0.45, 0.5], fontSize: 8, fontFace: FONT_BODY,
+      x: 0.5, y: 1.05, w: 4.5, colW: [1.4, 0.55, 0.55, 0.4, 0.5, 0.5], fontSize: 8, fontFace: FONT_BODY,
       border: { type: 'solid', pt: 0.5, color: 'e2e8f0' }, margin: 2, valign: 'middle'
     });
   } catch (e) { console.warn('Supervision table error', e); }
@@ -283,9 +286,22 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
       x: 0.5, y: 3.6, w: 8.5, h: 0.45, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
     });
     slideSum.addShape(pptx.ShapeType.rect, { x: 0.5, y: 4.15, w: 8.5, h: 0.02, fill: { color: PRIMARY_BLUE }, line: { type: 'none' } });
-    slideSum.addText(`The total number of Active agents for the month of ${ml} stands at ${summaryData.activeRepsFormatted}.`, {
-      x: 0.5, y: 4.3, w: 8.5, h: 0.4, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
-    });
+    if (summaryData.activeTarget != null && summaryData.actualTarget != null) {
+      slideSum.addText(`The total Number of Active Agents for the Month of ${ml} stands at ${summaryData.activeAchieved ?? summaryData.activeRepsFormatted}, having achieved ${summaryData.activePct}% of the total Active Agent target (${summaryData.activeTarget}).`, {
+        x: 0.5, y: 4.3, w: 8.5, h: 0.5, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
+      });
+      slideSum.addText(`The total Number of Actual Agents for the Month of ${ml} stands at ${summaryData.actualAchieved ?? 0}, having achieved ${summaryData.actualPct}% of the total Actual Agent target (${summaryData.actualTarget}).`, {
+        x: 0.5, y: 4.9, w: 8.5, h: 0.5, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
+      });
+    } else if (summaryData.activeTarget != null) {
+      slideSum.addText(`The total Number of Active Agents for the Month of ${ml} stands at ${summaryData.activeAchieved ?? summaryData.activeRepsFormatted}, having achieved ${summaryData.activePct}% of the total Active Agent target (${summaryData.activeTarget}).`, {
+        x: 0.5, y: 4.3, w: 8.5, h: 0.4, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
+      });
+    } else {
+      slideSum.addText(`The total number of Active agents for the month of ${ml} stands at ${summaryData.activeRepsFormatted}.`, {
+        x: 0.5, y: 4.3, w: 8.5, h: 0.4, fontSize: 12, color: DARK, valign: 'top', wrap: true, fontFace: FONT_FACE
+      });
+    }
   } else {
     slideSum.addText('No summary data available for this section.', { x: 0.5, y: 1.2, w: 8.5, h: 0.5, fontSize: 11, color: GRAY, valign: 'top', fontFace: FONT_FACE });
   }

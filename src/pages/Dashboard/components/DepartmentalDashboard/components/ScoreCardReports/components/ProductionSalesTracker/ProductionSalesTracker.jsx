@@ -250,7 +250,7 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
     }));
     if (currentStatusRows.length > 0) {
       const totalIndices = currentStatusData.map((r, i) => r.isTotal ? i : null).filter(x => x != null);
-      tables.push({ title: 'Current Status', data: currentStatusRows, totalRowIndices: totalIndices, colWidths: [12, 18, 15, 18, 18, 12, 15], headerColors: { 'Product': '#4472C4', 'Sub-Product': '#4472C4', 'Target': '#ED7D31', 'Disbursement': '#70AD47' } });
+      tables.push({ title: 'Current Status', data: currentStatusRows, totalRowIndices: totalIndices, colWidths: [12, 18, 15, 18, 18, 12, 15], headerColors: { 'Product': '#4472C4', 'Sub-Product': '#4472C4', 'Target': '#ED7D31', 'Disbursement': '#70AD47' }, accountingColumns: ['Target', 'Disbursement', 'Required to End'] });
     }
     const monthRows = monthComparisonData.map(row => ({
       'Product': row.product,
@@ -261,14 +261,14 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
       'Previous Disbursement': row.previous.disbursement,
       'Change %': typeof row.change === 'number' ? row.change.toFixed(1) + '%' : row.change
     }));
-    if (monthRows.length > 0) tables.push({ title: 'Month to Month Comparison', data: monthRows, colWidths: [12, 16, 18, 16, 16, 18, 14], headerColors: { 'Product': '#4472C4', 'Current Disbursement': '#70AD47', 'Previous Disbursement': '#ED7D31' } });
+    if (monthRows.length > 0) tables.push({ title: 'Month to Month Comparison', data: monthRows, colWidths: [12, 16, 18, 16, 16, 18, 14], headerColors: { 'Product': '#4472C4', 'Current Disbursement': '#70AD47', 'Previous Disbursement': '#ED7D31' }, accountingColumns: ['Current Target', 'Current Disbursement', 'Previous Target', 'Previous Disbursement'] });
     const yearRows = yearComparisonData.map(row => ({
       'Product': row.product,
       'This Year Disbursement': row.currentYear.disbursement,
       'Last Year Disbursement': row.lastYear.disbursement,
       'Change %': typeof row.change === 'number' ? row.change.toFixed(1) + '%' : row.change
     }));
-    if (yearRows.length > 0) tables.push({ title: 'Year to Year Comparison', data: yearRows, colWidths: [12, 22, 22, 14], headerColors: { 'Product': '#4472C4', 'This Year Disbursement': '#70AD47', 'Last Year Disbursement': '#ED7D31' } });
+    if (yearRows.length > 0) tables.push({ title: 'Year to Year Comparison', data: yearRows, colWidths: [12, 22, 22, 14], headerColors: { 'Product': '#4472C4', 'This Year Disbursement': '#70AD47', 'Last Year Disbursement': '#ED7D31' }, accountingColumns: ['This Year Disbursement', 'Last Year Disbursement'] });
     if (tables.length === 0) return [];
     return [{ name: 'Production Sales Tracker', tables }];
   };
@@ -278,10 +278,10 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
   const formatValue = (value) => {
     if (value === null || value === undefined || value === 0) return '-';
     if (typeof value === 'number') {
-      if (value >= 1000000000) return (value / 1000000000).toFixed(2) + 'B';
-      if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
-      if (value >= 1000) return (value / 1000).toFixed(2) + 'K';
-      return value.toLocaleString();
+      if (value >= 1000000000) return (value / 1000000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B';
+      if (value >= 1000000) return (value / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M';
+      if (value >= 1000) return (value / 1000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'K';
+      return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
     return value;
   };

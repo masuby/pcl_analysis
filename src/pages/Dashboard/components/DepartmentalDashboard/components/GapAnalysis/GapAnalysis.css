@@ -538,6 +538,46 @@
   background: #1e3c72;
 }
 
+.gap-analysis-copy-paste-btn {
+  padding: 0.5rem 0.75rem;
+  background: #64748b;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.gap-analysis-copy-paste-btn:hover:not(:disabled) {
+  background: #475569;
+}
+.gap-analysis-copy-paste-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gap-analysis-paste-box-wrap {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+.gap-analysis-paste-box {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 2.5rem;
+}
+.gap-analysis-paste-box:focus {
+  outline: none;
+  border-color: #2a5298;
+  box-shadow: 0 0 0 2px rgba(42, 82, 152, 0.2);
+}
+
 .gap-analysis-recipients-list {
   list-style: none;
   margin: 0 0 1rem 0;
@@ -1066,6 +1106,25 @@
 
 .dark-mode .gap-analysis-add-recipient-btn:hover {
   background: #3182ce;
+}
+
+.dark-mode .gap-analysis-copy-paste-btn {
+  background: #475569;
+}
+.dark-mode .gap-analysis-copy-paste-btn:hover:not(:disabled) {
+  background: #334155;
+}
+
+.dark-mode .gap-analysis-paste-box {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+.dark-mode .gap-analysis-paste-box::placeholder {
+  color: #94a3b8;
+}
+.dark-mode .gap-analysis-paste-box:focus {
+  border-color: #4299e1;
 }
 
 .dark-mode .gap-analysis-recipient-item span {

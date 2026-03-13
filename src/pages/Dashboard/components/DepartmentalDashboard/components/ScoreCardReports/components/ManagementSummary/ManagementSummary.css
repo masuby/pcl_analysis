@@ -33,13 +33,36 @@
 
 .ms-tables {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 1.5rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding-right: 0.25rem;
+}
+
+.ms-tables::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ms-tables::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.ms-tables::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.ms-tables::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
 .ms-table-block {
-  flex: 1;
-  min-width: 280px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .ms-table-title {
@@ -67,6 +90,16 @@
 .ms-th-orange {
   background: #ED7D31 !important;
   color: white;
+}
+.ms-th-source {
+  background: #5B9BD5 !important;
+  color: white;
+  font-size: 0.8rem;
+}
+.ms-td-source {
+  color: #2a5298;
+  font-weight: 500;
+  font-size: 0.8rem;
 }
 
 .ms-table th {
@@ -111,6 +144,21 @@
   background: #C5CAE9 !important;
 }
 
+.ms-pct-green {
+  background: #C8E6C9 !important;
+  font-weight: 600;
+}
+
+.ms-pct-red {
+  background: #FFCDD2 !important;
+  font-weight: 600;
+}
+
+.ms-pct-neutral {
+  background: #f0f0f0 !important;
+  color: #666;
+}
+
 .ms-footer {
   padding-top: 0.5rem;
 }
@@ -127,4 +175,85 @@
 
 .ms-export-btn:hover {
   background: #365a9e;
+}
+
+/* Dark mode support */
+.dark-mode .ms-container {
+  background: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .ms-header {
+  border-bottom-color: #334155;
+}
+
+.dark-mode .ms-title {
+  color: #93c5fd;
+}
+
+.dark-mode .ms-badge {
+  background: #334155;
+  color: #94a3b8;
+}
+
+.dark-mode .ms-tables::-webkit-scrollbar-track {
+  background: #334155;
+}
+
+.dark-mode .ms-tables::-webkit-scrollbar-thumb {
+  background: #64748b;
+}
+
+.dark-mode .ms-tables::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark-mode .ms-table-title {
+  color: #cbd5e1;
+}
+
+.dark-mode .ms-table td {
+  border-bottom-color: #334155;
+  color: #e2e8f0;
+}
+
+.dark-mode .ms-table tbody tr:hover:not(.ms-separator):not(.ms-total-row) {
+  background: #334155;
+}
+
+.dark-mode .ms-separator td {
+  border-top-color: #475569 !important;
+  border-bottom-color: #3b82f6 !important;
+}
+
+.dark-mode .ms-total-row {
+  background: #3730a3 !important;
+  color: #c7d2fe !important;
+}
+
+.dark-mode .ms-total-row:hover {
+  background: #3730a3 !important;
+}
+
+.dark-mode .ms-pct-green {
+  background: #166534 !important;
+  color: #bbf7d0;
+}
+
+.dark-mode .ms-pct-red {
+  background: #991b1b !important;
+  color: #fecaca;
+}
+
+.dark-mode .ms-pct-neutral {
+  background: #475569 !important;
+  color: #94a3b8;
+}
+
+.dark-mode .ms-export-btn {
+  background: #3b82f6;
+}
+
+.dark-mode .ms-export-btn:hover {
+  background: #2563eb;
 }

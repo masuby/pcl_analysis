@@ -389,9 +389,12 @@ func UploadReport(c *gin.Context) {
 		return
 	}
 
-	// Invalidate cache after creating report
+	// Invalidate cache after creating report (so dashboards get new data)
 	_ = database.CacheDeletePattern("reports:*")
 	_ = database.CacheDeletePattern("dashboard:*")
+	_ = database.CacheDeletePattern("batch_report_data:*")
+	_ = database.CacheDeletePattern("cluster_data:*")
+	_ = database.CacheDeletePattern("regional_data:*")
 
 	// Parse Excel and store data (async) - same logic as batch-parse for reliability
 	go func() {
@@ -407,6 +410,10 @@ func UploadReport(c *gin.Context) {
 				fmt.Printf("Warning: Failed to store generic data for %s: %v\n", fileName, storeErr)
 			}
 		}
+		// Invalidate batch/dashboard caches so dashboards see this report's data on next load
+		_ = database.CacheDeletePattern("batch_report_data:*")
+		_ = database.CacheDeletePattern("cluster_data:*")
+		_ = database.CacheDeletePattern("regional_data:*")
 	}()
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -446,8 +453,11 @@ func UpdateReport(c *gin.Context) {
 		return
 	}
 
-	// Invalidate reports cache after update
+	// Invalidate caches after update (so dashboards reflect changes)
 	_ = database.CacheDeletePattern("reports:*")
+	_ = database.CacheDeletePattern("batch_report_data:*")
+	_ = database.CacheDeletePattern("cluster_data:*")
+	_ = database.CacheDeletePattern("regional_data:*")
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -474,6 +484,13 @@ func DeleteReport(c *gin.Context) {
 		})
 		return
 	}
+
+	// Invalidate caches so dashboards stop showing deleted report
+	_ = database.CacheDeletePattern("reports:*")
+	_ = database.CacheDeletePattern("dashboard:*")
+	_ = database.CacheDeletePattern("batch_report_data:*")
+	_ = database.CacheDeletePattern("cluster_data:*")
+	_ = database.CacheDeletePattern("regional_data:*")
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

@@ -6,19 +6,130 @@ import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyl
 import { exportToExcel } from '../../../../utils/excelExport';
 import LoadingSpinner from '../../../../../../../../components/Common/Loading/LoadingSpinner';
 
-const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
-  const mtdCS = useMTDData('CS');
-  const mtdLBF = useMTDData('LBF');
-  const mtdSME = useMTDData('SME');
+const ProductSalesTracker = forwardRef(({ mode, userData, targetMonth }, ref) => {
+  const mtdCS = useMTDData('CS', targetMonth);
+  const mtdLBF = useMTDData('LBF', targetMonth);
+  const mtdSME = useMTDData('SME', targetMonth);
   const { parsedReports: managementReports } = useManagementData();
 
   const trackerData = useMemo(() => {
-    const departments = ['CS', 'LBF', 'SME'];
+    const departments = ['CS', 'LBF', 'SME', 'AgriFinance'];
     const hooks = { CS: mtdCS, LBF: mtdLBF, SME: mtdSME };
 
+    const isReportDateInMonth = (reportDate, yyyyMm) => {
+      if (!reportDate || !yyyyMm || typeof yyyyMm !== 'string') return false;
+      const d = reportDate instanceof Date ? reportDate : new Date(reportDate);
+      const [y, m] = yyyyMm.split('-').map(Number);
+      if (!y || !m) return false;
+      return d.getFullYear() === y && d.getMonth() === m - 1;
+    };
+
+    const getLatestManagementReport = () => {
+      if (!managementReports?.length) return null;
+      const sorted = [...managementReports].sort((a, b) => {
+        const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+        const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+        return dateB - dateA;
+      });
+      return sorted[0];
+    };
+
     return departments.map(dept => {
-      // SME: use Management data (no MTD for SME); CS and LBF use MTD
+      // SME: use MTD when available and (no targetMonth or MTD is for same month); otherwise fall back to Management data
       if (dept === 'SME') {
+        const hook = hooks.SME;
+        const useSmeMtd = hook?.parsedData?.groupedData && (!targetMonth || isReportDateInMonth(hook.parsedData.reportDate, targetMonth));
+        if (useSmeMtd) {
+          // Same structure as CS/LBF from MTD
+          const columnMap = hook.parsedData.columnMap || {};
+          const termCol = columnMap.term || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => String(k).toUpperCase() === 'TERM');
+          const amountCol = columnMap.amount || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => String(k).toUpperCase().includes('DISBURSE') && String(k).toUpperCase().includes('AMOUNT'));
+          const salesRepCol = columnMap.salesRep || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => {
+            const u = String(k).toUpperCase();
+            return u === 'SALES REP' || u === 'SALES REP. NAME';
+          });
+          const countActiveReps = (salesReps) => {
+            if (!salesReps?.length || !salesRepCol) return 0;
+            const withTerm = salesReps.filter(rep => {
+              const term = termCol ? (rep[termCol] || rep['Term'] || rep['TERM']) : null;
+              return term != null && String(term).trim() !== '';
+            });
+            const uniqueReps = new Set(withTerm.map(rep => {
+              const name = rep[salesRepCol] || rep['SALES REP'] || rep['SALES REP. NAME'];
+              return name != null ? String(name).trim() : null;
+            }).filter(Boolean));
+            return uniqueReps.size;
+          };
+          const supervisionRows = [];
+          const teamLeaderRows = [];
+          Object.values(hook.parsedData.groupedData).forEach(supervision => {
+            const supTarget = Number(supervision.supervisionData?.['MONTH TARGET'] || supervision.supervisionData?.['Month Target'] || 0);
+            let supSalesReps = [];
+            if (supervision.supervisionData) {
+              const value = Number(supervision.supervisionData['VALUE'] || supervision.supervisionData['Value'] || 0);
+              const loans = Number(supervision.supervisionData['NO. OF LOANS'] || supervision.supervisionData['No. of Loans'] || 0);
+              const target = Number(supervision.supervisionData['MONTH TARGET'] || supervision.supervisionData['Month Target'] || 0);
+              supervision.teamLeaders?.forEach(tl => { supSalesReps.push(...(tl.salesReps || [])); });
+              const activeReps = countActiveReps(supSalesReps);
+              supervisionRows.push({ name: supervision.supervision || 'Unknown', value, loans, target, activeReps });
+            }
+            supervision.teamLeaders?.forEach(tl => {
+              if (tl.data) {
+                const value = Number(tl.data['VALUE'] || tl.data['Value'] || 0);
+                const loans = Number(tl.data['NO. OF LOANS'] || tl.data['No. of Loans'] || 0);
+                const target = Number(tl.data['MONTH TARGET'] || tl.data['Month Target'] || supTarget) || 0;
+                const activeReps = countActiveReps(tl.salesReps || []);
+                const salesReps = tl.salesReps || [];
+                const termData = {};
+                salesReps.forEach(rep => {
+                  const term = termCol ? (rep[termCol] || rep['Term'] || rep['TERM']) : null;
+                  const amt = amountCol ? (Number(rep[amountCol]) || 0) : 0;
+                  if (term && String(term).trim()) {
+                    const t = String(term).trim();
+                    if (!termData[t]) termData[t] = { count: 0, value: 0 };
+                    termData[t].count += 1;
+                    termData[t].value += amt;
+                  }
+                });
+                const productsSold = Object.entries(termData)
+                  .map(([term, d]) => ({ term, count: d.count, value: d.value }))
+                  .sort((a, b) => b.value - a.value);
+                const pctAchieved = (target || supTarget) > 0 ? (value / (target || supTarget) * 100) : 0;
+                teamLeaderRows.push({
+                  name: tl.name || 'Unknown',
+                  value,
+                  loans,
+                  target: target || supTarget,
+                  activeReps,
+                  productsSold,
+                  percentAchieved: pctAchieved
+                });
+              }
+            });
+          });
+          supervisionRows.sort((a, b) => b.value - a.value);
+          teamLeaderRows.sort((a, b) => (b.percentAchieved || 0) - (a.percentAchieved || 0));
+          const totalValue = supervisionRows.reduce((s, r) => s + r.value, 0);
+          const totalLoans = supervisionRows.reduce((s, r) => s + r.loans, 0);
+          const totalTarget = supervisionRows.reduce((s, r) => s + r.target, 0);
+          const totalActiveReps = supervisionRows.reduce((s, r) => s + r.activeReps, 0);
+          const wholeTotalRow = { name: 'Whole Total', value: totalValue, loans: totalLoans, target: totalTarget, activeReps: totalActiveReps, isWholeTotal: true };
+          return {
+            product: 'SME',
+            totalValue,
+            totalLoans,
+            totalTarget,
+            totalActiveReps,
+            percentAchieved: totalTarget > 0 ? (totalValue / totalTarget * 100) : 0,
+            percentUnachieved: totalTarget > 0 ? Math.max(0, (totalTarget - totalValue) / totalTarget * 100) : 0,
+            averageLoanSize: totalLoans > 0 ? totalValue / totalLoans : 0,
+            supervisionRows,
+            teamLeaderRows,
+            wholeTotalRow,
+            reportDate: hook.parsedData.reportDate
+          };
+        }
+        // Fallback: Management data only (no MTD)
         if (!managementReports || managementReports.length === 0) return null;
         const sorted = [...managementReports].sort((a, b) => {
           const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
@@ -49,8 +160,81 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         };
       }
 
+      if (dept === 'AgriFinance') {
+        if (!managementReports || managementReports.length === 0) return null;
+        const sorted = [...managementReports].sort((a, b) => {
+          const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+          const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+          return dateB - dateA;
+        });
+        const latestReport = sorted[0];
+        const data = latestReport.agrifinance || latestReport.AgriFinance || {};
+        const target = Number(data['Target'] || data['Monthly Target'] || 0) || 0;
+        const value = Number(data['Disbursements This Month'] || data['Disbursement This Month'] || data['Disbursement this Month'] || 0) || 0;
+        const loans = Number(data['Number of loans'] || data['Number of Loans'] || data['No. of Loans'] || 0) || 0;
+        const activeReps = Number(data['Active Reps'] || data['Active reps'] || 0) || 0;
+        const supervisionRows = [{ name: 'AgriFinance', value, loans, target, activeReps }];
+        const wholeTotalRow = { name: 'Whole Total', value, loans, target, activeReps, isWholeTotal: true };
+        return {
+          product: 'AgriFinance',
+          totalValue: value,
+          totalLoans: loans,
+          totalTarget: target,
+          totalActiveReps: activeReps,
+          percentAchieved: target > 0 ? (value / target * 100) : 0,
+          percentUnachieved: target > 0 ? Math.max(0, (target - value) / target * 100) : 0,
+          averageLoanSize: loans > 0 ? value / loans : 0,
+          supervisionRows,
+          teamLeaderRows: [],
+          wholeTotalRow,
+          reportDate: latestReport.date ? new Date(latestReport.date) : (latestReport.createdAt ? new Date(latestReport.createdAt) : null)
+        };
+      }
+
+      // CS / LBF: use MTD only when it is for the same month as score card; otherwise use Management data
+      if ((dept === 'CS' || dept === 'LBF') && targetMonth && managementReports?.length) {
+        const hook = hooks[dept];
+        const useMtd = hook?.parsedData?.groupedData && isReportDateInMonth(hook.parsedData.reportDate, targetMonth);
+        if (!useMtd) {
+          const latestReport = getLatestManagementReport();
+          const data = dept === 'CS' ? (latestReport.cs || {}) : (latestReport.lbf || {});
+          const branches = dept === 'CS' ? (latestReport.csBranches || {}) : (latestReport.lbfBranches || {});
+          const valKey = 'Disbursements This Month';
+          const loanKey = 'Number of loans';
+          const targetKey = 'Monthly Target';
+          const repKey = 'Active Reps';
+          const supervisionRows = Object.entries(branches).map(([name, b]) => {
+            const v = Number(b[valKey] || b['Disbursement This Month'] || b['Disbursement this Month'] || 0) || 0;
+            const l = Number(b[loanKey] || b['Number of Loans'] || b['No. of Loans'] || 0) || 0;
+            const t = Number(b[targetKey] || b['Month Target'] || 0) || 0;
+            const r = Number(b[repKey] || b['Active reps'] || 0) || 0;
+            return { name, value: v, loans: l, target: t, activeReps: r };
+          });
+          const totalValue = Number(data[valKey] || data['Disbursement This Month'] || data['Disbursement this Month'] || 0) || supervisionRows.reduce((s, r) => s + r.value, 0);
+          const totalLoans = Number(data[loanKey] || data['Number of Loans'] || data['No. of Loans'] || 0) || supervisionRows.reduce((s, r) => s + r.loans, 0);
+          const totalTarget = Number(data[targetKey] || data['Month Target'] || 0) || supervisionRows.reduce((s, r) => s + r.target, 0);
+          const totalActiveReps = Number(data[repKey] || data['Active reps'] || 0) || supervisionRows.reduce((s, r) => s + r.activeReps, 0);
+          const wholeTotalRow = { name: 'Whole Total', value: totalValue, loans: totalLoans, target: totalTarget, activeReps: totalActiveReps, isWholeTotal: true };
+          return {
+            product: dept,
+            totalValue,
+            totalLoans,
+            totalTarget,
+            totalActiveReps,
+            percentAchieved: totalTarget > 0 ? (totalValue / totalTarget * 100) : 0,
+            percentUnachieved: totalTarget > 0 ? Math.max(0, (totalTarget - totalValue) / totalTarget * 100) : 0,
+            averageLoanSize: totalLoans > 0 ? totalValue / totalLoans : 0,
+            supervisionRows: supervisionRows.length > 0 ? supervisionRows : [{ name: dept, value: totalValue, loans: totalLoans, target: totalTarget, activeReps: totalActiveReps }],
+            teamLeaderRows: [],
+            wholeTotalRow,
+            reportDate: latestReport.date ? new Date(latestReport.date) : (latestReport.createdAt ? new Date(latestReport.createdAt) : null)
+          };
+        }
+      }
+
       const hook = hooks[dept];
       if (!hook.parsedData || !hook.parsedData.groupedData) return null;
+      if (targetMonth && !isReportDateInMonth(hook.parsedData.reportDate, targetMonth)) return null;
 
       const columnMap = hook.parsedData.columnMap || {};
       const termCol = columnMap.term || Object.keys((hook.parsedData.listingData || [])[0] || {}).find(k => String(k).toUpperCase() === 'TERM');
@@ -154,7 +338,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         reportDate: hook.parsedData.reportDate
       };
     }).filter(Boolean);
-  }, [mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData, managementReports]);
+  }, [mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData, managementReports, targetMonth]);
 
   const isLoading = mtdCS.loading || mtdLBF.loading || mtdSME.loading;
 
@@ -234,15 +418,17 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
       'Active Reps': row.totalActiveReps
     }));
     const sumVal = trackerData.reduce((s, r) => s + r.totalValue, 0);
+    const sumLoans = trackerData.reduce((s, r) => s + r.totalLoans, 0);
     const sumTarget = trackerData.reduce((s, r) => s + r.totalTarget, 0);
+    const avgLoanSize = sumLoans > 0 ? sumVal / sumLoans : null;
     const grandTotal = {
       'Product': 'Whole Total',
       'Total Value': sumVal,
-      'Total Loans': trackerData.reduce((s, r) => s + r.totalLoans, 0),
+      'Total Loans': sumLoans,
       'Target': sumTarget,
       '% Achieved': sumTarget > 0 ? (sumVal / sumTarget * 100).toFixed(1) + '%' : '-',
       '% Unachieved': sumTarget > 0 ? Math.max(0, (sumTarget - sumVal) / sumTarget * 100).toFixed(1) + '%' : '-',
-      'Average Loan Size': '-',
+      'Average Loan Size': avgLoanSize != null ? Math.round(avgLoanSize * 100) / 100 : '-',
       'Active Reps': trackerData.reduce((s, r) => s + r.totalActiveReps, 0)
     };
     tables.push({
@@ -250,9 +436,11 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
       data: [...summaryRows, grandTotal],
       totalRowIndices: [summaryRows.length],
       colWidths: [12, 16, 14, 14, 12, 14, 16, 12],
-      headerColors: { 'Product': '#4472C4', 'Total Value': '#70AD47', 'Target': '#ED7D31' }
+      headerColors: { 'Product': '#4472C4', 'Total Value': '#70AD47', 'Target': '#ED7D31' },
+      accountingColumns: ['Total Value', 'Total Loans', 'Target', 'Average Loan Size', 'Active Reps']
     });
-    trackerData.filter(r => r.product !== 'SME').forEach(row => {
+    // CS, LBF, and SME (when SME has MTD with supervision/TL breakdown)
+    trackerData.filter(r => r.product !== 'AgriFinance' && (r.product !== 'SME' || (r.teamLeaderRows?.length ?? 0) > 0)).forEach(row => {
       const supRows = row.supervisionRows.map(r => {
         const pctA = r.target > 0 ? (r.value / r.target * 100).toFixed(1) + '%' : '-';
         const pctU = r.target > 0 ? Math.max(0, (r.target - r.value) / r.target * 100).toFixed(1) + '%' : '-';
@@ -304,11 +492,12 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
         });
       }
     });
-    trackerData.filter(r => r.product === 'SME').forEach(row => {
+    // SME (management-only fallback) and AgriFinance: simple table
+    trackerData.filter(r => r.product === 'AgriFinance' || (r.product === 'SME' && (r.teamLeaderRows?.length ?? 0) === 0)).forEach(row => {
       const smeRows = row.supervisionRows.map(r => ({ 'Name': r.name, 'Value': r.value, 'Loans': r.loans, 'Target': r.target, 'Active Reps': r.activeReps }));
       row.teamLeaderRows.forEach(tl => smeRows.push({ 'Name': tl.name, 'Value': tl.value, 'Loans': tl.loans, 'Target': tl.target, 'Active Reps': tl.activeReps }));
       const smeTotal = { 'Name': 'Whole Total', 'Value': row.wholeTotalRow.value, 'Loans': row.wholeTotalRow.loans, 'Target': row.totalTarget, 'Active Reps': row.wholeTotalRow.activeReps };
-      if (smeRows.length > 0) tables.push({ title: 'SME', data: [...smeRows, smeTotal], totalRowIndices: [smeRows.length], colWidths: [22, 16, 12, 14, 14], headerColors: { 'Name': '#4472C4', 'Value': '#70AD47' } });
+      if (smeRows.length > 0) tables.push({ title: row.product, data: [...smeRows, smeTotal], totalRowIndices: [smeRows.length], colWidths: [22, 16, 12, 14, 14], headerColors: { 'Name': '#4472C4', 'Value': '#70AD47' } });
     });
     if (tables.length === 0) return [];
     return [{ name: 'Product Sales Tracker (MTD)', tables }];
@@ -316,13 +505,14 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
 
   useImperativeHandle(ref, () => ({ getExportSheets }), [trackerData]);
 
-  const formatValue = (value) => {
+  const formatValue = (value, options = {}) => {
     if (value === null || value === undefined || value === 0) return '-';
     if (typeof value === 'number') {
-      if (value >= 1000000000) return (value / 1000000000).toFixed(2) + 'B';
-      if (value >= 1000000) return (value / 1000000).toFixed(2) + 'M';
-      if (value >= 1000) return (value / 1000).toFixed(2) + 'K';
-      return value.toLocaleString();
+      if (options.noAbbreviate) return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      if (value >= 1000000000) return (value / 1000000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'B';
+      if (value >= 1000000) return (value / 1000000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M';
+      if (value >= 1000) return (value / 1000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'K';
+      return value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
     }
     return value;
   };
@@ -373,7 +563,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                       <td className="mtd-td-number">{formatValue(row.totalTarget)}</td>
                       <td className="mtd-td-number">{row.percentAchieved.toFixed(1)}%</td>
                       <td className="mtd-td-number">{row.percentUnachieved.toFixed(1)}%</td>
-                      <td className="mtd-td-number">{formatValue(row.averageLoanSize)}</td>
+                      <td className="mtd-td-number">{formatValue(row.averageLoanSize, { noAbbreviate: true })}</td>
                       <td className="mtd-td-number">{formatValue(row.totalActiveReps)}</td>
                     </tr>
                   ))}
@@ -384,7 +574,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
                     <td className="mtd-td-number mtd-whole-total-cell">{formatValue(trackerData.reduce((s, r) => s + r.totalTarget, 0))}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{trackerData.reduce((s, r) => s + r.totalTarget, 0) > 0 ? (trackerData.reduce((s, r) => s + r.totalValue, 0) / trackerData.reduce((s, r) => s + r.totalTarget, 0) * 100).toFixed(1) + '%' : '-'}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{trackerData.reduce((s, r) => s + r.totalTarget, 0) > 0 ? (Math.max(0, (trackerData.reduce((s, r) => s + r.totalTarget, 0) - trackerData.reduce((s, r) => s + r.totalValue, 0)) / trackerData.reduce((s, r) => s + r.totalTarget, 0) * 100)).toFixed(1) + '%' : '-'}</td>
-                    <td className="mtd-td-number mtd-whole-total-cell">-</td>
+                    <td className="mtd-td-number mtd-whole-total-cell">{(() => { const tv = trackerData.reduce((s, r) => s + r.totalValue, 0); const tl = trackerData.reduce((s, r) => s + r.totalLoans, 0); return tv > 0 && tl > 0 ? formatValue(tv / tl, { noAbbreviate: true }) : '-'; })()}</td>
                     <td className="mtd-td-number mtd-whole-total-cell">{formatValue(trackerData.reduce((s, r) => s + r.totalActiveReps, 0))}</td>
                   </tr>
                 </>
@@ -397,11 +587,11 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
           </table>
         </div>
 
-        {/* Supervision – horizontal: CS | LBF (and SME) */}
+        {/* Supervision – horizontal: CS | LBF | SME (same structure when MTD data available) */}
         <div className="mtd-section mtd-supervision-section">
           <h4 className="mtd-section-title">Supervision</h4>
           <div className="mtd-horizontal-tables">
-            {trackerData.filter(r => r.product !== 'SME').map((row, index) => (
+            {trackerData.filter(r => r.product !== 'AgriFinance').map((row, index) => (
               <div key={index} className="mtd-product-card">
                 <h5 className="mtd-product-card-title">{row.product}</h5>
                 <div className="mtd-performers-table-wrapper">
@@ -452,11 +642,11 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
           </div>
         </div>
 
-        {/* Team Leaders – horizontal: CS | LBF, with products sold per TL */}
+        {/* Team Leaders – horizontal: CS | LBF | SME, with products sold per TL */}
         <div className="mtd-section mtd-teamleaders-section">
           <h4 className="mtd-section-title">Team Leaders</h4>
           <div className="mtd-horizontal-tables">
-            {trackerData.filter(r => r.product !== 'SME').map((row, index) => (
+            {trackerData.filter(r => r.product !== 'AgriFinance').map((row, index) => (
               <div key={index} className="mtd-product-card">
                 <h5 className="mtd-product-card-title">{row.product}</h5>
                 <div className="mtd-performers-table-wrapper">
@@ -512,10 +702,11 @@ const ProductSalesTracker = forwardRef(({ mode, userData }, ref) => {
             ))}
           </div>
         </div>
-        {trackerData.some(r => r.product === 'SME') && (
+        {/* AgriFinance only (no MTD; SME uses same Supervision/Team Leaders sections as CS/LBF) */}
+        {trackerData.some(r => r.product === 'AgriFinance') && (
           <div className="mtd-section">
-            <h4 className="mtd-section-title">SME</h4>
-            {trackerData.filter(r => r.product === 'SME').map((row, index) => (
+            <h4 className="mtd-section-title">AgriFinance</h4>
+            {trackerData.filter(r => r.product === 'AgriFinance').map((row, index) => (
               <div key={index} className="mtd-product-card mtd-sme-card">
                 <h5 className="mtd-product-card-title">{row.product}</h5>
                 <div className="mtd-performers-table-wrapper">

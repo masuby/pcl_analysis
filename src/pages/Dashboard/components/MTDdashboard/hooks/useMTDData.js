@@ -271,8 +271,37 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     // For CS: Branch column in listing = team leader name
     
     const listingHeadersArr = Object.keys(listingData[0] || {});
-    const teamMatchCol = listingHeadersArr.find(k => k.toUpperCase() === 'TEAM') ||
+    let teamMatchCol = listingHeadersArr.find(k => k.toUpperCase() === 'TEAM') ||
                          listingHeadersArr.find(k => k.toUpperCase() === 'BRANCH');
+    
+    // SME: listing has no TEAM/BRANCH; find column whose values match MTD team leader names
+    if (!teamMatchCol && department === 'SME' && listingData.length > 0) {
+      const allTLNames = new Set();
+      Object.values(groupedData).forEach(s => {
+        (s.teamLeaders || []).forEach(tl => {
+          if (tl.name) allTLNames.add(String(tl.name).toUpperCase().trim().replace(/\s+/g, ' '));
+        });
+      });
+      let bestCol = null;
+      let bestCount = 0;
+      const skipCols = new Set(['SALES REP', 'SALES REP. NAME', 'FULL NAME', 'TERM', 'ID', 'DAY OF MONTH', 'DISBURSE AMOUNT', 'STATUS', 'SUPERVISION']);
+      listingHeadersArr.forEach(h => {
+        const hUpper = String(h || '').toUpperCase().trim();
+        if (!h || skipCols.has(hUpper)) return;
+        const count = listingData.filter(r => {
+          const v = r[h];
+          if (v == null || v === '') return false;
+          const vNorm = String(v).toUpperCase().trim().replace(/\s+/g, ' ');
+          return allTLNames.has(vNorm);
+        }).length;
+        if (count > bestCount) {
+          bestCount = count;
+          bestCol = h;
+        }
+      });
+      if (bestCol) teamMatchCol = bestCol;
+      console.log('[MTD] SME team match column (detected):', teamMatchCol, 'matches:', bestCount);
+    }
     
     console.log('[MTD] Using team match column:', teamMatchCol);
     
@@ -345,6 +374,28 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     throw error;
   }
 };
+
+/** Pick the report to use for a given month (YYYY-MM): end-of-month date preferred, else latest report in that month, else first in list. */
+function getReportForMonth(reports, yyyyMm) {
+  if (!reports?.length || !yyyyMm || typeof yyyyMm !== 'string') return null;
+  const parts = yyyyMm.split('-').map(Number);
+  if (parts.length < 2) return null;
+  const [y, m] = parts;
+  if (!y || !m) return null;
+  const lastDay = new Date(y, m, 0).getDate();
+  const toDate = (r) => (r.date instanceof Date ? r.date : new Date(r.date));
+  const sameDay = (d, year, month, day) =>
+    d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+  const inMonth = (d) => d.getFullYear() === y && d.getMonth() === m - 1;
+  const endOfMonth = reports.find((r) => sameDay(toDate(r), y, m, lastDay));
+  if (endOfMonth) return endOfMonth;
+  const inMonthReports = reports.filter((r) => inMonth(toDate(r)));
+  if (inMonthReports.length > 0) {
+    inMonthReports.sort((a, b) => toDate(b) - toDate(a));
+    return inMonthReports[0];
+  }
+  return reports[0] ?? null;
+}
 
 export const useMTDData = (department, selectedDate = null) => {
   const { refreshTrigger } = useReportRefresh();
@@ -458,14 +509,18 @@ export const useMTDData = (department, selectedDate = null) => {
       setError(null);
       
       let targetReport = reports[0];
-      if (selectedDate) {
-        const selected = reports.find(r => {
-          const reportDate = r.date instanceof Date ? r.date : new Date(r.date);
+      if (selectedDate != null) {
+        if (typeof selectedDate === 'string' && /^\d{4}-\d{2}$/.test(selectedDate)) {
+          targetReport = getReportForMonth(reports, selectedDate) ?? reports[0];
+        } else {
           const selectDate = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
-          return reportDate.toDateString() === selectDate.toDateString();
-        });
-        if (selected) {
-          targetReport = selected;
+          const selected = reports.find(r => {
+            const reportDate = r.date instanceof Date ? r.date : new Date(r.date);
+            return reportDate.toDateString() === selectDate.toDateString();
+          });
+          if (selected) {
+            targetReport = selected;
+          }
         }
       }
       

@@ -151,12 +151,13 @@ const ReportManagement = () => {
   };
 
   const handleReportUpdated = (updatedReport) => {
-    const updatedReports = reports.map(report => 
+    const updatedReports = reports.map(report =>
       report.id === updatedReport.id ? updatedReport : report
     );
     setReports(updatedReports);
     setFilteredReports(updatedReports);
     showToast('success', 'Report updated successfully');
+    triggerRefresh(); // Notify Management/Summary/Departmental dashboards to refetch
   };
 
   const handleReportDeleted = (reportId) => {
@@ -164,6 +165,7 @@ const ReportManagement = () => {
     setReports(updatedReports);
     setFilteredReports(updatedReports);
     showToast('success', 'Report deleted successfully');
+    triggerRefresh(); // Notify dashboards to drop deleted report from data
   };
 
   const handleParseReports = async () => {

@@ -456,8 +456,7 @@ export const getBatchReportData = async () => {
     const response = await apiRequest('/api/reports/batch-data');
     
     if (response.success) {
-      // Cache for 5 minutes
-      cacheSet('dashboard', { key: cacheKey, data: response.data }, 5 * 60 * 1000);
+      cacheSet('dashboard', { key: cacheKey }, response.data || {});
       return { success: true, data: response.data || {}, cached: response.cached };
     }
     

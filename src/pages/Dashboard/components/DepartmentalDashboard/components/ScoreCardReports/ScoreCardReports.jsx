@@ -120,6 +120,7 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
     }
   });
   const [newRecipient, setNewRecipient] = useState('');
+  const [pasteBox, setPasteBox] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [sendProgress, setSendProgress] = useState(null); // { email, status: 'pending'|'sending'|'success'|'failed', error? }[]
@@ -168,6 +169,37 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
 
   const removeRecipient = (email) => {
     setRecipients((prev) => prev.filter((r) => r !== email));
+  };
+
+  const parseEmailsFromText = (text) => {
+    const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return [...new Set(text.split(/\s*[\n,;\t]\s*/).map((s) => s.trim().toLowerCase()).filter((s) => emailLike.test(s)))];
+  };
+
+  const pasteEmails = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const toAdd = parseEmailsFromText(text).filter((e) => !recipients.includes(e));
+      if (toAdd.length === 0) {
+        setSendError(recipients.length === 0 ? 'No valid emails in clipboard. Paste lines or comma-separated addresses.' : 'No new valid emails to add.');
+        return;
+      }
+      setRecipients((prev) => [...prev, ...toAdd]);
+      setSendError('');
+    } catch {
+      setSendError('Clipboard access denied. Paste into the box below and click "Add pasted".');
+    }
+  };
+
+  const addPasteBoxEmails = () => {
+    const toAdd = parseEmailsFromText(pasteBox).filter((e) => !recipients.includes(e));
+    if (toAdd.length === 0) {
+      setSendError(pasteBox.trim() ? 'No valid emails in the box.' : 'Paste emails above (one per line or comma/semicolon separated), then click Add pasted.');
+      return;
+    }
+    setRecipients((prev) => [...prev, ...toAdd]);
+    setPasteBox('');
+    setSendError('');
   };
 
   // Generate email preview
@@ -319,7 +351,7 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
         
         <div className="scorecard-divider"></div>
         
-        <ProductSalesTracker ref={productRef} mode={mode} userData={userData} />
+        <ProductSalesTracker ref={productRef} mode={mode} userData={userData} targetMonth={dateFrom ? `${dateFrom.getFullYear()}-${String(dateFrom.getMonth() + 1).padStart(2, '0')}` : null} />
         
         <div className="scorecard-divider"></div>
         
@@ -399,6 +431,27 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
                 <button type="button" className="scorecard-add-recipient-btn" onClick={addRecipient}>
                   Add
                 </button>
+                <button
+                  type="button"
+                  className="scorecard-copy-list-btn scorecard-paste-btn"
+                  onClick={pasteEmails}
+                  disabled={sending}
+                  title="Paste emails from clipboard (one per line or comma/semicolon separated)"
+                >
+                  Paste
+                </button>
+              </div>
+              <div className="scorecard-paste-box-wrap">
+                <textarea
+                  className="scorecard-paste-box"
+                  placeholder="Or paste many emails here (one per line or comma/semicolon separated)"
+                  value={pasteBox}
+                  onChange={(e) => setPasteBox(e.target.value)}
+                  rows={3}
+                />
+                <button type="button" className="scorecard-copy-list-btn" onClick={addPasteBoxEmails}>
+                  Add pasted
+                </button>
               </div>
               <div className="scorecard-recipient-list-actions">
                 <button
@@ -436,7 +489,7 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
                 ))}
               </ul>
               {recipients.length === 0 && (
-                <p className="scorecard-modal-empty">No recipients yet. Add one above.</p>
+                <p className="scorecard-modal-empty">No recipients yet. Add one above or paste many emails in the box and click Add pasted.</p>
               )}
 
               {/* Email Preview Section */}

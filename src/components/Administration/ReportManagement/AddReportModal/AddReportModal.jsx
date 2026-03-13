@@ -88,13 +88,15 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
         'application/pdf',
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel.sheet.binary.macroEnabled.12', // .xlsb
         'text/csv',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       ];
-      
-      if (!allowedTypes.includes(formData.file.type)) {
-        newErrors.file = 'Please upload a valid file (PDF, Excel, CSV, Word)';
+      const isXlsb = /\.xlsb$/i.test(formData.file.name || '');
+      const typeOk = allowedTypes.includes(formData.file.type) || (isXlsb && (!formData.file.type || formData.file.type === 'application/octet-stream'));
+      if (!typeOk) {
+        newErrors.file = 'Please upload a valid file (PDF, Excel .xlsx/.xls/.xlsb, CSV, Word)';
       }
       
       if (formData.file.size > 50 * 1024 * 1024) { // 50MB limit
@@ -483,7 +485,7 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="file-input"
-                accept=".pdf,.xlsx,.xls,.csv,.doc,.docx"
+                accept=".pdf,.xlsx,.xls,.xlsb,.csv,.doc,.docx"
                 disabled={loading}
               />
               
@@ -522,7 +524,7 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
                   <div className="upload-text">
                     <p className="upload-title">Click to upload or drag and drop</p>
                     <p className="upload-subtitle">
-                      PDF, Excel, CSV, or Word files (Max 50MB)
+                      PDF, Excel (.xlsx, .xls, .xlsb), CSV, or Word (Max 50MB)
                     </p>
                     <p className="upload-note">
                       Report title will be auto-generated from filename

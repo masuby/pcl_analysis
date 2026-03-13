@@ -5,10 +5,11 @@ import PerformanceComparison from './PerformanceComparison';
 import PerProductContribution from './PerProductContribution';
 import NewBusinessPerformance from './NewBusinessPerformance';
 import RepeatBusinessPerformance from './RepeatBusinessPerformance';
+import SupervisionPerformance from './SupervisionPerformance';
 
 /**
  * Reusable block for a product section (CS, LBF, IPF, SME, etc.).
- * Renders the same flow: section title page, summary, trend chart, comparison, new/repeat business performance, (optional) product contribution.
+ * Renders the same flow: section title page, summary, trend chart, comparison, new/repeat business performance, (optional) product contribution, (optional) supervision performance.
  */
 export default function ProductPerformanceBlock({
   section,
@@ -21,6 +22,7 @@ export default function ProductPerformanceBlock({
   newBusinessTrend,
   repeatBusinessComparison,
   repeatBusinessTrend,
+  supervisionData,
   monthLabel,
   logoSrc
 }) {
@@ -87,6 +89,11 @@ export default function ProductPerformanceBlock({
       {/* Per Product Contribution (only if section has sub-products with data) */}
       {showProductContribution && (
         <PerProductContribution productData={productContributionData} logoSrc={logoSrc} />
+      )}
+
+      {/* Supervision Performance (LBF and CS Mainland from MTD) */}
+      {supervisionData?.rows?.length > 0 && (
+        <SupervisionPerformance supervisionData={supervisionData} logoSrc={logoSrc} />
       )}
     </>
   );

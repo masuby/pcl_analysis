@@ -1,9 +1,10 @@
 /**
  * Gap Analysis utils: map MTD columns, build Branch (Team Leader) and RSM (Supervision) gap data.
- * CS and LBF are separate reports in the DB; fetch via getReportsByDepartmentAndType(department, 'MTD').
+ * CS, LBF, and SME are separate reports in the DB; fetch via getReportsByDepartmentAndType(department, 'MTD').
  * CS file columns (from MTD sheet): BRANCH/ TEAM LEADER, NEW LOANS TARGET, REFINANCE TARGET, MONTH TARGET,
  *   NEW LOANS (achieved), REFINANCE (achieved), VALUE (disbursement), COMMENT, Number of Active Reps.
- * LBF file columns: first col = branch/team name, MONTH TARGET, VALUE, COMMENT, Number of Active Reps.
+ * LBF/SME file columns: first col = branch/team name, MONTH TARGET, VALUE, COMMENT, Number of Active Reps.
+ * SME uses the same column map and gap row structure as LBF (buildLBFGapRows, ROW_ORDER_LBF).
  */
 
 const num = (v) => {
@@ -251,7 +252,12 @@ export const buildBranchData = (parsedData, product, actualRepsOverrides = {}) =
 const ROW_ORDER_CS = ['New Loans', 'Repeat Loans', 'Monthly Disbursement (Month Target)', 'Active Reps', 'Actual Reps'];
 const ROW_ORDER_LBF = ['Monthly Disbursement', 'Active', 'Actual'];
 
-/** Build RSM section: list of { supervision, rows }. All metrics (including Active/Actual targets) from MTD supervision row when present; else sum of team leaders. */
+/**
+ * RSM section: built from one MTD report. Caller should pass parsedData for the report that is the
+ * latest in the chosen month (e.g. Cluster KPI Analysis Feb 2026 → latest February MTD). Actual Reps
+ * Achieved can be overridden via actualRepsOverrides (keyed RSM:SupervisionName or TL|Supervision),
+ * e.g. from Gap Analysis localStorage for that reportId.
+ */
 const sumRowData = (rowsList, product) => {
   if (!rowsList.length) return [];
   const keys = ['Target', 'Achieved', 'Remaining', '% Achived', '% Unachived'];
@@ -359,6 +365,85 @@ export const buildRSMData = (parsedData, product, actualRepsOverrides = {}) => {
     out.push({ supervision: supervisionName, key: rsmKey, rows });
   }
   return out;
+};
+
+/**
+ * Build RSM-style data from branch-level MTD when supervisions are not zone names.
+ * Returns one entry per branch in branchNamesInCluster that appears as a team leader.
+ * Same shape as buildRSMData: [{ supervision, key, rows }].
+ */
+export const buildRSMDataFromBranches = (parsedData, product, branchNamesInCluster, actualRepsOverrides = {}) => {
+  if (!parsedData?.groupedData || !parsedData?.headers) return [];
+  const colMap = getColumnMap(parsedData.headers, product);
+  const branchSet = new Set((branchNamesInCluster || []).map((b) => String(b || '').trim()));
+  const out = [];
+  const seen = new Set();
+
+  for (const sup of Object.values(parsedData.groupedData)) {
+    const supervisionName = sup.supervision || '';
+    for (const tl of sup.teamLeaders || []) {
+      const branchName = String(tl.name || '').trim();
+      if (!branchName || !branchSet.has(branchName)) continue;
+      if (seen.has(branchName)) continue;
+      seen.add(branchName);
+      const key = `${branchName}|${supervisionName}`;
+      const override = actualRepsOverrides[key];
+      let rows;
+      if (product === 'CS') {
+        rows = buildCSGapRows(tl.data || {}, colMap, supervisionName, override);
+      } else {
+        rows = buildLBFGapRows(tl.data || {}, colMap, override);
+      }
+      out.push({ supervision: branchName, key: 'RSM:' + branchName, rows });
+    }
+  }
+  return out;
+};
+
+/** Get actual reps count for a supervision from overrides: RSM:SupervisionName or sum of TLName|SupervisionName. Rounded to whole number (agents are people). */
+export const getActualRepsForSupervision = (supervisionName, actualRepsOverrides = {}) => {
+  if (!supervisionName || !actualRepsOverrides || typeof actualRepsOverrides !== 'object') return 0;
+  const rsmKey = 'RSM:' + supervisionName;
+  if (actualRepsOverrides[rsmKey] != null && actualRepsOverrides[rsmKey] !== '') {
+    return Math.round(num(actualRepsOverrides[rsmKey]));
+  }
+  const suffix = '|' + supervisionName;
+  let sum = 0;
+  for (const [key, val] of Object.entries(actualRepsOverrides)) {
+    if (key.endsWith(suffix) && val != null && val !== '') sum += num(val);
+  }
+  return Math.round(sum);
+};
+
+/** Grand totals for Active/Actual agents from MTD + actual reps overrides (for Sales Review summary). All agent counts rounded to whole numbers. */
+export const getActiveActualTotals = (parsedData, product, actualRepsOverrides = {}) => {
+  if (!parsedData?.groupedData || !parsedData?.headers) {
+    return { activeTarget: 0, activeAchieved: 0, actualTarget: 0, actualAchieved: 0 };
+  }
+  const rsmData = buildRSMData(parsedData, product, actualRepsOverrides);
+  const activeLabel = product === 'CS' ? 'Active Reps' : 'Active';
+  const actualLabel = product === 'CS' ? 'Actual Reps' : 'Actual';
+  let activeTarget = 0;
+  let activeAchieved = 0;
+  let actualTarget = 0;
+  let actualAchieved = 0;
+  for (const { rows } of rsmData) {
+    for (const row of rows) {
+      if (row.rowLabel === activeLabel) {
+        activeTarget += num(row.Target);
+        activeAchieved += row.Achieved != null && row.Achieved !== '' ? num(row.Achieved) : 0;
+      } else if (row.rowLabel === actualLabel) {
+        actualTarget += num(row.Target);
+        actualAchieved += row.Achieved != null && row.Achieved !== '' ? num(row.Achieved) : 0;
+      }
+    }
+  }
+  return {
+    activeTarget: Math.round(activeTarget),
+    activeAchieved: Math.round(activeAchieved),
+    actualTarget: Math.round(actualTarget),
+    actualAchieved: Math.round(actualAchieved)
+  };
 };
 
 /** Grade from % Archived: >=80% A, >=65% B, >=50% C, >=39% D, <39% E */

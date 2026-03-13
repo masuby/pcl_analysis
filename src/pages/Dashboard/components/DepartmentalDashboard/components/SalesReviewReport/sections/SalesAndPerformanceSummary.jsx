@@ -19,9 +19,17 @@ export default function SalesAndPerformanceSummary({ summaryData, monthLabel, lo
     numberOfLoansFormatted,
     averageLoanSizeFormatted,
     activeRepsFormatted,
+    activeTarget,
+    activeAchieved,
+    activePct,
+    actualTarget,
+    actualAchieved,
+    actualPct,
     newBusiness,
     repeatBusiness
   } = summaryData;
+  const hasActiveSummary = activeTarget != null;
+  const hasActiveActualSummary = activeTarget != null && actualTarget != null;
 
   const label = summaryData.monthLabel || monthLabel;
   const pieData = [
@@ -94,10 +102,32 @@ export default function SalesAndPerformanceSummary({ summaryData, monthLabel, lo
       </p>
       <div className="report-summary-line" />
 
-      <p className="report-summary-para">
-        The total number of Active agents for the month of <strong>{label}</strong> stands at{' '}
-        <strong>{activeRepsFormatted}</strong>.
-      </p>
+      {hasActiveActualSummary ? (
+        <>
+          <p className="report-summary-para">
+            The total Number of Active Agents for the Month of <strong>{label}</strong> stands at{' '}
+            <strong>{activeAchieved ?? activeRepsFormatted}</strong>, having achieved <strong>{activePct}%</strong> of the total Active Agent target ({' '}
+            <strong>{activeTarget}</strong>).
+          </p>
+          <div className="report-summary-line" />
+          <p className="report-summary-para">
+            The total Number of Actual Agents for the Month of <strong>{label}</strong> stands at{' '}
+            <strong>{actualAchieved ?? 0}</strong>, having achieved <strong>{actualPct}%</strong> of the total Actual Agent target ({' '}
+            <strong>{actualTarget}</strong>).
+          </p>
+        </>
+      ) : hasActiveSummary ? (
+        <p className="report-summary-para">
+          The total Number of Active Agents for the Month of <strong>{label}</strong> stands at{' '}
+          <strong>{activeAchieved ?? activeRepsFormatted}</strong>, having achieved <strong>{activePct}%</strong> of the total Active Agent target ({' '}
+          <strong>{activeTarget}</strong>).
+        </p>
+      ) : (
+        <p className="report-summary-para">
+          The total number of Active agents for the month of <strong>{label}</strong> stands at{' '}
+          <strong>{activeRepsFormatted}</strong>.
+        </p>
+      )}
 
       <div className="report-page-bottom-line" />
     </div>

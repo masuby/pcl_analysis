@@ -1,18 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import './KpiAnalysisReport.css';
-import { loadCsKpiTargets, formatTzs, CS_KPI_TARGET_FILE_URL, getWeightForKpiKey } from './utils/csKpiTargets';
+import { loadCsKpiTargets, loadCsKpiClusterTargets, formatTzs, CS_KPI_TARGET_FILE_URL, CS_KPI_CLUSTER_TARGET_FILE_URL, getWeightForKpiKey } from './utils/csKpiTargets';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
 import { getReportFileUrl } from '../../../../../../services/supabase';
 import { getReportsByDepartmentAndType } from '../../../../../../services/reports';
+import { gapAnalysisAPI } from '../../../../../../services/api';
 import { exportMultipleSheetsWithStyles, buildWorkbookBuffer } from '../../utils/excelExportStyled';
 import { sendScoreCardEmail } from '../../utils/emailScoreCard';
 import { buildKpiReportEmailHTML } from '../../utils/emailTemplateKpi';
 import { parseManagementReportCsBranches } from './utils/parseManagementReportCsBranches';
+import { getBranchToClusterCS, getBranchesByClusterCS } from './utils/zoneClusterMapping';
+import { buildRSMData, buildRSMDataFromBranches } from '../GapAnalysis/utils/gapAnalysisUtils';
+import { parseCrmClusterSheets, aggregateCrmForCluster } from './utils/parseCrmClusterSheets';
+import { ZONES_BY_CLUSTER_CS } from './ClusterKpis/constants';
 import { getCrmEmailMetrics } from './utils/crmMetricsFromReport';
 import { extractMetrics } from '../../../CRMdashboard/utils/crmUtils';
 import { useCRMData } from '../../../CRMdashboard/hooks/useCRMData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
+import ClusterKpiView from './ClusterKpis/ClusterKpiView';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const KPI_REPORT_RECIPIENTS_KEY = 'kpi_report_email_recipients';
@@ -74,8 +80,24 @@ const KpiAnalysisReport = () => {
   const [targetsLoading, setTargetsLoading] = useState(true);
   /** Selected month YYYY-MM; null = use latest available */
   const [selectedMonthKey, setSelectedMonthKey] = useState(null);
+  /** CS sub-view: Total (all) or Cluster 1, Cluster 2, Cluster 3, Zanzibar */
+  const [csView, setCsView] = useState('Total');
   /** Branch-level data from management report Excel (for dashboard KPI Summary & Branch section) */
   const [branchSummaryData, setBranchSummaryData] = useState(null);
+  /** Branch -> cluster (CS only), from Zone and cluster.xlsx */
+  const [branchToClusterMap, setBranchToClusterMap] = useState(null);
+  /** Branches per cluster (CS only) */
+  const [branchesByCluster, setBranchesByCluster] = useState(null);
+  /** Cluster KPI targets from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx (when a cluster is selected) */
+  const [clusterTargets, setClusterTargets] = useState(null);
+  /** Parsed CRM agent_activity + Lead_Report for cluster view (by zone, then aggregated) */
+  const [crmClusterSheetsData, setCrmClusterSheetsData] = useState(null);
+  /** Actual reps from Gap Analysis API (uploaded template); keyed by RSM:Zone or TL|Supervision */
+  const [gapActualRepsFromServer, setGapActualRepsFromServer] = useState({});
+  /** Per-report CRM metrics for the month (all reports): on location + data consent for cluster */
+  const [crmReportsInMonthData, setCrmReportsInMonthData] = useState([]);
+  /** Parsed previous month Management report (Country sheet clusters) for cluster Portfolio / PAR30 */
+  const [branchSummaryDataPrevious, setBranchSummaryDataPrevious] = useState(null);
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipients, setRecipients] = useState(() => {
@@ -106,14 +128,6 @@ const KpiAnalysisReport = () => {
 
   const { parsedReports: managementReports } = useManagementData();
   const { reports: mtdReports } = useMTDData('CS');
-  const latestMTDInMonth = useMemo(() => {
-    if (!selectedMonthKey || !mtdReports?.length) return null;
-    const inMonth = mtdReports.filter(r => toMonthKey(r.date) === selectedMonthKey);
-    if (inMonth.length === 0) return null;
-    inMonth.sort((a, b) => new Date(b.date) - new Date(a.date));
-    return inMonth[0];
-  }, [selectedMonthKey, mtdReports]);
-  const { parsedData: mtdParsedData } = useMTDData('CS', latestMTDInMonth?.date ?? undefined);
 
   /** Months available in DB (from management reports), newest first */
   const availableMonths = useMemo(() => {
@@ -123,6 +137,16 @@ const KpiAnalysisReport = () => {
   }, [managementReports]);
 
   const effectiveMonthKey = selectedMonthKey || availableMonths[0] || null;
+
+  /** Latest MTD report in the chosen month (e.g. Feb 2026 → latest February MTD). Used for RSM: New Loans target/achieved and Actual Reps. */
+  const latestMTDInMonth = useMemo(() => {
+    if (!effectiveMonthKey || !mtdReports?.length) return null;
+    const inMonth = mtdReports.filter((r) => toMonthKey(r.date) === effectiveMonthKey);
+    if (inMonth.length === 0) return null;
+    inMonth.sort((a, b) => new Date(b.date) - new Date(a.date));
+    return inMonth[0];
+  }, [effectiveMonthKey, mtdReports]);
+  const { parsedData: mtdParsedData } = useMTDData('CS', latestMTDInMonth?.date ?? undefined);
   const latestManagementReport = useMemo(() => {
     if (!effectiveMonthKey || !managementReports?.length) return null;
     const inMonth = managementReports.filter(r => toMonthKey(r.date || r.createdAt) === effectiveMonthKey);
@@ -147,10 +171,23 @@ const KpiAnalysisReport = () => {
   }, [prevMonthKey, managementReports]);
 
   const { reports: crmReports } = useCRMData('CS');
+  /** All CRM reports in the selected month (for KPIs 7 & 8 per-report tables) */
+  const crmReportsInMonth = useMemo(() => {
+    if (!crmReports?.length || !effectiveMonthKey) return [];
+    const inMonth = crmReports.filter((r) => toMonthKey(r.date) === effectiveMonthKey);
+    inMonth.sort((a, b) => new Date(a.date || a.createdAt) - new Date(b.date || b.createdAt));
+    return inMonth;
+  }, [crmReports, effectiveMonthKey]);
   const crmDateForMonth = useMemo(() => {
     if (!crmReports?.length || !effectiveMonthKey) return null;
     const inMonth = crmReports.filter(r => toMonthKey(r.date) === effectiveMonthKey);
     return inMonth[0]?.date ?? null;
+  }, [crmReports, effectiveMonthKey]);
+  const crmReportForMonth = useMemo(() => {
+    if (!crmReports?.length || !effectiveMonthKey) return null;
+    const inMonth = crmReports.filter(r => toMonthKey(r.date) === effectiveMonthKey);
+    inMonth.sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
+    return inMonth[0] ?? null;
   }, [crmReports, effectiveMonthKey]);
   const { parsedData: crmParsedDataForMonth } = useCRMData('CS', crmDateForMonth ?? undefined);
 
@@ -179,22 +216,502 @@ const KpiAnalysisReport = () => {
     return () => { cancelled = true; };
   }, [latestManagementReport?.id, effectiveMonthKey]);
 
-  /** Summary rows for dashboard KPI Summary section (same logic as Excel, using branchSummaryData) */
-  const dashboardSummaryRows = useMemo(() => {
-    if (!targets || !effectiveMonthKey) return [];
-    const standards = targets.performanceStandards || [];
+  /** Parse previous month Management report for cluster row (Portfolio, PAR30) so growth uses cluster-level data. */
+  useEffect(() => {
+    if (!previousMonthManagementReport) {
+      setBranchSummaryDataPrevious(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        let fileUrl = previousMonthManagementReport.fileUrl || previousMonthManagementReport.file_url;
+        if (!fileUrl && (previousMonthManagementReport.filePath || previousMonthManagementReport.file_path)) {
+          fileUrl = await getReportFileUrl(previousMonthManagementReport.filePath || previousMonthManagementReport.file_path);
+        }
+        if (!fileUrl) {
+          if (!cancelled) setBranchSummaryDataPrevious(null);
+          return;
+        }
+        const data = await parseManagementReportCsBranches(fileUrl);
+        if (!cancelled) setBranchSummaryDataPrevious(data);
+      } catch (e) {
+        if (!cancelled) setBranchSummaryDataPrevious(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [previousMonthManagementReport?.id]);
+
+  useEffect(() => {
+    if (product !== 'CS' || csView === 'Total' || !crmReportForMonth) {
+      setCrmClusterSheetsData(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        let fileUrl = crmReportForMonth.fileUrl || crmReportForMonth.file_url;
+        if (!fileUrl && (crmReportForMonth.filePath || crmReportForMonth.file_path)) {
+          fileUrl = await getReportFileUrl(crmReportForMonth.filePath || crmReportForMonth.file_path);
+        }
+        if (!fileUrl) {
+          if (!cancelled) setCrmClusterSheetsData(null);
+          return;
+        }
+        const data = await parseCrmClusterSheets(fileUrl);
+        if (!cancelled) setCrmClusterSheetsData(data);
+      } catch (_) {
+        if (!cancelled) setCrmClusterSheetsData(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [product, csView, crmReportForMonth?.id]);
+
+  /** Fetch Actual Sales Reps from Gap Analysis API (same source as Gap upload template) for latest MTD report */
+  useEffect(() => {
+    const reportId = mtdParsedData?.reportId;
+    if (product !== 'CS' || !reportId) {
+      setGapActualRepsFromServer({});
+      return;
+    }
+    let cancelled = false;
+    gapAnalysisAPI.getActualReps(reportId).then((res) => {
+      if (cancelled) return;
+      const data = res?.data ?? {};
+      const normalized = {};
+      Object.entries(data).forEach(([k, v]) => {
+        if (v != null && v !== '') normalized[k] = Number(v);
+      });
+      setGapActualRepsFromServer(normalized);
+    }).catch(() => {
+      if (!cancelled) setGapActualRepsFromServer({});
+    });
+    return () => { cancelled = true; };
+  }, [product, mtdParsedData?.reportId]);
+
+  /** Load all CRM reports in the selected month; aggregate per report using CS only + zones in this cluster (KPIs 7 & 8). */
+  useEffect(() => {
+    if (product !== 'CS' || csView === 'Total' || !crmReportsInMonth?.length) {
+      setCrmReportsInMonthData([]);
+      return;
+    }
+    const clusterZones = ZONES_BY_CLUSTER_CS[csView];
+    if (!clusterZones?.length) {
+      setCrmReportsInMonthData([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const results = [];
+      for (const report of crmReportsInMonth) {
+        if (cancelled) return;
+        try {
+          let fileUrl = report.fileUrl || report.file_url;
+          if (!fileUrl && (report.filePath || report.file_path)) {
+            fileUrl = await getReportFileUrl(report.filePath || report.file_path);
+          }
+          if (!fileUrl) continue;
+          const parsed = await parseCrmClusterSheets(fileUrl);
+          const agg = aggregateCrmForCluster(parsed.agentActivity, parsed.leadReport, clusterZones);
+          const reportDate = report.date || report.createdAt;
+          const dateStr = reportDate ? new Date(reportDate).toISOString().slice(0, 10) : '—';
+          results.push({
+            reportDate: dateStr,
+            completed: agg.completed ?? 0,
+            atLocation: agg.atLocation ?? 0,
+            totalLead: agg.total ?? 0,
+            accepted: agg.accepted ?? 0
+          });
+        } catch (_) {
+          // skip this report
+        }
+      }
+      if (!cancelled) setCrmReportsInMonthData(results);
+    })();
+    return () => { cancelled = true; };
+  }, [product, csView, crmReportsInMonth]);
+
+  useEffect(() => {
+    if (product !== 'CS') {
+      setBranchToClusterMap(null);
+      setBranchesByCluster(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [map, byCluster] = await Promise.all([getBranchToClusterCS(), getBranchesByClusterCS()]);
+        if (!cancelled) {
+          setBranchToClusterMap(map);
+          setBranchesByCluster(byCluster);
+        }
+      } catch (_) {
+        if (!cancelled) {
+          setBranchToClusterMap(new Map());
+          setBranchesByCluster({ 'Cluster 1': [], 'Cluster 2': [], 'Cluster 3': [], Zanzibar: [] });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [product]);
+
+  /** Filter branch summary by csView (Total = all; otherwise only branches in that cluster) */
+  const filteredBranchSummaryData = useMemo(() => {
+    if (!branchSummaryData) return null;
+    if (csView === 'Total' || !branchToClusterMap) return branchSummaryData;
+    const branchesInView = branchesByCluster?.[csView] || [];
+    const set = new Set(branchesInView);
+    const branches = (branchSummaryData.branches || []).filter((b) => set.has(b.branch));
+    const clusters = (branchSummaryData.clusters || []).filter((c) => c.branch === csView);
+    let totalTarget = 0;
+    let totalDisbursement = 0;
+    let achieved100Count = 0;
+    let notAchieved100Count = 0;
+    branches.forEach((b) => {
+      totalTarget += b.target || 0;
+      totalDisbursement += b.disbursement || 0;
+      if ((b.pct ?? 0) >= 100) achieved100Count += 1;
+      else notAchieved100Count += 1;
+    });
+    return {
+      branches,
+      clusters,
+      totalTarget,
+      totalDisbursement,
+      achieved100Count,
+      notAchieved100Count
+    };
+  }, [branchSummaryData, csView, branchToClusterMap, branchesByCluster]);
+
+  /** MTD sales achieved for current view: Total = grand total; cluster = sum of team leaders in that cluster */
+  const mtdSalesAchievedForView = useMemo(() => {
+    const raw = mtdParsedData?.grandTotalRow?.VALUE ?? mtdParsedData?.grandTotalRow?.value;
+    const fullTotal = typeof raw === 'number' ? raw : (raw != null ? parseFloat(raw) : NaN);
+    if (csView === 'Total' || !branchesByCluster || !mtdParsedData?.groupedData) {
+      return fullTotal;
+    }
+    const branchesInView = new Set(branchesByCluster[csView] || []);
+    if (branchesInView.size === 0) return fullTotal;
+    let sum = 0;
+    for (const [, group] of Object.entries(mtdParsedData.groupedData)) {
+      for (const tl of group.teamLeaders || []) {
+        const name = (tl.name || '').trim();
+        if (branchesInView.has(name)) {
+          const d = tl.data || {};
+          const v = Number(d.VALUE ?? d.Value ?? 0) || 0;
+          sum += v;
+        }
+      }
+    }
+    return Number.isFinite(sum) ? sum : fullTotal;
+  }, [mtdParsedData, csView, branchesByCluster]);
+
+  /** When a cluster is selected, use cluster target file for standards and sales target; otherwise main CS target file. */
+  const effectiveTargetsForKpi = useMemo(() => {
+    if (!targets || !effectiveMonthKey) return null;
+    const isCluster = csView !== 'Total' && (csView === 'Cluster 1' || csView === 'Cluster 2' || csView === 'Cluster 3' || csView === 'Zanzibar');
+    if (isCluster && clusterTargets?.clusters?.[csView]) {
+      const clusterRow = clusterTargets.clusters[csView][effectiveMonthKey];
+      return {
+        performanceStandards: clusterTargets.performanceStandards?.length ? clusterTargets.performanceStandards : targets.performanceStandards,
+        salesTarget: clusterRow?.total ?? 0
+      };
+    }
     const mainT = (targets.mainland || {})[effectiveMonthKey];
     const zanT = (targets.zanzibar || {})[effectiveMonthKey];
     const ccT = (targets.callCenter || {})[effectiveMonthKey];
-    const salesTarget = (mainT?.total ?? 0) + (zanT?.total ?? 0) + (ccT ?? 0);
-    const salesAchievedNum = mtdParsedData?.grandTotalRow?.VALUE ?? mtdParsedData?.grandTotalRow?.value;
+    return {
+      performanceStandards: targets.performanceStandards || [],
+      salesTarget: (mainT?.total ?? 0) + (zanT?.total ?? 0) + (ccT ?? 0)
+    };
+  }, [targets, clusterTargets, csView, effectiveMonthKey]);
+
+  /** For cluster view: disbursement from Management report Country sheet (cluster row). */
+  const countrySheetClusterDisbursement = useMemo(() => {
+    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
+    const row = branchSummaryData.clusters.find(
+      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
+    );
+    return row?.disbursement ?? null;
+  }, [csView, branchSummaryData?.clusters]);
+
+  /** For cluster view: Portfolio and PAR>30 from Management report Country sheet (cluster row), when present. */
+  const countrySheetClusterPortfolio = useMemo(() => {
+    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
+    const row = branchSummaryData.clusters.find(
+      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
+    );
+    return row?.portfolio ?? null;
+  }, [csView, branchSummaryData?.clusters]);
+  const countrySheetClusterPar30 = useMemo(() => {
+    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
+    const row = branchSummaryData.clusters.find(
+      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
+    );
+    return row?.par30 ?? null;
+  }, [csView, branchSummaryData?.clusters]);
+
+  /** Previous month: Portfolio from Management report Country sheet (same cluster row). Used for portfolio growth. */
+  const countrySheetClusterPortfolioPrevious = useMemo(() => {
+    if (csView === 'Total' || !branchSummaryDataPrevious?.clusters?.length) return null;
+    const row = branchSummaryDataPrevious.clusters.find(
+      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
+    );
+    return row?.portfolio ?? null;
+  }, [csView, branchSummaryDataPrevious?.clusters]);
+
+  /** Actual Sales Reps from Gap Analysis for the same report: API (uploaded template) wins, then localStorage. */
+  const gapActualRepsOverrides = useMemo(() => {
+    const reportId = mtdParsedData?.reportId;
+    if (!reportId || product !== 'CS') return {};
+    let local = {};
+    try {
+      const key = `gap_analysis_actual_${reportId}_CS`;
+      const raw = localStorage.getItem(key);
+      local = raw ? JSON.parse(raw) : {};
+    } catch {
+      // ignore
+    }
+    return { ...local, ...gapActualRepsFromServer };
+  }, [mtdParsedData?.reportId, product, gapActualRepsFromServer]);
+
+  /** Normalize zone/supervision for matching: Gap/MTD uses "X Region", constants use "X Zone". Strip both, lowercase. */
+  const normalizeZoneForMatch = (s) =>
+    String(s ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+(zone|region)\s*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  /** RSM data for cluster: match supervisions to cluster zones (exact or normalized: "Highland Region" ↔ "Highland Zone"); else fallback to branch-based. */
+  const rsmDataForCluster = useMemo(() => {
+    if (product !== 'CS' || csView === 'Total' || !mtdParsedData?.groupedData) return [];
+    const zonesInCluster = ZONES_BY_CLUSTER_CS[csView] || [];
+    const zoneSet = new Set(zonesInCluster.map((z) => String(z).trim()));
+    const zoneNormSet = new Set(zonesInCluster.map((z) => normalizeZoneForMatch(z)));
+    const full = buildRSMData(mtdParsedData, 'CS', gapActualRepsOverrides);
+    const byZone = full.filter((item) => {
+      const sup = String(item.supervision || '').trim();
+      if (zoneSet.has(sup) || zoneSet.has(sup.toUpperCase())) return true;
+      if (csView === 'Zanzibar' && sup.toUpperCase().includes('ZANZIBAR')) return true;
+      if (zoneNormSet.has(normalizeZoneForMatch(sup))) return true;
+      return false;
+    });
+    if (byZone.length > 0) return byZone;
+    const branchesInCluster = branchesByCluster?.[csView] || [];
+    if (!branchesInCluster.length) return [];
+    return buildRSMDataFromBranches(mtdParsedData, 'CS', branchesInCluster, gapActualRepsOverrides);
+  }, [product, csView, mtdParsedData, gapActualRepsOverrides, branchesByCluster]);
+
+  /** CRM aggregated for current cluster only: Product=CS and Zone in cluster (ZONES_BY_CLUSTER_CS[csView]). */
+  const crmClusterAggregated = useMemo(() => {
+    if (csView === 'Total') return null;
+    const clusterZones = ZONES_BY_CLUSTER_CS[csView];
+    if (!clusterZones?.length) return null;
+    if (crmReportsInMonthData?.length > 0) {
+      const tot = crmReportsInMonthData.reduce(
+        (acc, r) => ({
+          completed: acc.completed + (r.completed ?? 0),
+          atLocation: acc.atLocation + (r.atLocation ?? 0),
+          accepted: acc.accepted + (r.accepted ?? 0),
+          total: acc.total + (r.totalLead ?? 0)
+        }),
+        { completed: 0, atLocation: 0, accepted: 0, total: 0 }
+      );
+      return tot;
+    }
+    if (!crmClusterSheetsData) return null;
+    return aggregateCrmForCluster(
+      crmClusterSheetsData.agentActivity,
+      crmClusterSheetsData.leadReport,
+      clusterZones
+    );
+  }, [crmClusterSheetsData, csView, crmReportsInMonthData]);
+
+  /** Per-report table: Report Date, Completed, At location, % At location (all CRM reports in month). */
+  const onLocationTable = useMemo(() => {
+    if (!crmReportsInMonthData?.length) return [];
+    return crmReportsInMonthData.map((r) => ({
+      reportDate: r.reportDate,
+      completed: r.completed,
+      atLocation: r.atLocation,
+      pctAtLocation: r.completed > 0 ? (r.atLocation / r.completed) * 100 : null
+    }));
+  }, [crmReportsInMonthData]);
+
+  /** Per-report table: Report Date, Total lead, Total consent (Accepted), % consented. */
+  const consentTable = useMemo(() => {
+    if (!crmReportsInMonthData?.length) return [];
+    return crmReportsInMonthData.map((r) => ({
+      reportDate: r.reportDate,
+      totalLead: r.totalLead,
+      accepted: r.accepted,
+      pctConsented: r.totalLead > 0 ? (r.accepted / r.totalLead) * 100 : null
+    }));
+  }, [crmReportsInMonthData]);
+
+  /** Tables for cluster KPI 2 (regions new business) and KPI 4 (recruitment) from RSM. */
+  const clusterKpiTables = useMemo(() => {
+    if (!rsmDataForCluster.length) return { regionsNewBiz: [], recruitment: [] };
+    const regionsNewBiz = [];
+    const recruitment = [];
+    for (const { supervision, rows } of rsmDataForCluster) {
+      const newLoansRow = rows.find((r) => r.rowLabel === 'New Loans');
+      if (newLoansRow) {
+        const target = Number(newLoansRow.Target) || 0;
+        const achieved = Number(newLoansRow.Achieved) ?? 0;
+        regionsNewBiz.push({ region: supervision, target, achieved, pct: target > 0 ? (achieved / target) * 100 : 0 });
+      }
+      const actualRow = rows.find((r) => r.rowLabel === 'Actual Reps');
+      if (actualRow) {
+        const target = Number(actualRow.Target) || 0;
+        const achieved = actualRow.Achieved != null && actualRow.Achieved !== '' ? Number(actualRow.Achieved) : 0;
+        recruitment.push({ region: supervision, target, achieved, pct: target > 0 ? (achieved / target) * 100 : 0 });
+      }
+    }
+    return { regionsNewBiz, recruitment };
+  }, [rsmDataForCluster]);
+
+  /** Cluster view: build rows only from cluster file's KPI sheet (8 KPIs, 76% total weight). */
+  const clusterDashboardRows = useMemo(() => {
+    if (csView === 'Total' || !clusterTargets?.performanceStandards?.length || !effectiveTargetsForKpi || !effectiveMonthKey) return null;
+    const isCluster = csView === 'Cluster 1' || csView === 'Cluster 2' || csView === 'Cluster 3' || csView === 'Zanzibar';
+    if (!isCluster || !clusterTargets.clusters?.[csView]) return null;
+
+    const standards = clusterTargets.performanceStandards;
+    const salesTarget = effectiveTargetsForKpi.salesTarget;
+    // Use Management report Country sheet cluster row Disbursement this month (not MTD)
+    const salesAchievedNum = typeof countrySheetClusterDisbursement === 'number' ? countrySheetClusterDisbursement : (countrySheetClusterDisbursement != null ? parseFloat(countrySheetClusterDisbursement) : NaN);
+    const pctSales = Number.isFinite(salesAchievedNum) && salesTarget > 0 ? (salesAchievedNum / salesTarget) * 100 : null;
+
+    const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
+    const pctBranches100 = totalBranches > 0 ? ((filteredBranchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
+
+    // KPI 2: Regions New Business from RSM (New Loans Target vs Achieved per region)
+    let regionsInClusterHit = 0;
+    let regionsInClusterTotal = 0;
+    const regionsNewBizTable = [];
+    if (rsmDataForCluster.length > 0) {
+      for (const { supervision, rows } of rsmDataForCluster) {
+        const newLoansRow = rows.find((r) => r.rowLabel === 'New Loans');
+        if (!newLoansRow) continue;
+        const target = Number(newLoansRow.Target) || 0;
+        const achieved = Number(newLoansRow.Achieved) ?? 0;
+        regionsInClusterTotal += 1;
+        const pctRow = target > 0 ? (achieved / target) * 100 : 0;
+        regionsNewBizTable.push({ region: supervision, target, achieved, pct: pctRow });
+        if (target > 0 && achieved >= target) regionsInClusterHit += 1;
+      }
+    }
+    const pctRegionsNewBiz100 = regionsInClusterTotal > 0 ? (regionsInClusterHit / regionsInClusterTotal) * 100 : null;
+
+    // KPI 4: Recruitment from RSM (Actual Reps Target vs Achieved per region, then cluster total)
+    let actualRepsTargetSum = 0;
+    let actualRepsAchievedSum = 0;
+    const recruitmentTable = [];
+    if (rsmDataForCluster.length > 0) {
+      for (const { supervision, rows } of rsmDataForCluster) {
+        const actualRow = rows.find((r) => r.rowLabel === 'Actual Reps');
+        if (!actualRow) continue;
+        const target = Number(actualRow.Target) || 0;
+        const achieved = actualRow.Achieved != null && actualRow.Achieved !== '' ? Number(actualRow.Achieved) : 0;
+        actualRepsTargetSum += target;
+        actualRepsAchievedSum += achieved;
+        const pctRow = target > 0 ? (achieved / target) * 100 : 0;
+        recruitmentTable.push({ region: supervision, target, achieved, pct: pctRow });
+      }
+    }
+    const pctRecruitment = actualRepsTargetSum > 0 ? (actualRepsAchievedSum / actualRepsTargetSum) * 100 : null;
+
+    const portfolioCurrent = countrySheetClusterPortfolio ?? latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'] ?? latestManagementReport?.cs?.['Principle Balance'] ?? null;
+    const portfolioNum = typeof portfolioCurrent === 'number' ? portfolioCurrent : (portfolioCurrent != null ? parseFloat(portfolioCurrent) : NaN);
+    const portfolioPrev = countrySheetClusterPortfolioPrevious ?? previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'] ?? previousMonthManagementReport?.cs?.['Principle Balance'] ?? null;
+    const portfolioPrevNum = typeof portfolioPrev === 'number' ? portfolioPrev : (portfolioPrev != null ? parseFloat(portfolioPrev) : NaN);
+    const growthPct = Number.isFinite(portfolioPrevNum) && portfolioPrevNum > 0 && Number.isFinite(portfolioNum) ? ((portfolioNum - portfolioPrevNum) / portfolioPrevNum) * 100 : null;
+    const annualizedGrowth = growthPct != null ? growthPct * 12 : null;
+
+    const par30Current = countrySheetClusterPar30 ?? latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null;
+    const par30Num = normalizeParToPercentage(par30Current);
+
+    // CRM for cluster: from parsed agent_activity + Lead_Report (cluster zones only)
+    const onLocationPct = crmClusterAggregated?.completed > 0
+      ? (crmClusterAggregated.atLocation / crmClusterAggregated.completed) * 100
+      : null;
+    const dataConsentPct = crmClusterAggregated?.total > 0
+      ? (crmClusterAggregated.accepted / crmClusterAggregated.total) * 100
+      : null;
+
+    const lower = (s) => String(s || '').toLowerCase();
+    const match = (name, phrases) => phrases.every((p) => lower(name).includes(lower(p)));
+
+    const rows = [];
+    for (const std of standards) {
+      const name = std?.name ?? '';
+      const w = Number(std?.weight) ?? 0;
+      if (!name) continue;
+
+      if (match(name, ['100%', 'overall cluster', 'sales target']) || match(name, ['cluster', 'sales target'])) {
+        const ws = pctSales != null ? (Math.min(100, pctSales) / 100) * w : 0;
+        rows.push({ kpi: name, target: salesTarget, achievedDisplay: Number.isFinite(salesAchievedNum) ? formatTzs(salesAchievedNum) : '—', pct: pctSales, weight: w, weightScored: ws });
+      } else if (match(name, ['regions', 'new business', '100%']) || match(name, ['regions hit', 'new business'])) {
+        const targetPct = 100;
+        const ws = pctRegionsNewBiz100 != null ? (Math.min(100, pctRegionsNewBiz100) / 100) * w : 0;
+        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: pctRegionsNewBiz100 != null ? pctRegionsNewBiz100.toFixed(2) + '%' : '—', pct: pctRegionsNewBiz100, weight: w, weightScored: ws });
+      } else if (match(name, ['90%', 'branches']) || match(name, ['branches', 'sales target'])) {
+        const targetPct = 90;
+        const ws = pctBranches100 != null ? (Math.min(100, (pctBranches100 / targetPct) * 100) / 100) * w : 0;
+        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', pct: pctBranches100, weight: w, weightScored: ws });
+      } else if (match(name, ['85%', 'recruitment']) || match(name, ['recruitment', 'sales agents'])) {
+        const ws = pctRecruitment != null ? (Math.min(100, (pctRecruitment / 85) * 100) / 100) * w : 0;
+        rows.push({ kpi: name, target: '85%', achievedDisplay: pctRecruitment != null ? pctRecruitment.toFixed(2) + '%' : '—', pct: pctRecruitment, weight: w, weightScored: ws });
+      } else if (match(name, ['growth', 'portfolio', '20%']) || match(name, ['portfolio', 'client base', '20%'])) {
+        const targetAnn = 20;
+        const ws = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / targetAnn) * 100) / 100) * w : 0;
+        rows.push({ kpi: name, target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', pct: annualizedGrowth, weight: w, weightScored: ws });
+      } else if (match(name, ['par', '30', '5%']) || match(name, ['maintain par'])) {
+        const par30Under5 = Number.isFinite(par30Num) && par30Num < 5;
+        const ws = par30Under5 ? w : 0;
+        rows.push({ kpi: name, target: '≤ 5%', achievedDisplay: Number.isFinite(par30Num) ? par30Num.toFixed(2) + '%' : '—', pct: Number.isFinite(par30Num) ? par30Num : null, weight: w, weightScored: ws });
+      } else if (match(name, ['95%', 'location', 'completion']) || match(name, ['on location', 'plans'])) {
+        const targetPct = 95;
+        const ws = onLocationPct != null ? (Math.min(100, (onLocationPct / targetPct) * 100) / 100) * w : 0;
+        rows.push({ kpi: name, target: '95%', achievedDisplay: onLocationPct != null ? onLocationPct.toFixed(2) + '%' : '—', pct: onLocationPct, weight: w, weightScored: ws });
+      } else if (match(name, ['80%', 'data consent']) || match(name, ['data consent', 'region'])) {
+        const targetPct = 80;
+        const ws = dataConsentPct != null ? (Math.min(100, (dataConsentPct / targetPct) * 100) / 100) * w : 0;
+        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: dataConsentPct != null ? dataConsentPct.toFixed(2) + '%' : '—', pct: dataConsentPct, weight: w, weightScored: ws });
+      } else {
+        rows.push({ kpi: name, target: '—', achievedDisplay: '—', pct: null, weight: w, weightScored: 0 });
+      }
+    }
+    const withPct = rows.map((r) => {
+      const w = Number(r.weight) || 0;
+      const ws = Number(r.weightScored) || 0;
+      const pctWeightScored = w > 0 ? (ws / w) * 100 : 0;
+      return { ...r, pctWeightScored };
+    });
+    return withPct.sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
+  }, [csView, clusterTargets, effectiveTargetsForKpi, effectiveMonthKey, countrySheetClusterDisbursement, countrySheetClusterPortfolio, countrySheetClusterPortfolioPrevious, countrySheetClusterPar30, filteredBranchSummaryData, branchesByCluster, rsmDataForCluster, crmClusterAggregated, latestManagementReport, previousMonthManagementReport]);
+
+  /** Summary rows for dashboard KPI Summary section. When cluster is selected, use cluster file's KPIs only; else Total view. */
+  const dashboardSummaryRows = useMemo(() => {
+    if (clusterDashboardRows) return clusterDashboardRows;
+    if (!targets || !effectiveMonthKey) return [];
+    const effective = effectiveTargetsForKpi;
+    if (!effective) return [];
+    const standards = effective.performanceStandards || [];
+    const salesTarget = effective.salesTarget;
+    const mainT = (targets.mainland || {})[effectiveMonthKey];
+    const zanT = (targets.zanzibar || {})[effectiveMonthKey];
+    const salesAchievedNum = mtdSalesAchievedForView;
     const salesAchieved = typeof salesAchievedNum === 'number' ? salesAchievedNum : (salesAchievedNum != null ? parseFloat(salesAchievedNum) : NaN);
     const pctSales = Number.isFinite(salesAchieved) && salesTarget > 0 ? (salesAchieved / salesTarget) * 100 : null;
     const w1 = standards[0]?.weight ?? 0.1;
     const ws1 = pctSales != null ? (Math.min(100, pctSales) / 100) * w1 : 0;
 
-    const totalBranches = (branchSummaryData?.achieved100Count ?? 0) + (branchSummaryData?.notAchieved100Count ?? 0);
-    const pctBranches100 = totalBranches > 0 ? ((branchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
+    const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
+    const pctBranches100 = totalBranches > 0 ? ((filteredBranchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
     const w2 = standards[1]?.weight ?? 0.1;
     const ws2 = pctBranches100 != null ? (Math.min(100, (pctBranches100 / 85) * 100) / 100) * w2 : 0;
 
@@ -228,7 +745,6 @@ const KpiAnalysisReport = () => {
     const w6 = standards[5]?.weight ?? 0.05;
     const ws6 = par30Improvement != null ? Math.max(0, Math.min(1, par30Improvement / 0.5)) * w6 : 0;
 
-    // KPI 7: Active client base growth 20% annually
     const activeNowVal = latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'];
     const activePrevVal = previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'];
     const toNumVal = (v) => (typeof v === 'number' && !isNaN(v)) ? v : (v != null ? parseFloat(v) : NaN);
@@ -239,12 +755,11 @@ const KpiAnalysisReport = () => {
     const w7 = getWeightForKpiKey(standards, 'growth') || 0.02;
     const ws7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / 20) * 100) / 100) * w7 : 0;
 
-    // KPI 8: Regions and Clusters hit target
     const supervisionsList = mtdParsedData?.groupedData ? Object.entries(mtdParsedData.groupedData) : [];
     const getTarget = (d) => Number(d?.['MONTH TARGET'] ?? d?.['Month Target'] ?? d?.Target ?? 0) || 0;
     const getVal = (d) => Number(d?.VALUE ?? d?.Value ?? 0) || 0;
     const regionsHit = supervisionsList.filter(([, g]) => { const d = g.supervisionData || {}; const t = getTarget(d); const v = getVal(d); return t > 0 && v >= t; }).length;
-    const clusterBranches = branchSummaryData?.clusters ?? [];
+    const clusterBranches = filteredBranchSummaryData?.clusters ?? [];
     const clustersHit = clusterBranches.filter(b => (b.pct ?? 0) >= 100).length;
     const totalR = supervisionsList.length;
     const totalC = clusterBranches.length;
@@ -252,7 +767,6 @@ const KpiAnalysisReport = () => {
     const w8 = getWeightForKpiKey(standards, 'regions_clusters') || 0.05;
     const ws8 = regionsClustersPct != null ? (Math.min(100, regionsClustersPct) / 100) * w8 : 0;
 
-    // KPI 9 & 10: 90% CRM usage and 65% Data consent — use CRM data for selected month when available
     const crmForMonth = crmParsedDataForMonth && toMonthKey(crmParsedDataForMonth.reportDate) === effectiveMonthKey ? crmParsedDataForMonth : null;
     const crmMetrics = crmForMonth?.emailData ? extractMetrics(crmForMonth.emailData) : {};
     const toN = (v) => (typeof v === 'number' && !isNaN(v)) ? v : (v != null ? parseFloat(String(v).replace(/%|,/g, '')) : 0);
@@ -271,7 +785,6 @@ const KpiAnalysisReport = () => {
     const w10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
     const ws10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / 65) * 100) / 100) * w10 : 0;
 
-    // Use fixed KPI names for rows 6–9; add % weight scored and sort by it (best first)
     const rows = [
       { kpi: standards[0]?.name ?? 'Sales target', target: salesTarget, achievedDisplay: Number.isFinite(salesAchieved) ? salesAchieved : '—', pct: pctSales, weight: w1, weightScored: ws1 },
       { kpi: standards[1]?.name ?? 'Branch sales', target: '85%', achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', pct: pctBranches100, weight: w2, weightScored: ws2 },
@@ -291,12 +804,13 @@ const KpiAnalysisReport = () => {
       return { ...r, pctWeightScored };
     });
     return withPct.sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
-  }, [targets, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, branchSummaryData, crmParsedDataForMonth]);
+  }, [clusterDashboardRows, targets, effectiveTargetsForKpi, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, mtdSalesAchievedForView, filteredBranchSummaryData, crmParsedDataForMonth]);
 
   useEffect(() => {
     if (product !== 'CS') {
       setTargets(null);
       setTargetsLoading(false);
+      setClusterTargets(null);
       return;
     }
     setTargetsLoading(true);
@@ -308,6 +822,9 @@ const KpiAnalysisReport = () => {
         setTargets(null);
       })
       .finally(() => setTargetsLoading(false));
+    loadCsKpiClusterTargets()
+      .then(setClusterTargets)
+      .catch(() => setClusterTargets(null));
   }, [product]);
 
   // Build actuals by month from management reports (CS = mainland, zanzibar = zanzibar)
@@ -356,27 +873,27 @@ const KpiAnalysisReport = () => {
   /** Builds sheets and fileName for the current month; used by download and email. */
   const buildKpiReportSheetsAndFile = useCallback(async () => {
     if (product !== 'CS' || !targets) return null;
-    const standards = targets.performanceStandards || [];
+    const effective = effectiveTargetsForKpi;
+    const standards = effective?.performanceStandards ?? targets.performanceStandards ?? [];
+    const salesTarget = effective?.salesTarget ?? ((targets.mainland || {})[effectiveMonthKey]?.total ?? 0) + ((targets.zanzibar || {})[effectiveMonthKey]?.total ?? 0) + ((targets.callCenter || {})[effectiveMonthKey] ?? 0);
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
+    const viewSuffix = csView !== 'Total' ? ` — ${csView}` : '';
 
     const summaryRows = [];
 
     // ----- Sheet 1: Sales Target Achievement -----
     const mainT = (targets.mainland || {})[effectiveMonthKey];
     const zanT = (targets.zanzibar || {})[effectiveMonthKey];
-    const ccT = (targets.callCenter || {})[effectiveMonthKey];
-    const salesTarget = (mainT?.total ?? 0) + (zanT?.total ?? 0) + (ccT ?? 0);
-    const salesAchieved = mtdParsedData?.grandTotalRow?.VALUE ?? mtdParsedData?.grandTotalRow?.value ?? null;
-    const salesAchievedNum = typeof salesAchieved === 'number' ? salesAchieved : (salesAchieved != null ? parseFloat(salesAchieved) : NaN);
+    const salesAchievedNum = typeof mtdSalesAchievedForView === 'number' ? mtdSalesAchievedForView : (mtdSalesAchievedForView != null ? parseFloat(mtdSalesAchievedForView) : NaN);
     const pctSales = Number.isFinite(salesAchievedNum) && salesTarget > 0 ? (salesAchievedNum / salesTarget) * 100 : null;
     const weight1 = standards[0]?.weight ?? 0.1;
     const weightScored1 = pctSales != null ? (Math.min(100, pctSales) / 100) * weight1 : 0;
 
     const sheet1Tables = [{
-      title: `Sales Target Achievement — ${monthLabel}`,
+      title: `Sales Target Achievement — ${monthLabel}${viewSuffix}`,
       data: [
-        { 'Metric': 'Sales Target (Mainland + Zanzibar + Call Center)', 'Value': salesTarget },
-        { 'Metric': 'Sales Achieved (CS MTD)', 'Value': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—' },
+        { 'Metric': csView !== 'Total' ? `Sales Target (${csView})` : 'Sales Target (Mainland + Zanzibar + Call Center)', 'Value': salesTarget },
+        { 'Metric': csView !== 'Total' ? `Sales Achieved (${csView} — Management report)` : 'Sales Achieved (CS MTD)', 'Value': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—' },
         { 'Metric': '% Achieved', 'Value': pctSales != null ? pctSales.toFixed(2) + '%' : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
@@ -401,7 +918,9 @@ const KpiAnalysisReport = () => {
 
     // ----- Sheet 2: Branch Sales Achievement -----
     let branchData = { branches: [], clusters: [], totalTarget: 0, totalDisbursement: 0, achieved100Count: 0, notAchieved100Count: 0 };
-    if (latestManagementReport) {
+    if (csView !== 'Total' && filteredBranchSummaryData) {
+      branchData = filteredBranchSummaryData;
+    } else if (latestManagementReport) {
       try {
         let fileUrl = latestManagementReport.fileUrl || latestManagementReport.file_url;
         if (!fileUrl && (latestManagementReport.filePath || latestManagementReport.file_path)) {
@@ -437,7 +956,7 @@ const KpiAnalysisReport = () => {
       });
     }
     const sheet2Tables = [{
-      title: `Branch Sales Achievement — ${monthLabel}`,
+      title: `Branch Sales Achievement — ${monthLabel}${viewSuffix}`,
       data: sheet2Data.length ? sheet2Data : [{ 'Branch': '—', 'Target': '—', [disbursementColLabel]: '—', '%': '—' }],
       headerColors: { 'Branch': '#1e3a5f', 'Target': '#c45a11', [disbursementColLabel]: '#2d6a2d', '%': '#2d6a2d' },
       colWidths: [28, 16, 18, 12],
@@ -621,7 +1140,7 @@ const KpiAnalysisReport = () => {
       colWidths: [35, 18]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': standards[6]?.name ?? 'Growth of active client base 20% annually', 'Target': targetGrowth20 + '% (annualized)', 'Achieved': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', 'Weight (%)': (weight7 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored7 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': 'Growth of active client base 20% annually', 'Target': targetGrowth20 + '% (annualized)', 'Achieved': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', 'Weight (%)': (weight7 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored7 * 100).toFixed(2) + '%' }],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [45, 18, 16, 12, 16]
     }];
@@ -680,7 +1199,7 @@ const KpiAnalysisReport = () => {
     const sheet8Tables = [
       { title: `Supervisions (Regions) — ${monthLabel}`, data: sheet8SupervisionData.length ? sheet8SupervisionData : [{ Supervision: '—', Target: '—', Sales: '—', '%': '—' }], headerColors: { Supervision: '#1e3a5f', Target: '#c45a11', Sales: '#2d6a2d', '%': '#2d6a2d' }, colWidths: [28, 14, 14, 10], totalRowIndices: sheet8SupervisionData.length ? [sheet8SupervisionData.length - 1] : [], accountingColumns: ['Target', 'Sales'], rowFillColors: sheet8SupervisionRowFillColors },
       { title: `Clusters — ${monthLabel}`, data: sheet8ClusterData.length ? sheet8ClusterData : [{ Cluster: '—', Target: '—', Disbursement: '—', '%': '—' }], headerColors: { Cluster: '#1e3a5f', Target: '#c45a11', Disbursement: '#2d6a2d', '%': '#2d6a2d' }, colWidths: [18, 14, 16, 10], totalRowIndices: sheet8ClusterData.length ? [sheet8ClusterData.length - 1] : [], accountingColumns: ['Target', 'Disbursement'], rowFillColors: sheet8ClusterRowFillColors },
-      { title: 'Summary', data: [{ 'KPI': standards[7]?.name ?? 'Ensure all Regions and Clusters hit their target', 'Regions hit': regionsHit, 'Regions total': totalRegions, 'Clusters hit': clustersHit, 'Clusters total': totalClusters, '% Hit': regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight8 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored8 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Regions hit': '#70AD47', 'Regions total': '#70AD47', 'Clusters hit': '#70AD47', 'Clusters total': '#70AD47', '% Hit': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [40, 12, 12, 12, 12, 10, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': 'Ensure all Regions and Clusters hit their target', 'Regions hit': regionsHit, 'Regions total': totalRegions, 'Clusters hit': clustersHit, 'Clusters total': totalClusters, '% Hit': regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight8 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored8 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Regions hit': '#70AD47', 'Regions total': '#70AD47', 'Clusters hit': '#70AD47', 'Clusters total': '#70AD47', '% Hit': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [40, 12, 12, 12, 12, 10, 12, 16] }
     ];
     summaryRows.push({
       kpi: 'Ensure all Regions and Clusters hit their target',
@@ -741,11 +1260,11 @@ const KpiAnalysisReport = () => {
     const sheet10RowFillColors = crmConsentRows.length ? crmConsentRows.map((_, i) => (i % 2 === 0 ? blendHexWithWhite('FFEB3B', 0.4) : blendHexWithWhite('87CEEB', 0.4))) : [];
     const sheet9Tables = [
       { title: `90% proper usage of CRM — ${monthLabel}`, data: sheet9Data, headerColors: { 'Date': '#4472C4', 'Role': '#4472C4', 'Total workforce': '#70AD47', 'Logged in': '#70AD47', 'Percentage logged in': '#70AD47' }, colWidths: [14, 14, 16, 12, 18], totalRowIndices: crmUsageRows.length ? [sheet9Data.length - 1] : [], accountingColumns: ['Total workforce', 'Logged in'], rowFillColors: sheet9RowFillColors },
-      { title: 'Summary', data: [{ 'KPI': standards[8]?.name ?? '90% proper usage of CRM', 'Target': targetUsage90 + '%', 'Achieved': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', 'Weight (%)': (weight9 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored9 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [32, 12, 14, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': '90% proper usage of CRM', 'Target': targetUsage90 + '%', 'Achieved': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', 'Weight (%)': (weight9 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored9 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [32, 12, 14, 12, 16] }
     ];
     const sheet10Tables = [
       { title: `65% achieved of Data consent from each Cluster — ${monthLabel}`, data: sheet10Data, headerColors: { 'Date': '#4472C4', 'Total Leads': '#70AD47', 'Rejected Leads': '#ED7D31', 'Not Provided Leads': '#ED7D31', 'Consented Leads': '#70AD47' }, colWidths: [12, 14, 20, 22, 18], totalRowIndices: crmConsentRows.length ? [sheet10Data.length - 1] : [], accountingColumns: ['Total Leads'], rowFillColors: sheet10RowFillColors },
-      { title: 'Summary', data: [{ 'KPI': standards[9]?.name ?? '65% achieved of Data consent from each Cluster', 'Target': targetConsent65 + '%', 'Average consent': avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight10 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored10 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Average consent': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [42, 12, 16, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': '65% achieved of Data consent from each Cluster', 'Target': targetConsent65 + '%', 'Average consent': avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight10 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored10 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Average consent': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [42, 12, 16, 12, 16] }
     ];
     summaryRows.push({ kpi: '90% proper usage of CRM', target: targetUsage90 + '%', achieved: overallUsagePct, achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: weight9, weightScored: weightScored9 });
     summaryRows.push({ kpi: '65% achieved of Data consent from each Cluster', target: targetConsent65 + '%', achieved: avgConsentPct, achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: weight10, weightScored: weightScored10 });
@@ -783,7 +1302,7 @@ const KpiAnalysisReport = () => {
     const kpiSummaryRowFillColors = sortedSummaryRows.map((r) => getColorForPct(r.pctWeightScored ?? 0));
 
     const kpiSummaryTable = {
-      title: `KPI Summary — ${monthLabel}`,
+      title: `KPI Summary — ${monthLabel}${viewSuffix}`,
       data: summaryTableDataWithDisplay,
       headerColors: { 'KPI': '#1e3a5f', 'Target': '#c45a11', 'Achieved': '#2d6a2d', '% Achieved': '#2d6a2d', 'Weight (%)': '#1a3a6e', 'Weight Scored (%)': '#1a3a6e', '% Weight Scored': '#1a3a6e' },
       colWidths: [50, 18, 16, 14, 12, 16, 16],
@@ -791,7 +1310,7 @@ const KpiAnalysisReport = () => {
       rowFillColors: kpiSummaryRowFillColors
     };
 
-    const fileName = `CS_KPI_REPORT_${monthLabel.replace(/\s+/g, '_')}.xlsx`;
+    const fileName = csView !== 'Total' ? `CS_KPI_REPORT_${monthLabel.replace(/\s+/g, '_')}_${csView.replace(/\s+/g, '_')}.xlsx` : `CS_KPI_REPORT_${monthLabel.replace(/\s+/g, '_')}.xlsx`;
 
     const darkSep = { darkSeparator: true };
     const allTablesForOneSheet = [
@@ -834,12 +1353,262 @@ const KpiAnalysisReport = () => {
     ];
 
     return { sheets, fileName };
-  }, [product, targets, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, managementReports]);
+  }, [product, targets, effectiveTargetsForKpi, effectiveMonthKey, csView, mtdSalesAchievedForView, countrySheetClusterDisbursement, filteredBranchSummaryData, latestManagementReport, previousMonthManagementReport, mtdParsedData, managementReports]);
+
+  /** Cluster-only Excel: 8 KPIs from cluster file, Management report disbursement, RSM tables, branch table, CRM, calculation tables. */
+  const buildClusterKpiReportSheetsAndFile = useCallback(() => {
+    if (product !== 'CS' || csView === 'Total' || !clusterTargets || !effectiveTargetsForKpi) return null;
+    const monthLabel = monthKeyToLabel(effectiveMonthKey);
+    const salesTarget = effectiveTargetsForKpi.salesTarget;
+    const salesAchievedNum = typeof countrySheetClusterDisbursement === 'number' ? countrySheetClusterDisbursement : (countrySheetClusterDisbursement != null ? parseFloat(countrySheetClusterDisbursement) : NaN);
+    const pctSales = Number.isFinite(salesAchievedNum) && salesTarget > 0 ? (salesAchievedNum / salesTarget) * 100 : null;
+
+    const regionsNewBiz = clusterKpiTables?.regionsNewBiz ?? [];
+    const recruitment = clusterKpiTables?.recruitment ?? [];
+
+    const summaryTableData = (clusterDashboardRows || []).map((r) => ({
+      'KPI': r.kpi,
+      'Target': typeof r.target === 'number' ? formatTzs(r.target) : r.target,
+      'Achieved': r.achievedDisplay !== undefined ? r.achievedDisplay : (r.achieved != null ? String(r.achieved) : '—'),
+      '% Achieved': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
+      'Weight (%)': (Number(r.weight) * 100).toFixed(2) + '%',
+      'Weight Scored (%)': r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—',
+      '% Weight Scored': r.pctWeightScored != null ? r.pctWeightScored.toFixed(2) + '%' : '—'
+    }));
+    const totalWeight = (clusterDashboardRows || []).reduce((s, r) => s + (Number(r.weight) || 0), 0);
+    const totalWeightScored = (clusterDashboardRows || []).reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
+    summaryTableData.push({
+      __totalRow: true,
+      'KPI': 'Total',
+      'Target': '',
+      'Achieved': '',
+      '% Achieved': '',
+      'Weight (%)': (totalWeight * 100).toFixed(2) + '%',
+      'Weight Scored (%)': (totalWeightScored * 100).toFixed(2) + '%',
+      '% Weight Scored': totalWeight > 0 ? ((totalWeightScored / totalWeight) * 100).toFixed(2) + '%' : '—'
+    });
+
+    const clusterSummaryRowFillColors = (clusterDashboardRows || []).map((r) => getColorForPct(r.pctWeightScored ?? 0));
+    const sheet1 = {
+      title: `KPI Summary — ${monthLabel} — ${csView}`,
+      data: summaryTableData,
+      headerColors: { 'KPI': '#1e3a5f', 'Target': '#c45a11', 'Achieved': '#2d6a2d', '% Achieved': '#2d6a2d', 'Weight (%)': '#1a3a6e', 'Weight Scored (%)': '#1a3a6e', '% Weight Scored': '#1a3a6e' },
+      colWidths: [50, 18, 16, 14, 12, 16, 14],
+      totalRowIndices: summaryTableData.length ? [summaryTableData.length - 1] : [],
+      rowFillColors: clusterSummaryRowFillColors
+    };
+    const sheet2 = {
+      title: `1. Achieve 100% cluster sales target — ${csView}`,
+      data: [
+        { 'Metric': 'Cluster target', 'Value': salesTarget },
+        { 'Metric': 'Disbursement this month (Management report)', 'Value': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—' },
+        { 'Metric': '% Achieved', 'Value': pctSales != null ? pctSales.toFixed(2) + '%' : '—' }
+      ],
+      headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
+      colWidths: [45, 22]
+    };
+    const sheet3Data = regionsNewBiz.map((r) => ({
+      'Region': r.region,
+      'New Business Target': r.target,
+      'Achieved': r.achieved,
+      '%': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
+      'Hit target': r.target > 0 && r.achieved >= r.target ? 'Yes' : 'No'
+    }));
+    const sheet3 = {
+      title: `2. Regions hit new Business target at 100% — ${csView}`,
+      data: sheet3Data.length ? sheet3Data : [{ 'Region': '—', 'New Business Target': '—', 'Achieved': '—', '%': '—', 'Hit target': '—' }],
+      headerColors: { 'Region': '#1e3a5f', 'New Business Target': '#c45a11', 'Achieved': '#2d6a2d', '%': '#2d6a2d', 'Hit target': '#5B9BD5' },
+      colWidths: [28, 20, 18, 12, 12]
+    };
+    const recTotalTarget = recruitment.reduce((s, r) => s + (Number(r.target) || 0), 0);
+    const recTotalAchieved = recruitment.reduce((s, r) => s + (Number(r.achieved) || 0), 0);
+    const sheetRecData = recruitment.map((r) => ({
+      'Region': r.region,
+      'Target': r.target,
+      'Achieved': r.achieved,
+      '%': r.pct != null ? r.pct.toFixed(2) + '%' : '—'
+    }));
+    if (recruitment.length > 0) {
+      sheetRecData.push({
+        __totalRow: true,
+        'Region': 'Cluster total',
+        'Target': recTotalTarget,
+        'Achieved': recTotalAchieved,
+        '%': recTotalTarget > 0 ? ((recTotalAchieved / recTotalTarget) * 100).toFixed(2) + '%' : '—'
+      });
+    }
+    const sheetRec = {
+      title: `4. Achieve 85% recruitment — ${csView}`,
+      data: sheetRecData.length ? sheetRecData : [{ 'Region': '—', 'Target': '—', 'Achieved': '—', '%': '—' }],
+      headerColors: { 'Region': '#1e3a5f', 'Target': '#c45a11', 'Achieved': '#2d6a2d', '%': '#2d6a2d' },
+      colWidths: [28, 14, 14, 12],
+      totalRowIndices: sheetRecData.length ? [sheetRecData.length - 1] : []
+    };
+    const branchData = filteredBranchSummaryData?.branches ?? [];
+    const sortedBranches = [...branchData].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
+    const sheet4Data = sortedBranches.map((b) => ({
+      'Branch': b.branch,
+      'Target': b.target,
+      'Disbursement this Month': b.disbursement,
+      '%': b.pct != null ? b.pct.toFixed(2) + '%' : '—'
+    }));
+    if (sheet4Data.length > 0 && filteredBranchSummaryData) {
+      sheet4Data.push({
+        __totalRow: true,
+        'Branch': 'Total',
+        'Target': filteredBranchSummaryData.totalTarget,
+        'Disbursement this Month': filteredBranchSummaryData.totalDisbursement,
+        '%': filteredBranchSummaryData.totalTarget > 0 ? ((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100).toFixed(2) + '%' : '—'
+      });
+    }
+    const branchRowFillColors = sortedBranches.map((b) => getColorForPct(b.pct ?? 0));
+    const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
+    const atOrAbove100 = filteredBranchSummaryData?.achieved100Count ?? 0;
+    const pctBranches100 = totalBranches > 0 ? (atOrAbove100 / totalBranches) * 100 : null;
+    const sheet4 = {
+      title: `3. 90% branches on sales target — ${csView}`,
+      data: sheet4Data.length ? sheet4Data : [{ 'Branch': '—', 'Target': '—', 'Disbursement this Month': '—', '%': '—' }],
+      headerColors: { 'Branch': '#1e3a5f', 'Target': '#c45a11', 'Disbursement this Month': '#2d6a2d', '%': '#2d6a2d' },
+      colWidths: [28, 16, 20, 12],
+      totalRowIndices: sheet4Data.length ? [sheet4Data.length - 1] : [],
+      rowFillColors: branchRowFillColors,
+      accountingColumns: ['Target', 'Disbursement this Month']
+    };
+    const portfolioCurrent = countrySheetClusterPortfolio ?? latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'] ?? latestManagementReport?.cs?.['Principle Balance'] ?? null;
+    const portfolioPrev = countrySheetClusterPortfolioPrevious ?? previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'] ?? previousMonthManagementReport?.cs?.['Principle Balance'] ?? null;
+    const curPort = typeof portfolioCurrent === 'number' ? portfolioCurrent : (portfolioCurrent != null ? parseFloat(portfolioCurrent) : NaN);
+    const prevPort = typeof portfolioPrev === 'number' ? portfolioPrev : (portfolioPrev != null ? parseFloat(portfolioPrev) : NaN);
+    const growthPct = Number.isFinite(prevPort) && prevPort > 0 && Number.isFinite(curPort) ? ((curPort - prevPort) / prevPort) * 100 : null;
+    const annualizedGrowth = growthPct != null ? growthPct * 12 : null;
+    const sheet5 = {
+      title: `5. Growth portfolio and client base by 20% annually — ${csView}`,
+      data: [
+        { 'Metric': `Portfolio (${monthLabel})`, 'Value': Number.isFinite(curPort) ? curPort : '—' },
+        { 'Metric': 'Portfolio (previous month)', 'Value': Number.isFinite(prevPort) ? prevPort : '—' },
+        { 'Metric': 'Monthly growth %', 'Value': growthPct != null ? growthPct.toFixed(2) + '%' : '—' },
+        { 'Metric': 'Annualized growth %', 'Value': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—' }
+      ],
+      headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
+      colWidths: [45, 22],
+      accountingColumns: ['Value']
+    };
+
+    const par30Val = countrySheetClusterPar30 ?? latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null;
+    const par30Pct = normalizeParToPercentage(par30Val);
+    const par30Display = Number.isFinite(par30Pct) ? par30Pct.toFixed(2) + '%' : '—';
+    const sheet6 = {
+      title: `6. Maintain PAR 30 days under 5% — ${csView}`,
+      data: [
+        { 'Metric': `PAR >30 (${monthLabel})`, 'Value': par30Display },
+        { 'Metric': 'Target', 'Value': '≤ 5%' }
+      ],
+      headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
+      colWidths: [45, 22]
+    };
+
+    const onLocationPct = crmClusterAggregated?.completed > 0
+      ? (crmClusterAggregated.atLocation / crmClusterAggregated.completed) * 100
+      : null;
+    const dataConsentPct = crmClusterAggregated?.total > 0
+      ? (crmClusterAggregated.accepted / crmClusterAggregated.total) * 100
+      : null;
+    const sheetCrmLocation = {
+      title: `7. On location completion (95% target) — ${csView}`,
+      data: [
+        { 'Metric': 'Completed (Status=COMPLETED)', 'Value': crmClusterAggregated?.completed ?? '—' },
+        { 'Metric': 'At location (Target_Met=AT_LOCATION)', 'Value': crmClusterAggregated?.atLocation ?? '—' },
+        { 'Metric': '% At location', 'Value': onLocationPct != null ? onLocationPct.toFixed(2) + '%' : '—' }
+      ],
+      headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
+      colWidths: [45, 18]
+    };
+    const onLocationTableData = (onLocationTable || []).map((r) => ({
+      'Report Date': r.reportDate,
+      'Completed': r.completed,
+      'At location': r.atLocation,
+      '% At location': r.pctAtLocation != null ? r.pctAtLocation.toFixed(2) + '%' : '—'
+    }));
+    const tableOnLocationByDate = onLocationTableData.length > 0 ? {
+      title: 'Per-report (all CRM reports in month)',
+      data: onLocationTableData,
+      headerColors: { 'Report Date': '#4472C4', 'Completed': '#70AD47', 'At location': '#70AD47', '% At location': '#70AD47' },
+      colWidths: [14, 12, 14, 16]
+    } : null;
+
+    const sheetCrmConsent = {
+      title: `8. Data consent (80% target) — ${csView}`,
+      data: [
+        { 'Metric': 'Total lead (cluster, all reports in month)', 'Value': crmClusterAggregated?.total ?? '—' },
+        { 'Metric': 'Total consent (Accepted) (cluster)', 'Value': crmClusterAggregated?.accepted ?? '—' },
+        { 'Metric': '% consented', 'Value': dataConsentPct != null ? dataConsentPct.toFixed(2) + '%' : '—' }
+      ],
+      headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
+      colWidths: [45, 18]
+    };
+    const consentTableData = (consentTable || []).map((r) => ({
+      'Report Date': r.reportDate,
+      'Total lead': r.totalLead,
+      'Total consent (Accepted)': r.accepted,
+      '% consented': r.pctConsented != null ? r.pctConsented.toFixed(2) + '%' : '—'
+    }));
+    const tableConsentByDate = consentTableData.length > 0 ? {
+      title: 'Per-report (all CRM reports in month)',
+      data: consentTableData,
+      headerColors: { 'Report Date': '#4472C4', 'Total lead': '#70AD47', 'Total consent (Accepted)': '#70AD47', '% consented': '#70AD47' },
+      colWidths: [14, 12, 22, 14]
+    } : null;
+    const darkSep = { darkSeparator: true };
+    const allTablesForOneSheet = [
+      sheet1,
+      darkSep,
+      sheet2,
+      darkSep,
+      sheet3,
+      darkSep,
+      sheetRec,
+      darkSep,
+      sheet4,
+      darkSep,
+      sheet5,
+      darkSep,
+      sheet6,
+      darkSep,
+      sheetCrmLocation,
+      ...(tableOnLocationByDate ? [tableOnLocationByDate] : []),
+      darkSep,
+      sheetCrmConsent,
+      ...(tableConsentByDate ? [tableConsentByDate] : [])
+    ];
+    const sheets = [
+      { name: 'All in One', tables: allTablesForOneSheet },
+      { name: 'KPI Summary', tables: [sheet1] },
+      { name: '1 Cluster Sales Target', tables: [sheet2] },
+      { name: '2 Regions New Business', tables: [sheet3] },
+      { name: '3 Branch Sales', tables: [sheet4] },
+      { name: '4 Recruitment', tables: [sheetRec] },
+      { name: '5 Portfolio Growth', tables: [sheet5] },
+      { name: '6 PAR 30', tables: [sheet6] },
+      { name: '7 On Location Completion', tables: [sheetCrmLocation, ...(tableOnLocationByDate ? [tableOnLocationByDate] : [])] },
+      { name: '8 Data Consent', tables: [sheetCrmConsent, ...(tableConsentByDate ? [tableConsentByDate] : [])] }
+    ];
+    const fileName = `CS_Cluster_KPI_${monthLabel.replace(/\s+/g, '_')}_${csView.replace(/\s+/g, '_')}.xlsx`;
+    return { sheets, fileName };
+  }, [product, csView, clusterTargets, effectiveTargetsForKpi, effectiveMonthKey, countrySheetClusterDisbursement, countrySheetClusterPortfolio, countrySheetClusterPortfolioPrevious, countrySheetClusterPar30, clusterDashboardRows, clusterKpiTables, crmClusterAggregated, filteredBranchSummaryData, onLocationTable, consentTable, latestManagementReport, previousMonthManagementReport]);
 
   const handleDownloadXlsx = useCallback(async () => {
-    const r = await buildKpiReportSheetsAndFile();
-    if (r) await exportMultipleSheetsWithStyles(r.sheets, r.fileName, { twoDecimalPlaces: true });
-  }, [buildKpiReportSheetsAndFile]);
+    if (csView !== 'Total') {
+      const r = buildClusterKpiReportSheetsAndFile();
+      if (r) await exportMultipleSheetsWithStyles(r.sheets, r.fileName, { twoDecimalPlaces: true });
+    } else {
+      const r = await buildKpiReportSheetsAndFile();
+      if (r) await exportMultipleSheetsWithStyles(r.sheets, r.fileName, { twoDecimalPlaces: true });
+    }
+  }, [buildKpiReportSheetsAndFile, buildClusterKpiReportSheetsAndFile, csView]);
+
+  const getBuildResultForEmail = useCallback(async () => {
+    if (csView !== 'Total') return buildClusterKpiReportSheetsAndFile();
+    return await buildKpiReportSheetsAndFile();
+  }, [csView, buildClusterKpiReportSheetsAndFile, buildKpiReportSheetsAndFile]);
 
   const addRecipient = () => {
     const email = (newRecipient || '').trim().toLowerCase();
@@ -898,7 +1667,7 @@ const KpiAnalysisReport = () => {
 
     let attachmentBase64 = '';
     let attachmentName = '';
-    const r = await buildKpiReportSheetsAndFile();
+    const r = await getBuildResultForEmail();
     if (r) {
       const result = await buildWorkbookBuffer(r.sheets, r.fileName, { twoDecimalPlaces: true });
       if (result?.buffer) {
@@ -985,7 +1754,7 @@ const KpiAnalysisReport = () => {
   return (
     <div className="kpi-ar-container">
       <div className="kpi-ar-header-bar">
-        <h1 className="kpi-ar-title">KPI ANALYSIS REPORT — CS</h1>
+        <h1 className="kpi-ar-title">KPI ANALYSIS REPORT — CS{csView !== 'Total' ? ` — ${csView}` : ''}</h1>
         <div className="kpi-ar-header-controls">
           <label className="kpi-ar-month-label">
             Month
@@ -1009,11 +1778,11 @@ const KpiAnalysisReport = () => {
             <span className="kpi-ar-btn-icon">✉</span> Send Email
           </button>
           <a
-            href={CS_KPI_TARGET_FILE_URL}
+            href={product === 'CS' && csView !== 'Total' ? CS_KPI_CLUSTER_TARGET_FILE_URL : CS_KPI_TARGET_FILE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="kpi-ar-btn kpi-ar-btn-view"
-            title="Open uploaded KPI target file"
+            title={product === 'CS' && csView !== 'Total' ? 'Open cluster KPI target file (CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx)' : 'Open uploaded KPI target file'}
           >
             <span className="kpi-ar-btn-icon">📋</span> View KPI
           </a>
@@ -1038,10 +1807,26 @@ const KpiAnalysisReport = () => {
         <button type="button" className="kpi-ar-product-btn" onClick={() => setProduct('SME')}>SME</button>
       </div>
 
+      <div className={`kpi-ar-main ${product === 'CS' ? 'kpi-ar-main--with-sidebar' : ''}`}>
+        {product === 'CS' && (
+          <aside className="kpi-ar-cs-sidebar">
+            <span className="kpi-ar-cs-sidebar-label">View</span>
+            {['Total', 'Cluster 1', 'Cluster 2', 'Cluster 3', 'Zanzibar'].map((view) => (
+              <button
+                key={view}
+                type="button"
+                className={`kpi-ar-cs-sidebar-btn ${csView === view ? 'kpi-ar-cs-sidebar-btn--active' : ''}`}
+                onClick={() => setCsView(view)}
+              >
+                {view}
+              </button>
+            ))}
+          </aside>
+        )}
       <div className="kpi-ar-content">
-        {/* 1. KPI Summary (matches Excel first sheet) */}
+        {/* 1. KPI Summary (matches Excel: same columns and row colors as Total KPI) */}
         <section className="kpi-ar-section kpi-ar-section--summary">
-          <h2 className="kpi-ar-section-title">KPI Summary — {monthKeyToLabel(effectiveMonthKey)}</h2>
+          <h2 className="kpi-ar-section-title">KPI Summary — {monthKeyToLabel(effectiveMonthKey)}{csView !== 'Total' ? ` (${csView})` : ''}</h2>
           <div className="kpi-ar-table-wrap">
             <table className="kpi-ar-table">
               <thead>
@@ -1090,7 +1875,7 @@ const KpiAnalysisReport = () => {
 
         {/* 2. Sales Target Achievement */}
         <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Sales Target Achievement</h2>
+          <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Sales Target Achievement — ${csView}` : 'Sales Target Achievement'}</h2>
           <div className="kpi-ar-table-wrap">
             <table className="kpi-ar-table">
               <thead>
@@ -1101,11 +1886,11 @@ const KpiAnalysisReport = () => {
               </thead>
               <tbody>
                 <tr>
-                  <td>Sales Target (Mainland + Zanzibar + Call Center)</td>
-                  <td className="kpi-ar-num">{formatTzs(dashboardSummaryRows[0]?.target ?? 0)}</td>
+                  <td>{csView !== 'Total' ? `Sales Target (${csView})` : 'Sales Target (Mainland + Zanzibar + Call Center)'}</td>
+                  <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.target === 'number' ? formatTzs(dashboardSummaryRows[0].target) : (dashboardSummaryRows[0]?.target ?? '—')}</td>
                 </tr>
                 <tr>
-                  <td>Sales Achieved (CS MTD)</td>
+                  <td>{csView !== 'Total' ? `Sales Achieved (${csView} — Management report Disbursement this month)` : 'Sales Achieved (CS MTD)'}</td>
                   <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.achievedDisplay === 'number' ? formatTzs(dashboardSummaryRows[0].achievedDisplay) : (dashboardSummaryRows[0]?.achievedDisplay ?? '—')}</td>
                 </tr>
                 <tr>
@@ -1117,9 +1902,9 @@ const KpiAnalysisReport = () => {
           </div>
         </section>
 
-        {/* 3. Branch Sales Achievement (branches only; clusters appear in Regions & Clusters section) */}
+        {/* 3. Branch Sales Achievement (branches only; in cluster view = 90% at 100% target) */}
         <section className="kpi-ar-section kpi-ar-section-branch-sales">
-          <h2 className="kpi-ar-section-title">Branch Sales Achievement (85% at 100% target)</h2>
+          <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Branch Sales Achievement — ${csView} (90% at 100% target)` : 'Branch Sales Achievement (85% at 100% target)'}</h2>
           <div className="kpi-ar-table-wrap">
             <table className="kpi-ar-table">
               <thead>
@@ -1131,7 +1916,7 @@ const KpiAnalysisReport = () => {
                 </tr>
               </thead>
               <tbody>
-                {[...(branchSummaryData?.branches ?? [])]
+                {[...(filteredBranchSummaryData?.branches ?? [])]
                   .sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
                   .map((b, i) => (
                     <tr key={i}>
@@ -1141,28 +1926,55 @@ const KpiAnalysisReport = () => {
                       <td className="kpi-ar-num">{b.pct.toFixed(2)}%</td>
                     </tr>
                   ))}
-                {branchSummaryData && branchSummaryData.branches.length > 0 && (
+                {filteredBranchSummaryData && filteredBranchSummaryData.branches.length > 0 && (
                   <tr className="kpi-ar-table-total">
                     <td>Total</td>
-                    <td className="kpi-ar-num">{formatTzs(branchSummaryData.totalTarget)}</td>
-                    <td className="kpi-ar-num">{formatTzs(branchSummaryData.totalDisbursement)}</td>
-                    <td className="kpi-ar-num">{branchSummaryData.totalTarget > 0 ? ((branchSummaryData.totalDisbursement / branchSummaryData.totalTarget) * 100).toFixed(2) + '%' : '—'}</td>
+                    <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalTarget)}</td>
+                    <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalDisbursement)}</td>
+                    <td className="kpi-ar-num">{filteredBranchSummaryData.totalTarget > 0 ? ((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100).toFixed(2) + '%' : '—'}</td>
                   </tr>
                 )}
-                {(!branchSummaryData || branchSummaryData.branches.length === 0) && (
+                {(!filteredBranchSummaryData || filteredBranchSummaryData.branches.length === 0) && (
                   <tr><td colSpan={4} className="kpi-ar-num">No branch data for selected month</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          {branchSummaryData && (
-            <p className="kpi-ar-section-note">
-              Branches at ≥100%: {branchSummaryData.achieved100Count} — Below 100%: {branchSummaryData.notAchieved100Count} — % at 100%: {branchSummaryData.achieved100Count + branchSummaryData.notAchieved100Count > 0 ? ((branchSummaryData.achieved100Count / (branchSummaryData.achieved100Count + branchSummaryData.notAchieved100Count)) * 100).toFixed(2) : 0}%
+          {filteredBranchSummaryData && (
+              <p className="kpi-ar-section-note">
+              Branches at ≥100%: {filteredBranchSummaryData.achieved100Count} — Below 100%: {filteredBranchSummaryData.notAchieved100Count} — % at 100%: {filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count > 0 ? ((filteredBranchSummaryData.achieved100Count / (filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count)) * 100).toFixed(2) : 0}%
             </p>
           )}
         </section>
 
-        {/* 4. Mainland 65% new business */}
+        {/* Cluster KPI detail sections (each KPI in its own file) — shown when a cluster is selected */}
+        {csView !== 'Total' && (
+          <ClusterKpiView
+            cluster={csView}
+            monthLabel={monthKeyToLabel(effectiveMonthKey)}
+            effectiveMonthKey={effectiveMonthKey}
+            clusterTarget={effectiveTargetsForKpi?.salesTarget ?? 0}
+            countrySheetDisbursement={countrySheetClusterDisbursement}
+            countrySheetClusterPortfolio={countrySheetClusterPortfolio}
+            countrySheetClusterPortfolioPrevious={countrySheetClusterPortfolioPrevious}
+            countrySheetClusterPar30={countrySheetClusterPar30}
+            mtdGroupedData={mtdParsedData?.groupedData ?? null}
+            branchesByCluster={branchesByCluster}
+            filteredBranchSummaryData={filteredBranchSummaryData}
+            latestManagementReport={latestManagementReport}
+            previousMonthManagementReport={previousMonthManagementReport}
+            clusterTargets={clusterTargets}
+            loading={!latestManagementReport && !!effectiveMonthKey}
+            regionsNewBizTable={clusterKpiTables?.regionsNewBiz ?? []}
+            recruitmentTable={clusterKpiTables?.recruitment ?? []}
+            crmClusterAggregated={crmClusterAggregated}
+            onLocationTable={onLocationTable}
+            consentTable={consentTable}
+          />
+        )}
+
+        {/* 4. Mainland 65% new business — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Attaining 65% new business (Mainland)</h2>
           <div className="kpi-ar-table-wrap">
@@ -1181,8 +1993,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 5. Zanzibar 70% new business */}
+        {/* 5. Zanzibar 70% new business — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Attaining 70% Zanzibar new business</h2>
           <div className="kpi-ar-table-wrap">
@@ -1201,8 +2015,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 6. Portfolio growth 10% annually */}
+        {/* 6. Portfolio growth — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Portfolio growth 10% annually (~1% per month)</h2>
           <div className="kpi-ar-table-wrap">
@@ -1221,8 +2037,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 7. PAR 30 below 5% */}
+        {/* 7. PAR 30 below 5% — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Maintain PAR 30 below 5% (0.5% monthly improvement)</h2>
           <div className="kpi-ar-table-wrap">
@@ -1241,8 +2059,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 8. Growth of active client base 20% annually */}
+        {/* 8. Growth of active client base 20% annually — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Growth of active client base 20% annually</h2>
           <div className="kpi-ar-table-wrap">
@@ -1261,8 +2081,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 9. Regions and Clusters hit target */}
+        {/* 9. Regions and Clusters hit target — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">Ensure all Regions and Clusters hit their target</h2>
           <p className="kpi-ar-section-note">Supervisions from CS MTD; Clusters from management report (Cluster 1, Cluster 2, Cluster 3, ZANZIBAR).</p>
@@ -1280,8 +2102,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 10. 90% proper usage of CRM */}
+        {/* 10. 90% proper usage of CRM — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">90% proper usage of CRM by all Sales force teams</h2>
           <div className="kpi-ar-table-wrap">
@@ -1298,8 +2122,10 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
 
-        {/* 11. 65% achieved of Data consent from each Cluster */}
+        {/* 11. 65% achieved of Data consent — Total view only */}
+        {csView === 'Total' && (
         <section className="kpi-ar-section">
           <h2 className="kpi-ar-section-title">65% achieved of Data consent from each Cluster</h2>
           <div className="kpi-ar-table-wrap">
@@ -1316,6 +2142,8 @@ const KpiAnalysisReport = () => {
             </table>
           </div>
         </section>
+        )}
+      </div>
       </div>
 
       {/* Fullscreen Email modal */}
