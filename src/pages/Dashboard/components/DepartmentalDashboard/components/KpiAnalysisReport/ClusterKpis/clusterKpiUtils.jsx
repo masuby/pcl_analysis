@@ -33,3 +33,12 @@ export function CalcTable({ rows }) {
     </table>
   );
 }
+
+/**
+ * Pick a display label for the active KPI target file.
+ * Used so cluster KPI sections can say "Source: <uploaded file name>".
+ */
+export function getEffectiveKpiTargetFileLabel(uploadedName, fallbackName) {
+  const v = String(uploadedName || '').trim();
+  return v ? v : fallbackName;
+}

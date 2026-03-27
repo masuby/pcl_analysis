@@ -231,7 +231,7 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
   const getExportSheets = () => {
     const exportData = trackerData.map(row => ({
       'Product': row.product,
-      ...(mode === 'WEEKLY' ? { 'Day': row.day, 'Date': row.dayDate } : {}),
+      ...(mode === 'WEEKLY' ? { 'Day': row.day } : {}),
       'Number of Leads': toExportVal(row.numberOfLeads),
       'Prospect Leads': toExportVal(row.prospectLeads),
       'Conversion Rate (%)': typeof row.conversionRate === 'number' ? row.conversionRate.toFixed(2) : row.conversionRate,
@@ -249,9 +249,9 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
     }));
     if (exportData.length === 0) return [];
     const totalRowIndices = trackerData.map((r, i) => r.isTotalRow ? i : null).filter(x => x != null);
-    const colWidths = mode === 'WEEKLY' ? [12, 22, 12, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18] : [12, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18];
+    const colWidths = mode === 'WEEKLY' ? [12, 22, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18] : [12, 15, 15, 18, 15, 18, 18, 18, 18, 12, 15, 18, 15, 18, 18];
     const headerColors = { 'Product': '#4472C4', 'Day': '#70AD47', 'Number of Leads': '#70AD47', 'Total Agents': '#ED7D31', 'Total TLS': '#FFC000' };
-    const freezeCol = mode === 'WEEKLY' ? 3 : 1;
+    const freezeCol = mode === 'WEEKLY' ? 2 : 1;
     return [{ name: 'Leads Marketing Tracker', tables: [{ data: exportData, totalRowIndices, colWidths, headerColors }], freeze: { row: 1, col: freezeCol } }];
   };
 
@@ -277,7 +277,7 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
   }
 
   const renderPercent = (val) => (typeof val === 'number' ? val.toFixed(1) + '%' : val);
-  const colSpan = mode === 'WEEKLY' ? 15 : 13;
+  const colSpan = mode === 'WEEKLY' ? 14 : 13;
 
   return (
     <div className="lmt-container">
@@ -295,7 +295,6 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
                 {mode === 'WEEKLY' && (
                   <>
                     <th className="lmt-th-day" rowSpan="2">Day</th>
-                    <th className="lmt-th-day" rowSpan="2">Date</th>
                   </>
                 )}
                 <th className="lmt-th-leads" colSpan="3">LEADS</th>
@@ -325,7 +324,6 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
                     {mode === 'WEEKLY' && (
                       <>
                         <td className="lmt-td-day">{row.day}</td>
-                        <td className="lmt-td-day">{row.dayDate}</td>
                       </>
                     )}
                     <td className="lmt-td-number">{formatValue(row.numberOfLeads)}</td>

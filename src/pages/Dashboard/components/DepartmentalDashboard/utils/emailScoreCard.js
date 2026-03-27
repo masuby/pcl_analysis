@@ -11,7 +11,8 @@ import { emailAPI } from '../../../../../services/api';
  * @param {string[]} recipients - Email addresses
  * @param {string} subject - Email subject
  * @param {string} htmlBody - HTML email body
- * @param {Object} options - { mode, attachmentBase64, attachmentName }
+ * @param {Object} options - { mode, attachmentBase64, attachmentName, attachments }
+ *   attachments: optional array of { base64, name } for multiple attachments (used when set)
  * @returns {Promise<{ success: boolean, error?: string }>}
  */
 export const sendScoreCardEmail = async (recipients, subject, htmlBody = '', options = {}) => {
@@ -20,14 +21,18 @@ export const sendScoreCardEmail = async (recipients, subject, htmlBody = '', opt
   }
 
   try {
-    const result = await emailAPI.sendScoreCard({
+    const payload = {
       recipients,
       subject,
       htmlBody,
       mode: options.mode || 'WEEKLY',
       attachmentBase64: options.attachmentBase64 || '',
       attachmentName: options.attachmentName || '',
-    });
+    };
+    if (options.attachments && options.attachments.length > 0) {
+      payload.attachments = options.attachments;
+    }
+    const result = await emailAPI.sendScoreCard(payload);
 
     if (result.success) {
       return { success: true };

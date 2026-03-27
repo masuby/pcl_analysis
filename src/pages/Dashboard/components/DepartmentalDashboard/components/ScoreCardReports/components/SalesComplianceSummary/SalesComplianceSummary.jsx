@@ -632,7 +632,6 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       'HOD': row.hod,
       'SUB-PRODUCT': row.subProduct,
       'DAY': row.day,
-      'DATE': row.reportDate,
       // Sales
       'Target': row.sales.target,
       'Disbursement': row.sales.disbursement,
@@ -673,9 +672,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       '% Agents <50': row.callCenter?.percentAgentsUnder50 || ''
     }));
     const totalRowIndices = summaryData.map((r, i) => r.isTotalRow ? i : null).filter(x => x != null);
-    const colWidths = [12, 18, 20, 12, 12, 15, 18, 12, 15, 12, 12, 15, 12, 12, 12, 10, 10, 15, 12, 15, 15, 15, 12, 12, 15, 18, 15, 12, 12, 14, 14, 15, 15, 12, 12, 15, 15, 15];
+    const colWidths = [12, 18, 20, 12, 15, 18, 12, 15, 12, 12, 15, 12, 12, 12, 10, 10, 15, 12, 15, 15, 15, 12, 12, 15, 18, 15, 12, 12, 14, 14, 15, 15, 12, 12, 15, 15, 15];
     const headerColors = {
-      'PRODUCT': '#4472C4', 'HOD': '#4472C4', 'SUB-PRODUCT': '#4472C4', 'DAY': '#4472C4', 'DATE': '#4472C4',
+      'PRODUCT': '#4472C4', 'HOD': '#4472C4', 'SUB-PRODUCT': '#4472C4', 'DAY': '#4472C4',
       'Target': '#ED7D31', 'Disbursement': '#ED7D31', 'Percentage': '#ED7D31', 'Number of Loans': '#ED7D31', 'Active Reps': '#ED7D31', 'Active Clients': '#ED7D31', 'Inactive Clients': '#ED7D31', 'Total Clients': '#ED7D31',
       'In Arrear': '#A5A5A5', 'Value in Arrears': '#A5A5A5', 'PAR>7': '#A5A5A5', 'PAR>30': '#A5A5A5',
       'Number of Leads': '#FFC000', 'Prospect': '#FFC000', 'Total Agents (CRM)': '#FFC000', 'Logged In Agents': '#FFC000',
@@ -691,7 +690,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
     return [{
       name: 'Sales Compliance Summary',
       tables: [{ data: exportData, totalRowIndices, colWidths, headerColors, accountingColumns }],
-      freeze: { row: 1, col: 5 }
+      freeze: { row: 1, col: 4 }
     }];
   };
 

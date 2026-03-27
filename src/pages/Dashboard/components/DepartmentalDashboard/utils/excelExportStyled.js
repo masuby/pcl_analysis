@@ -8,6 +8,9 @@ import { injectFreezePanes } from './excelFreezePanes';
 
 const BORDER_THIN = { style: 'thin', color: { rgb: 'FF000000' } };
 const BORDER_HAIR = { style: 'hair', color: { rgb: 'FFD0D0D0' } };
+// Excel font name must be a single valid font family.
+// Fallback is handled by Excel automatically when this font is not installed.
+const EXCEL_FONT_FAMILY = 'Malgun Gothic';
 
 const toArgb = (hex) => {
   if (!hex) return 'FF4472C4';
@@ -50,6 +53,24 @@ export const buildSheetFromTables = (tables, options = {}) => {
   const twoDecimalPlaces = options.twoDecimalPlaces === true;
   if (!tables || tables.length === 0) return null;
   const ws = {};
+  ws['!merges'] = [];
+  const rowHeightsMap = {};
+  const safeAddMerge = (merge) => {
+    if (!merge || !merge.s || !merge.e) return;
+    const s = { r: Number(merge.s.r), c: Number(merge.s.c) };
+    const e = { r: Number(merge.e.r), c: Number(merge.e.c) };
+    if ([s.r, s.c, e.r, e.c].some((v) => Number.isNaN(v) || v < 0)) return;
+    if (e.r < s.r || e.c < s.c) return;
+    const key = `${s.r}:${s.c}:${e.r}:${e.c}`;
+    const exists = ws['!merges'].some((m) => `${m.s.r}:${m.s.c}:${m.e.r}:${m.e.c}` === key);
+    if (exists) return;
+    const overlaps = ws['!merges'].some((m) => {
+      const rowOverlap = !(e.r < m.s.r || s.r > m.e.r);
+      const colOverlap = !(e.c < m.s.c || s.c > m.e.c);
+      return rowOverlap && colOverlap;
+    });
+    if (!overlaps) ws['!merges'].push({ s, e });
+  };
   let currentRow = 0;
   let maxCol = 0;
   const colWidthsMap = {};
@@ -67,6 +88,7 @@ export const buildSheetFromTables = (tables, options = {}) => {
           border: { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_HAIR, right: BORDER_HAIR }
         };
       }
+      rowHeightsMap[currentRow] = 6; // crisp divider band between logical sections
       currentRow += 1;
       return;
     }
@@ -77,10 +99,14 @@ export const buildSheetFromTables = (tables, options = {}) => {
       const ref = XLSX.utils.encode_cell({ r: currentRow, c: 0 });
       ws[ref] = { t: 's', v: table.title };
       ws[ref].s = {
-        font: { bold: true, sz: 12, color: { rgb: 'FF2E5090' } },
+        font: { name: EXCEL_FONT_FAMILY, bold: true, sz: 11, color: { rgb: 'FF1F355D' } },
         fill: { patternType: 'solid', fgColor: { rgb: 'FFE9EEF7' } },
         alignment: { horizontal: 'left', vertical: 'center' }
       };
+      rowHeightsMap[currentRow] = 20; // tighter professional title row
+      // Merge title across full table width for cleaner report look
+      const titleWidth = Math.max(1, (table.data?.[0] ? Object.keys(table.data[0]).filter((h) => h !== '__separator' && h !== '__totalRow').length : 1));
+      safeAddMerge({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: titleWidth - 1 } });
       currentRow += 1;
     }
 
@@ -96,9 +122,11 @@ export const buildSheetFromTables = (tables, options = {}) => {
     const gradeColors = table.gradeColors || {};
     const commentColors = table.commentColors || {};
     const pctChangeColumn = table.pctChangeColumn || '';
+    const pctChangeColumns = Array.isArray(table.pctChangeColumns) ? table.pctChangeColumns : [];
     const pctChangePositiveColor = table.pctChangePositiveColor || '#C8E6C9';
     const pctChangeNegativeColor = table.pctChangeNegativeColor || '#FFCDD2';
     const pctChangeNeutralColor = table.pctChangeNeutralColor || '#F0F0F0';
+    const monthSeparatorRows = Array.isArray(table.monthSeparatorRows) ? new Set(table.monthSeparatorRows) : null;
     const DARK_BLUE_BG = 'FF1A237E';
     const colWidths = table.colWidths || headers.map(() => 14);
     const accountingColumns = table.accountingColumns || [];
@@ -110,11 +138,13 @@ export const buildSheetFromTables = (tables, options = {}) => {
     };
 
     headers.forEach((w, i) => {
-      colWidthsMap[i] = Math.max(colWidthsMap[i] || 0, colWidths[i] || 14);
+      const compactBaseWidth = Math.max(8, Math.round((colWidths[i] || 14) * 0.92));
+      colWidthsMap[i] = Math.max(colWidthsMap[i] || 0, compactBaseWidth);
     });
     maxCol = Math.max(maxCol, headers.length - 1);
 
     // Header row (dark blue 100% for high visibility when headerDarkBlue)
+    const dataStartRow = currentRow + 1;
     headers.forEach((h, c) => {
       const ref = XLSX.utils.encode_cell({ r: currentRow, c });
       ws[ref] = { t: 's', v: h };
@@ -122,11 +152,13 @@ export const buildSheetFromTables = (tables, options = {}) => {
       const fontColor = headerDarkBlue ? 'FFFFFFFF' : 'FFFFFFFF';
       ws[ref].s = {
         fill: { patternType: 'solid', fgColor: { rgb: bg } },
-        font: { bold: true, color: { rgb: fontColor }, sz: 11 },
-        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        font: { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: fontColor }, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: false },
         border: { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN }
       };
+      ws[ref].s.border.bottom = { style: 'medium', color: { rgb: 'FF1E3A8A' } }; // boardroom header rhythm
     });
+    rowHeightsMap[currentRow] = 19;
     currentRow += 1;
 
     // Data rows
@@ -157,8 +189,14 @@ export const buildSheetFromTables = (tables, options = {}) => {
           const displayVal = useNum && isPctCol ? val / 100 : (useNum ? val : (val ?? ''));
           ws[ref] = { t: useNum ? 'n' : 's', v: displayVal };
           ws[ref].s = {
-            border: { top: BORDER_HAIR, bottom: BORDER_HAIR, left: BORDER_HAIR, right: BORDER_HAIR }
+            border: {
+              top: BORDER_HAIR,
+              bottom: monthSeparatorRows && monthSeparatorRows.has(r) ? { style: 'medium', color: { rgb: 'FF1E3A8A' } } : BORDER_HAIR,
+              left: BORDER_HAIR,
+              right: BORDER_HAIR
+            }
           };
+          ws[ref].s.alignment = { horizontal: 'center', vertical: 'center', wrapText: false };
           if (useNum && isPctCol) {
             ws[ref].s.numFmt = '0.00%';
           } else if (useNum && isAccountingCol(h)) {
@@ -168,64 +206,97 @@ export const buildSheetFromTables = (tables, options = {}) => {
           }
           if (isSupervisionTotalRow && totalRowDarkBlue) {
             ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: DARK_BLUE_BG } };
-            ws[ref].s.font = { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 11 };
+            ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FFFFFFFF' }, sz: 10 };
             ws[ref].s.border = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
           } else if (isTotalRow && totalRowDarkBlue) {
             ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: DARK_BLUE_BG } };
-            ws[ref].s.font = { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 11 };
+            ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FFFFFFFF' }, sz: 10 };
             ws[ref].s.border = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
           } else if (isSupervisionTotalRow) {
             const textColor = (table.supervisionTotalTextColors || [])[c] ? toArgb(table.supervisionTotalTextColors[c]) : 'FFFFFFFF';
             ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: DARK_BLUE_BG } };
-            ws[ref].s.font = { bold: true, color: { rgb: textColor }, sz: 11 };
+            ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: textColor }, sz: 10 };
             ws[ref].s.border = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
           } else if (isTotalRow) {
             ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgbTotal(totalRowFillColor) } };
-            ws[ref].s.font = { bold: true, color: { rgb: 'FF2E5090' }, sz: 11 };
+            ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FF2E5090' }, sz: 10 };
             ws[ref].s.border = { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN };
           } else {
             const rowFillHex = rowFillColors[r];
             const gradeHex = h === 'Grade' && gradeColors[String(val).trim()];
             const commentHex = h === 'Comment' && commentColors[String(val).toUpperCase().trim()];
-            const isPctChangeCol = pctChangeColumn && (h === pctChangeColumn || h === 'Percentage Change' || h === 'Change %');
+            const isPctChangeCol = (pctChangeColumn && (h === pctChangeColumn || h === 'Percentage Change' || h === 'Change %'))
+              || (pctChangeColumns.length > 0 && pctChangeColumns.includes(h));
             let pctChangeHex = null;
             if (isPctChangeCol) {
               if (typeof val === 'number' && !Number.isNaN(val)) {
                 pctChangeHex = val >= 0 ? pctChangePositiveColor : pctChangeNegativeColor;
+              } else if (typeof val === 'string' && val.trim() !== '' && val.trim() !== '-') {
+                const cleaned = val.trim();
+                const n = parseFloat(cleaned.replace(/,/g, '').replace(/[()%]/g, ''));
+                if (!Number.isNaN(n)) {
+                  pctChangeHex = cleaned.startsWith('-') || n < 0 ? pctChangeNegativeColor : pctChangePositiveColor;
+                } else {
+                  pctChangeHex = pctChangeNeutralColor;
+                }
               } else if (val === '-' || val === '' || val == null) {
                 pctChangeHex = pctChangeNeutralColor;
               }
             }
-            if (rowFillHex) {
+            // Keep explicit change-column color priority so YoY/MoM cells stay red/green
+            // even when the row has a background fill (e.g., Active/Inactive/Total rows).
+            if (pctChangeHex) {
+              ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgb(pctChangeHex) } };
+              ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: false, color: { rgb: 'FF000000' }, sz: 10 };
+            } else if (rowFillHex) {
               ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgb(rowFillHex) } };
-              ws[ref].s.font = { bold: false, color: { rgb: 'FF000000' }, sz: 11 };
+              ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: false, color: { rgb: 'FF000000' }, sz: 10 };
             } else if (gradeHex) {
               ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: blendWithWhite(gradeHex, 0.8) || toArgb(gradeHex) } };
-              ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
+              ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FF000000' }, sz: 10 };
             } else if (commentHex) {
               ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: blendWithWhite(commentHex, 0.8) || toArgb(commentHex) } };
-              ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
-            } else if (pctChangeHex) {
-              ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: toArgb(pctChangeHex) } };
-              ws[ref].s.font = { bold: true, color: { rgb: 'FF000000' }, sz: 11 };
+              ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FF000000' }, sz: 10 };
             } else {
               const colFill = getColumnFill(c);
               if (colFill) {
                 ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: colFill } };
               }
+              ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: false, color: { rgb: 'FF000000' }, sz: 10 };
             }
           }
+          const textLen = String(val ?? '').length;
+          if (textLen > 0) colWidthsMap[c] = Math.max(colWidthsMap[c] || 0, Math.min(42, textLen + 1));
         }
       });
+      if (rowHeightsMap[currentRow] == null) rowHeightsMap[currentRow] = isSeparatorRow ? 4 : (isTotalRow ? 18 : 16);
       currentRow += 1;
+
+    if (Array.isArray(table.mergeCells) && table.mergeCells.length > 0) {
+      table.mergeCells.forEach((m) => {
+        if (m == null) return;
+        const sr = dataStartRow + Math.max(0, Number(m.startRow) || 0);
+        const er = dataStartRow + Math.max(0, Number(m.endRow) || 0);
+        const c = Math.max(0, Number(m.col) || 0);
+        if (er > sr) {
+          safeAddMerge({ s: { r: sr, c }, e: { r: er, c } });
+        }
+      });
+    }
     });
 
+    rowHeightsMap[currentRow] = 8; // compact professional spacing
     currentRow += 1; // blank row between tables
   });
 
   const lastRow = currentRow - 1;
   ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastRow, c: maxCol } });
   ws['!cols'] = Array.from({ length: maxCol + 1 }, (_, i) => ({ wch: colWidthsMap[i] || 14 }));
+  ws['!rows'] = Array.from({ length: Math.max(0, lastRow + 1) }, (_, i) => (rowHeightsMap[i] != null ? { hpt: rowHeightsMap[i] } : {}));
+  if (ws['!merges'] && ws['!merges'].length > 0) {
+    ws['!merges'] = ws['!merges'].filter((m) => m.s.r <= lastRow && m.e.r <= lastRow && m.s.c <= maxCol && m.e.c <= maxCol);
+  }
+  if (!ws['!merges'] || ws['!merges'].length === 0) delete ws['!merges'];
 
   if (options.freeze) {
     const { row = 1, col = 0 } = options.freeze;
@@ -373,7 +444,7 @@ export const appendTableToSheet = (ws, data, startRow, options = {}) => {
     const hex = (options.headerColors || {})[h];
     ws[ref].s = {
       fill: { patternType: 'solid', fgColor: { rgb: toArgb(hex || '4472C4') } },
-      font: { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 11 },
+      font: { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FFFFFFFF' }, sz: 11 },
       border: { top: BORDER_THIN, bottom: BORDER_THIN, left: BORDER_THIN, right: BORDER_THIN }
     };
   });
@@ -390,7 +461,9 @@ export const appendTableToSheet = (ws, data, startRow, options = {}) => {
       ws[ref].s = { border: { top: BORDER_HAIR, bottom: BORDER_HAIR, left: BORDER_HAIR, right: BORDER_HAIR } };
       if (isTotal) {
         ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: 'FFD6DCE4' } };
-        ws[ref].s.font = { bold: true, color: { rgb: 'FF2E5090' }, sz: 11 };
+        ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: true, color: { rgb: 'FF2E5090' }, sz: 11 };
+      } else {
+        ws[ref].s.font = { name: EXCEL_FONT_FAMILY, bold: false, color: { rgb: 'FF000000' }, sz: 10 };
       }
     });
   });

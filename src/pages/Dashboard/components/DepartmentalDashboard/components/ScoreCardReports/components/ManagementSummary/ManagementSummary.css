@@ -4,8 +4,9 @@
   gap: 1rem;
   padding: 1.5rem;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e5e7eb;
 }
 
 .ms-header {
@@ -66,16 +67,20 @@
 }
 
 .ms-table-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #444;
-  margin: 0 0 0.5rem 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.6rem 0;
+  letter-spacing: 0.1px;
 }
 
 .ms-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 /* Excel-matching header colors */
@@ -103,15 +108,29 @@
 }
 
 .ms-table th {
-  padding: 0.5rem 0.75rem;
-  text-align: left;
+  padding: 0.58rem 0.75rem;
+  text-align: center;
   font-weight: 600;
   color: white;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .ms-table td {
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #eef2f7;
+  border-right: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.ms-month-merged {
+  text-align: center;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.ms-month-separator-row td {
+  border-bottom: 3px solid #1E3A8A !important;
 }
 
 .ms-table tbody tr:hover:not(.ms-separator):not(.ms-total-row) {
@@ -127,6 +146,10 @@
   background: transparent !important;
   font-size: 0;
   line-height: 0;
+}
+
+.ms-separator-blue td {
+  border-bottom: 2px solid #3b82f6 !important;
 }
 
 .ms-separator:hover {
@@ -157,6 +180,21 @@
 .ms-pct-neutral {
   background: #f0f0f0 !important;
   color: #666;
+}
+
+.ms-row-active {
+  background: rgba(34, 197, 94, 0.4);
+  font-weight: 600;
+}
+
+.ms-row-inactive {
+  background: rgba(251, 146, 60, 0.4);
+  font-weight: 600;
+}
+
+.ms-row-total-type {
+  background: rgba(59, 130, 246, 0.4);
+  font-weight: 600;
 }
 
 .ms-footer {

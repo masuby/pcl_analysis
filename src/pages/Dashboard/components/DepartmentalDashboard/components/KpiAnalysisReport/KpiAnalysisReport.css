@@ -96,6 +96,28 @@
   box-shadow: 0 4px 12px rgba(30, 58, 95, 0.35);
 }
 
+.kpi-ar-btn-upload {
+  border-color: #0ea5e9;
+  color: #0284c7;
+}
+
+.kpi-ar-btn-upload:hover {
+  background: #f0f9ff;
+  border-color: #0369a1;
+  color: #0369a1;
+}
+
+.kpi-ar-btn-upload:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.kpi-ar-upload-error {
+  margin: -0.25rem 0 0.5rem;
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
 .kpi-ar-btn-icon {
   font-size: 1rem;
 }
@@ -486,11 +508,24 @@
   color: #fff;
 }
 
+.kpi-ar-email-modal-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
 .kpi-ar-email-modal-title {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.kpi-ar-email-modal-view-hint {
+  margin: 0.35rem 0 0 0;
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.95;
+  letter-spacing: 0.01em;
 }
 
 .kpi-ar-email-modal-close {
@@ -670,6 +705,41 @@
 .kpi-ar-email-copy-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.kpi-ar-email-paste-box-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.kpi-ar-email-paste-box {
+  width: 100%;
+  min-height: 4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #1e293b;
+  background: #f8fafc;
+  resize: vertical;
+}
+
+.kpi-ar-email-paste-box::placeholder {
+  color: #94a3b8;
+}
+
+.kpi-ar-email-paste-box:focus {
+  outline: none;
+  border-color: #2a5298;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(42, 82, 152, 0.15);
+}
+
+.kpi-ar-email-add-pasted-btn {
+  align-self: flex-start;
 }
 
 .kpi-ar-email-recipients-list {
@@ -853,4 +923,192 @@
 .kpi-ar-email-send:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ========== Dark mode: View sidebar (Total / Cluster 1–3 / Zanzibar) ========== */
+.dark-mode .kpi-ar-cs-sidebar {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark-mode .kpi-ar-cs-sidebar-label {
+  color: #94a3b8;
+}
+
+.dark-mode .kpi-ar-cs-sidebar-btn {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-cs-sidebar-btn:hover {
+  background: #475569;
+  border-color: #64748b;
+  color: #f1f5f9;
+}
+
+.dark-mode .kpi-ar-cs-sidebar-btn--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* ========== Dark mode: Email modal ========== */
+.dark-mode .kpi-ar-email-overlay {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.dark-mode .kpi-ar-email-modal {
+  background: #1e293b;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(71, 85, 105, 0.5);
+}
+
+.dark-mode .kpi-ar-email-modal-view-hint {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dark-mode .kpi-ar-email-modal-body {
+  background: #1e293b;
+}
+
+.dark-mode .kpi-ar-email-hint {
+  color: #94a3b8;
+}
+
+.dark-mode .kpi-ar-email-recipient-input {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-recipient-input::placeholder {
+  color: #94a3b8;
+}
+
+.dark-mode .kpi-ar-email-recipient-input:focus {
+  background: #334155;
+  border-color: #3b82f6;
+  color: #f1f5f9;
+}
+
+.dark-mode .kpi-ar-email-copy-btn {
+  background: #475569;
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-copy-btn:hover:not(:disabled) {
+  background: #64748b;
+  color: #f1f5f9;
+}
+
+.dark-mode .kpi-ar-email-paste-box {
+  background: #334155;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-paste-box::placeholder {
+  color: #94a3b8;
+}
+
+.dark-mode .kpi-ar-email-paste-box:focus {
+  border-color: #3b82f6;
+  background: #334155;
+  color: #f1f5f9;
+}
+
+.dark-mode .kpi-ar-email-recipient-item {
+  background: #334155;
+  border-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-recipient-email {
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-remove-btn {
+  border-color: #f87171;
+  color: #fca5a5;
+}
+
+.dark-mode .kpi-ar-email-remove-btn:hover {
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.dark-mode .kpi-ar-email-empty {
+  color: #94a3b8;
+}
+
+.dark-mode .kpi-ar-email-preview-section {
+  border-top-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-preview-toggle {
+  color: #93c5fd;
+}
+
+.dark-mode .kpi-ar-email-preview-toggle:hover {
+  color: #bfdbfe;
+}
+
+.dark-mode .kpi-ar-email-preview-container {
+  background: #334155;
+  border-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-preview-subject {
+  background: #334155;
+  border-bottom-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-preview-subject label {
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-subject-input {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-preview-body label {
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-preview-html {
+  background: #1e293b;
+  border-color: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-preview-attachment {
+  background: #064e3b;
+  color: #6ee7b7;
+  border-top-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-error {
+  color: #fca5a5;
+}
+
+.dark-mode .kpi-ar-email-modal-footer {
+  background: #334155;
+  border-top-color: #475569;
+}
+
+.dark-mode .kpi-ar-email-cancel {
+  background: #475569;
+  border-color: #64748b;
+  color: #e2e8f0;
+}
+
+.dark-mode .kpi-ar-email-cancel:hover {
+  background: #64748b;
+  border-color: #94a3b8;
+  color: #f1f5f9;
+}
+
+.dark-mode .kpi-ar-email-send:hover:not(:disabled) {
+  filter: brightness(1.1);
 }

@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { formatTzs } from '../utils/csKpiTargets';
+import { getEffectiveKpiTargetFileLabel } from './clusterKpiUtils';
 import './clusterKpiStyles.css';
 
 function gradeFromPct(pct) {
@@ -22,6 +23,7 @@ export default function ClusterKpi01SalesTarget({
   monthLabel,
   clusterTarget = 0,
   disbursement = null,
+  clusterTargetFileName = '',
   loading = false
 }) {
   const disbursementNum = typeof disbursement === 'number' ? disbursement : (disbursement != null ? parseFloat(disbursement) : NaN);
@@ -29,6 +31,10 @@ export default function ClusterKpi01SalesTarget({
     ? (disbursementNum / clusterTarget) * 100
     : null;
   const grade = gradeFromPct(pct);
+  const clusterTargetFileLabel = getEffectiveKpiTargetFileLabel(
+    clusterTargetFileName,
+    'CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx'
+  );
 
   if (loading) {
     return (
@@ -72,7 +78,7 @@ export default function ClusterKpi01SalesTarget({
           </tbody>
         </table>
         <p className="ckpi-note">
-          Source: Last management report in selected month; Country sheet cluster row. Target from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx ({cluster} sheet).
+          Source: Last management report in selected month; Country sheet cluster row. Target from {clusterTargetFileLabel} ({cluster} sheet).
         </p>
       </div>
     </section>

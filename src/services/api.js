@@ -410,20 +410,25 @@ export const proceduresAPI = {
 export const emailAPI = {
   /**
    * Send HOD Score Card report email to managers
-   * @param {Object} params - { recipients, subject, htmlBody, mode, attachmentBase64?, attachmentName? }
+   * @param {Object} params - { recipients, subject, htmlBody, mode, attachmentBase64?, attachmentName?, attachments? }
+   *   attachments: optional array of { base64, name } for multiple attachments (overrides single attachment when set)
    * @returns {Promise<{ success: boolean, message?: string, error?: string }>}
    */
-  async sendScoreCard({ recipients, subject, htmlBody, mode = 'WEEKLY', attachmentBase64, attachmentName }) {
+  async sendScoreCard({ recipients, subject, htmlBody, mode = 'WEEKLY', attachmentBase64, attachmentName, attachments }) {
+    const body = {
+      recipients,
+      subject,
+      htmlBody,
+      mode,
+      attachmentBase64: attachmentBase64 || '',
+      attachmentName: attachmentName || '',
+    };
+    if (attachments && attachments.length > 0) {
+      body.attachments = attachments.map((a) => ({ base64: a.base64 || '', name: a.name || '' }));
+    }
     return apiRequest('/api/email/scorecard', {
       method: 'POST',
-      body: JSON.stringify({
-        recipients,
-        subject,
-        htmlBody,
-        mode,
-        attachmentBase64: attachmentBase64 || '',
-        attachmentName: attachmentName || '',
-      }),
+      body: JSON.stringify(body),
     });
   },
 };

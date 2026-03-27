@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import './KpiAnalysisReport.css';
 import { loadCsKpiTargets, loadCsKpiClusterTargets, formatTzs, CS_KPI_TARGET_FILE_URL, CS_KPI_CLUSTER_TARGET_FILE_URL, getWeightForKpiKey } from './utils/csKpiTargets';
+
+const CLUSTER_TARGET_ATTACHMENT_NAME = 'CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
 import { getReportFileUrl } from '../../../../../../services/supabase';
@@ -8,7 +10,7 @@ import { getReportsByDepartmentAndType } from '../../../../../../services/report
 import { gapAnalysisAPI } from '../../../../../../services/api';
 import { exportMultipleSheetsWithStyles, buildWorkbookBuffer } from '../../utils/excelExportStyled';
 import { sendScoreCardEmail } from '../../utils/emailScoreCard';
-import { buildKpiReportEmailHTML } from '../../utils/emailTemplateKpi';
+import { buildKpiReportEmailHTML, buildClusterKpiReportEmailHTML } from '../../utils/emailTemplateKpi';
 import { parseManagementReportCsBranches } from './utils/parseManagementReportCsBranches';
 import { getBranchToClusterCS, getBranchesByClusterCS } from './utils/zoneClusterMapping';
 import { buildRSMData, buildRSMDataFromBranches } from '../GapAnalysis/utils/gapAnalysisUtils';
@@ -73,6 +75,17 @@ function normalizeParToPercentage(val) {
   return n; // already in percentage (e.g. 5.82)
 }
 
+function arrayBufferToBase64(ab) {
+  const bytes = new Uint8Array(ab);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return btoa(binary);
+}
+
 const KpiAnalysisReport = () => {
   const [product, setProduct] = useState('CS');
   const [targets, setTargets] = useState(null);
@@ -90,6 +103,16 @@ const KpiAnalysisReport = () => {
   const [branchesByCluster, setBranchesByCluster] = useState(null);
   /** Cluster KPI targets from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx (when a cluster is selected) */
   const [clusterTargets, setClusterTargets] = useState(null);
+  /** Optional uploaded KPI files (same format as defaults) */
+  const [uploadedTotalKpiFileUrl, setUploadedTotalKpiFileUrl] = useState(null);
+  const [uploadedTotalKpiFileName, setUploadedTotalKpiFileName] = useState('');
+  const [uploadedClusterKpiFileUrl, setUploadedClusterKpiFileUrl] = useState(null);
+  const [uploadedClusterKpiFileName, setUploadedClusterKpiFileName] = useState('');
+  const [uploadedClusterKpiBase64, setUploadedClusterKpiBase64] = useState(null);
+
+  const [kpiUploadLoading, setKpiUploadLoading] = useState(false);
+  const [kpiUploadError, setKpiUploadError] = useState('');
+  const kpiTargetFileInputRef = useRef(null);
   /** Parsed CRM agent_activity + Lead_Report for cluster view (by zone, then aggregated) */
   const [crmClusterSheetsData, setCrmClusterSheetsData] = useState(null);
   /** Actual reps from Gap Analysis API (uploaded template); keyed by RSM:Zone or TL|Supervision */
@@ -117,6 +140,7 @@ const KpiAnalysisReport = () => {
   const [emailBody, setEmailBody] = useState('');
   const [copiedList, setCopiedList] = useState(false);
   const [copiedBody, setCopiedBody] = useState(false);
+  const [pasteBox, setPasteBox] = useState('');
 
   useEffect(() => {
     if (recipients.length > 0) {
@@ -1605,6 +1629,37 @@ const KpiAnalysisReport = () => {
     }
   }, [buildKpiReportSheetsAndFile, buildClusterKpiReportSheetsAndFile, csView]);
 
+  const handleUploadKpiTargetFile = async (file) => {
+    if (!file) return;
+    setKpiUploadLoading(true);
+    setKpiUploadError('');
+    try {
+      const ab = await file.arrayBuffer();
+      if (csView !== 'Total') {
+        const parsedCluster = await loadCsKpiClusterTargets(ab);
+        setClusterTargets(parsedCluster);
+
+        // Update "View KPI" URL
+        if (uploadedClusterKpiFileUrl) URL.revokeObjectURL(uploadedClusterKpiFileUrl);
+        setUploadedClusterKpiFileUrl(URL.createObjectURL(file));
+        setUploadedClusterKpiFileName(file.name);
+
+        setUploadedClusterKpiBase64(arrayBufferToBase64(ab));
+      } else {
+        const parsedTotal = await loadCsKpiTargets(ab);
+        setTargets(parsedTotal);
+
+        if (uploadedTotalKpiFileUrl) URL.revokeObjectURL(uploadedTotalKpiFileUrl);
+        setUploadedTotalKpiFileUrl(URL.createObjectURL(file));
+        setUploadedTotalKpiFileName(file.name);
+      }
+    } catch (e) {
+      setKpiUploadError(e?.message || 'Failed to parse KPI target file. Ensure it matches the expected format.');
+    } finally {
+      setKpiUploadLoading(false);
+    }
+  };
+
   const getBuildResultForEmail = useCallback(async () => {
     if (csView !== 'Total') return buildClusterKpiReportSheetsAndFile();
     return await buildKpiReportSheetsAndFile();
@@ -1630,8 +1685,42 @@ const KpiAnalysisReport = () => {
     }).catch(() => {});
   };
 
+  const parseEmailsFromText = (text) => {
+    const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return [...new Set(text.split(/\s*[\n,;\t]\s*/).map((s) => s.trim().toLowerCase()).filter((s) => emailLike.test(s)))];
+  };
+
+  const pasteEmails = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const toAdd = parseEmailsFromText(text).filter((e) => !recipients.includes(e));
+      if (toAdd.length === 0) {
+        setSendError(recipients.length === 0 ? 'No valid emails in clipboard. Paste lines or comma-separated addresses.' : 'No new valid emails to add.');
+        return;
+      }
+      setRecipients((prev) => [...prev, ...toAdd]);
+      setSendError('');
+    } catch {
+      setSendError('Clipboard access denied. Paste into the box below and click "Add pasted".');
+    }
+  };
+
+  const addPasteBoxEmails = () => {
+    const toAdd = parseEmailsFromText(pasteBox).filter((e) => !recipients.includes(e));
+    if (toAdd.length === 0) {
+      setSendError(pasteBox.trim() ? 'No valid emails in the box.' : 'Paste emails above (one per line or comma-separated), then click Add pasted.');
+      return;
+    }
+    setRecipients((prev) => [...prev, ...toAdd]);
+    setPasteBox('');
+    setSendError('');
+  };
+
   const copyMessageBody = () => {
-    const html = emailBody || buildKpiReportEmailHTML(monthKeyToLabel(effectiveMonthKey), true);
+    const monthLabel = monthKeyToLabel(effectiveMonthKey);
+    const html = emailBody || (csView !== 'Total'
+      ? buildClusterKpiReportEmailHTML(monthLabel, true, csView)
+      : buildKpiReportEmailHTML(monthLabel, true));
     const div = document.createElement('div');
     div.innerHTML = html;
     const text = (div.innerText || div.textContent || '').trim();
@@ -1644,8 +1733,12 @@ const KpiAnalysisReport = () => {
 
   const generatePreview = () => {
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
-    const defaultSubject = `CS KPI Analysis Report — ${monthLabel}`;
-    const html = buildKpiReportEmailHTML(monthLabel, true);
+    const defaultSubject = csView !== 'Total'
+      ? `CS Cluster KPI Report — ${monthLabel} — ${csView}`
+      : `CS KPI Analysis Report — ${monthLabel}`;
+    const html = csView !== 'Total'
+      ? buildClusterKpiReportEmailHTML(monthLabel, true, csView)
+      : buildKpiReportEmailHTML(monthLabel, true);
     setEmailSubject(defaultSubject);
     setEmailBody(html);
     setShowPreview(true);
@@ -1661,27 +1754,68 @@ const KpiAnalysisReport = () => {
     setSendProgress(recipients.map((email) => ({ email, status: 'sending', error: null })));
 
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
-    const defaultSubject = `CS KPI Analysis Report — ${monthLabel}`;
+    const defaultSubject = csView !== 'Total'
+      ? `CS Cluster KPI Report — ${monthLabel} — ${csView}`
+      : `CS KPI Analysis Report — ${monthLabel}`;
     const subject = emailSubject || defaultSubject;
-    const htmlBody = emailBody || buildKpiReportEmailHTML(monthLabel, true);
+    const htmlBody = emailBody || (csView !== 'Total'
+      ? buildClusterKpiReportEmailHTML(monthLabel, true, csView)
+      : buildKpiReportEmailHTML(monthLabel, true));
 
-    let attachmentBase64 = '';
-    let attachmentName = '';
+    const isCluster = csView !== 'Total';
+    let attachments = [];
+
+    if (isCluster) {
+      // Cluster email: attach (1) target file, (2) KPI analysis workbook
+      try {
+        if (uploadedClusterKpiBase64) {
+          attachments.push({
+            base64: uploadedClusterKpiBase64,
+            name: uploadedClusterKpiFileName || CLUSTER_TARGET_ATTACHMENT_NAME
+          });
+        } else {
+          const targetRes = await fetch(CS_KPI_CLUSTER_TARGET_FILE_URL);
+          if (targetRes.ok) {
+            const targetBuf = await targetRes.arrayBuffer();
+            const targetBinary = Array.from(new Uint8Array(targetBuf)).map((b) => String.fromCharCode(b)).join('');
+            attachments.push({ base64: btoa(targetBinary), name: CLUSTER_TARGET_ATTACHMENT_NAME });
+          }
+        }
+      } catch (e) {
+        setSendProgress((prev) => prev.map((p) => ({ ...p, status: 'failed', error: 'Could not load cluster target file for attachment' })));
+        setSending(false);
+        return;
+      }
+    }
+
     const r = await getBuildResultForEmail();
     if (r) {
       const result = await buildWorkbookBuffer(r.sheets, r.fileName, { twoDecimalPlaces: true });
       if (result?.buffer) {
         const binary = Array.from(result.buffer).map((b) => String.fromCharCode(b)).join('');
-        attachmentBase64 = btoa(binary);
-        attachmentName = result.fileName;
+        const kpiAttachment = { base64: btoa(binary), name: result.fileName };
+        if (isCluster) {
+          attachments.push(kpiAttachment);
+        } else {
+          attachments = [{ base64: kpiAttachment.base64, name: kpiAttachment.name }];
+        }
       }
     }
 
-    const emailResult = await sendScoreCardEmail(recipients, subject, htmlBody, {
-      mode: 'KPI',
-      attachmentBase64,
-      attachmentName
-    });
+    if (attachments.length === 0) {
+      setSendProgress((prev) => prev.map((p) => ({ ...p, status: 'failed', error: 'Could not build report for attachment. Try again or download first.' })));
+      setSending(false);
+      return;
+    }
+    // Use legacy single-attachment fields when exactly one (backend compatibility); use attachments array when multiple
+    const emailOptions = { mode: 'KPI' };
+    if (attachments.length === 1) {
+      emailOptions.attachmentBase64 = attachments[0].base64;
+      emailOptions.attachmentName = attachments[0].name;
+    } else {
+      emailOptions.attachments = attachments;
+    }
+    const emailResult = await sendScoreCardEmail(recipients, subject, htmlBody, emailOptions);
 
     const status = emailResult.success ? 'success' : 'failed';
     const error = emailResult.success ? null : (emailResult.error || 'Failed to send');
@@ -1778,14 +1912,41 @@ const KpiAnalysisReport = () => {
             <span className="kpi-ar-btn-icon">✉</span> Send Email
           </button>
           <a
-            href={product === 'CS' && csView !== 'Total' ? CS_KPI_CLUSTER_TARGET_FILE_URL : CS_KPI_TARGET_FILE_URL}
+            href={product === 'CS'
+              ? (csView !== 'Total'
+                ? (uploadedClusterKpiFileUrl || CS_KPI_CLUSTER_TARGET_FILE_URL)
+                : (uploadedTotalKpiFileUrl || CS_KPI_TARGET_FILE_URL))
+              : CS_KPI_TARGET_FILE_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="kpi-ar-btn kpi-ar-btn-view"
-            title={product === 'CS' && csView !== 'Total' ? 'Open cluster KPI target file (CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx)' : 'Open uploaded KPI target file'}
+            title={csView !== 'Total'
+              ? (uploadedClusterKpiFileName ? `Open uploaded cluster KPI target file (${uploadedClusterKpiFileName})` : 'Open cluster KPI target file')
+              : (uploadedTotalKpiFileName ? `Open uploaded total KPI target file (${uploadedTotalKpiFileName})` : 'Open uploaded KPI target file')}
           >
             <span className="kpi-ar-btn-icon">📋</span> View KPI
           </a>
+          <button
+            type="button"
+            className="kpi-ar-btn kpi-ar-btn-upload"
+            onClick={() => kpiTargetFileInputRef.current?.click()}
+            disabled={kpiUploadLoading}
+            title={csView !== 'Total' ? 'Upload a new cluster KPI target XLSX' : 'Upload a new total KPI target XLSX'}
+          >
+            <span className="kpi-ar-btn-icon">⤒</span> {csView !== 'Total' ? 'Upload Cluster KPI' : 'Upload KPI'}
+          </button>
+          <input
+            ref={kpiTargetFileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUploadKpiTargetFile(file);
+              // allow re-upload of the same file name
+              e.target.value = '';
+            }}
+          />
           <button
             type="button"
             className="kpi-ar-btn kpi-ar-btn-download"
@@ -1796,6 +1957,7 @@ const KpiAnalysisReport = () => {
           </button>
         </div>
       </div>
+      {kpiUploadError && <div className="kpi-ar-upload-error">{kpiUploadError}</div>}
 
       <div className="kpi-ar-product-toggles">
         <button
@@ -1954,6 +2116,7 @@ const KpiAnalysisReport = () => {
             monthLabel={monthKeyToLabel(effectiveMonthKey)}
             effectiveMonthKey={effectiveMonthKey}
             clusterTarget={effectiveTargetsForKpi?.salesTarget ?? 0}
+            clusterTargetFileName={uploadedClusterKpiFileName}
             countrySheetDisbursement={countrySheetClusterDisbursement}
             countrySheetClusterPortfolio={countrySheetClusterPortfolio}
             countrySheetClusterPortfolioPrevious={countrySheetClusterPortfolioPrevious}
@@ -2154,7 +2317,13 @@ const KpiAnalysisReport = () => {
         >
           <div className="kpi-ar-email-modal" onClick={(e) => e.stopPropagation()}>
             <div className="kpi-ar-email-modal-header">
-              <h3 className="kpi-ar-email-modal-title">Send KPI Analysis Report by Email</h3>
+              <div className="kpi-ar-email-modal-title-wrap">
+                <h3 className="kpi-ar-email-modal-title">Send KPI Analysis Report by Email</h3>
+                <p className="kpi-ar-email-modal-view-hint">
+                  Sending for current view: <strong>{csView}</strong>
+                  {csView !== 'Total' && ' — attachment and content are for this cluster only.'}
+                </p>
+              </div>
               <button
                 type="button"
                 className="kpi-ar-email-modal-close"
@@ -2209,9 +2378,18 @@ const KpiAnalysisReport = () => {
                   className="kpi-ar-email-copy-btn"
                   onClick={copyRecipientList}
                   disabled={sending || recipients.length === 0}
-                  title="Copy all emails"
+                  title="Copy all emails to clipboard"
                 >
                   {copiedList ? '✓ Copied!' : 'Copy email list'}
+                </button>
+                <button
+                  type="button"
+                  className="kpi-ar-email-copy-btn"
+                  onClick={pasteEmails}
+                  disabled={sending}
+                  title="Paste emails from clipboard (one per line or comma/semicolon separated)"
+                >
+                  Paste
                 </button>
                 <button
                   type="button"
@@ -2221,6 +2399,18 @@ const KpiAnalysisReport = () => {
                   title="Copy message (plain text)"
                 >
                   {copiedBody ? '✓ Copied!' : 'Copy message'}
+                </button>
+              </div>
+              <div className="kpi-ar-email-paste-box-wrap">
+                <textarea
+                  className="kpi-ar-email-paste-box"
+                  placeholder="Or paste emails here (one per line or comma/semicolon separated)"
+                  value={pasteBox}
+                  onChange={(e) => setPasteBox(e.target.value)}
+                  rows={2}
+                />
+                <button type="button" className="kpi-ar-email-copy-btn kpi-ar-email-add-pasted-btn" onClick={addPasteBoxEmails}>
+                  Add pasted
                 </button>
               </div>
               <ul className="kpi-ar-email-recipients-list">
@@ -2257,7 +2447,9 @@ const KpiAnalysisReport = () => {
                       <div className="kpi-ar-email-preview-html" dangerouslySetInnerHTML={{ __html: emailBody }} />
                     </div>
                     <p className="kpi-ar-email-preview-attachment">
-                      📎 Attachment: CS_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx
+                      📎 {csView !== 'Total'
+                        ? <>Attachments: (1) {CLUSTER_TARGET_ATTACHMENT_NAME} (2) CS_Cluster_KPI_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}_{csView.replace(/\s+/g, '_')}.xlsx</>
+                        : <>Attachment: CS_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx</>}
                     </p>
                   </div>
                 )}

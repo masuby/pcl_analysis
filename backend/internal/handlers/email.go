@@ -19,15 +19,23 @@ var EmailConfig struct {
 	AppPassword string
 }
 
+// AttachmentItem is one attachment (base64 + filename)
+type AttachmentItem struct {
+	Base64 string `json:"base64"`
+	Name   string `json:"name"`
+}
+
 // SendScoreCardRequest is the request body for sending score card email
 type SendScoreCardRequest struct {
 	Recipients []string `json:"recipients" binding:"required"`
 	Subject    string   `json:"subject" binding:"required"`
 	HTMLBody   string   `json:"htmlBody" binding:"required"`
 	Mode       string   `json:"mode"` // "WEEKLY" or "MONTHLY"
-	// Attachment as base64-encoded Excel file (optional, for weekly mode)
+	// Single attachment (legacy)
 	AttachmentBase64 string `json:"attachmentBase64"`
 	AttachmentName   string `json:"attachmentName"`
+	// Multiple attachments (optional; if set, used instead of single attachment)
+	Attachments []AttachmentItem `json:"attachments"`
 }
 
 // SendScoreCardEmail sends the HOD Score Card report email to managers
@@ -82,25 +90,44 @@ func SendScoreCardEmail(c *gin.Context) {
 	htmlB64 := base64.StdEncoding.EncodeToString([]byte(req.HTMLBody))
 	writeBase64Lines(htmlPart, htmlB64)
 
-	// Part 2: Attachment (if present)
-	if req.AttachmentBase64 != "" && req.AttachmentName != "" {
+	// Part 2: Attachments (multiple or single legacy)
+	addAttachment := func(b64, name string) error {
+		if b64 == "" || name == "" {
+			return nil
+		}
 		contentType := "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-		if strings.HasSuffix(strings.ToLower(req.AttachmentName), ".pptx") {
+		if strings.HasSuffix(strings.ToLower(name), ".pptx") {
 			contentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 		}
 		attPart, err := mw.CreatePart(map[string][]string{
-			"Content-Type":              {contentType + `; name="` + req.AttachmentName + `"`},
+			"Content-Type":              {contentType + `; name="` + name + `"`},
 			"Content-Transfer-Encoding":  {"base64"},
-			"Content-Disposition":        {`attachment; filename="` + req.AttachmentName + `"`},
+			"Content-Disposition":        {`attachment; filename="` + name + `"`},
 		})
 		if err != nil {
+			return err
+		}
+		writeBase64Lines(attPart, b64)
+		return nil
+	}
+	if len(req.Attachments) > 0 {
+		for _, a := range req.Attachments {
+			if err := addAttachment(a.Base64, a.Name); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"error":   "Failed to create attachment part: " + err.Error(),
+				})
+				return
+			}
+		}
+	} else if req.AttachmentBase64 != "" && req.AttachmentName != "" {
+		if err := addAttachment(req.AttachmentBase64, req.AttachmentName); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
 				"error":   "Failed to create attachment part: " + err.Error(),
 			})
 			return
 		}
-		writeBase64Lines(attPart, req.AttachmentBase64)
 	}
 
 	if err := mw.Close(); err != nil {

@@ -28,6 +28,7 @@ export default function ClusterKpiView({
   monthLabel,
   effectiveMonthKey,
   clusterTarget = 0,
+  clusterTargetFileName = '',
   countrySheetDisbursement = null,
   countrySheetClusterPortfolio = null,
   countrySheetClusterPortfolioPrevious = null,
@@ -61,6 +62,7 @@ export default function ClusterKpiView({
         cluster={cluster}
         monthLabel={monthLabel}
         clusterTarget={clusterTarget}
+        clusterTargetFileName={clusterTargetFileName}
         disbursement={countrySheetDisbursement}
         loading={loading}
       />

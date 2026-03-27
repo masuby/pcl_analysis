@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import './ScoreCardReports.css';
 import ManagementSummary from './components/ManagementSummary/ManagementSummary';
 import SalesComplianceSummary from './components/SalesComplianceSummary/SalesComplianceSummary';
-import ProductionSalesTracker from './components/ProductionSalesTracker/ProductionSalesTracker';
 import LeadsMarketingTracker from './components/LeadsMarketingTracker/LeadsMarketingTracker';
 import ProductSalesTracker from './components/ProductSalesTracker/ProductSalesTracker';
 import CallCenterPerformanceTracker from './components/CallCenterPerformanceTracker/CallCenterPerformanceTracker';
@@ -41,7 +40,6 @@ const formatDateForHeader = (d) => {
 const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
   const managementSummaryRef = useRef(null);
   const salesComplianceRef = useRef(null);
-  const productionRef = useRef(null);
   const leadsRef = useRef(null);
   const productRef = useRef(null);
   const callCenterRef = useRef(null);
@@ -216,19 +214,19 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
     const sheetNames = [
       'Management Summary',
       'Sales Compliance Summary',
-      'Production Sales Tracker',
       'Leads Marketing Tracker',
       'Product Sales Tracker (MTD)',
       'Call Center Performance'
     ];
-    const refs = [managementSummaryRef, salesComplianceRef, productionRef, leadsRef, productRef, callCenterRef];
+    const refs = [managementSummaryRef, salesComplianceRef, leadsRef, productRef, callCenterRef];
     const allSheets = [];
     refs.forEach((sectionRef, idx) => {
       const sheets = sectionRef.current?.getExportSheets?.();
-      const sheet = Array.isArray(sheets) && sheets.length > 0 ? sheets[0] : null;
-      const hasActualData = sheet?.tables?.length > 0 && sheet.tables.some((t) => t.data && t.data.length > 0);
-      if (hasActualData) {
-        allSheets.push(sheet);
+      const validSheets = Array.isArray(sheets)
+        ? sheets.filter((s) => s?.tables?.length > 0 && s.tables.some((t) => t.data && t.data.length > 0))
+        : [];
+      if (validSheets.length > 0) {
+        allSheets.push(...validSheets);
       } else {
         allSheets.push({
           name: sheetNames[idx],
@@ -236,6 +234,21 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
           freeze: { row: 2, col: 0 }
         });
       }
+    });
+    const order = [
+      'Management Summary',
+      'Client Movement Tracker',
+      'Sales Reps Growth Tracker',
+      'Portfolio Breakdown trend',
+      'Product Sales Tracker (MTD)',
+      'Call Center Performance',
+      'Sales Compliance Summary',
+      'Leads Marketing Tracker'
+    ];
+    allSheets.sort((a, b) => {
+      const ai = order.indexOf(a.name);
+      const bi = order.indexOf(b.name);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     });
     return allSheets;
   };
@@ -285,19 +298,19 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
     const sheetNames = [
       'Management Summary',
       'Sales Compliance Summary',
-      'Production Sales Tracker',
       'Leads Marketing Tracker',
       'Product Sales Tracker (MTD)',
       'Call Center Performance'
     ];
-    const refs = [managementSummaryRef, salesComplianceRef, productionRef, leadsRef, productRef, callCenterRef];
+    const refs = [managementSummaryRef, salesComplianceRef, leadsRef, productRef, callCenterRef];
     const allSheets = [];
     refs.forEach((sectionRef, idx) => {
       const sheets = sectionRef.current?.getExportSheets?.();
-      const sheet = Array.isArray(sheets) && sheets.length > 0 ? sheets[0] : null;
-      const hasActualData = sheet?.tables?.length > 0 && sheet.tables.some((t) => t.data && t.data.length > 0);
-      if (hasActualData) {
-        allSheets.push(sheet);
+      const validSheets = Array.isArray(sheets)
+        ? sheets.filter((s) => s?.tables?.length > 0 && s.tables.some((t) => t.data && t.data.length > 0))
+        : [];
+      if (validSheets.length > 0) {
+        allSheets.push(...validSheets);
       } else {
         allSheets.push({
           name: sheetNames[idx],
@@ -306,6 +319,22 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
         });
       }
     });
+    const order = [
+      'Management Summary',
+      'Client Movement Tracker',
+      'Sales Reps Growth Tracker',
+      'Portfolio Breakdown trend',
+      'Product Sales Tracker (MTD)',
+      'Call Center Performance',
+      'Sales Compliance Summary',
+      'Leads Marketing Tracker'
+    ];
+    allSheets.sort((a, b) => {
+      const ai = order.indexOf(a.name);
+      const bi = order.indexOf(b.name);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+
     const fileName = mode === 'WEEKLY'
       ? `HOD_SCORE_CARD_WEEKLY_FROM_${dateFromFile}_TO_${dateToFile}.xlsx`
       : `HOD_SCORE_CARD_MONTHLY_FROM_${dateFromFile}_TO_${dateToFile}.xlsx`;
@@ -340,10 +369,6 @@ const ScoreCardReports = ({ reports, selectedDepartment, userData }) => {
         <div className="scorecard-divider"></div>
         
         <SalesComplianceSummary ref={salesComplianceRef} mode={mode} userData={userData} />
-        
-        <div className="scorecard-divider"></div>
-        
-        <ProductionSalesTracker ref={productionRef} mode={mode} userData={userData} />
         
         <div className="scorecard-divider"></div>
         

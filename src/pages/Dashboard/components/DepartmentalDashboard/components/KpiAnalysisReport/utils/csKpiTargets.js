@@ -70,10 +70,15 @@ function toMonthKey(val) {
  * - zanzibar: same
  * - callCenter: { monthKey: target }
  */
-export async function loadCsKpiTargets() {
-  const res = await fetch(TARGET_FILE);
-  if (!res.ok) throw new Error('Failed to load CS KPI target file');
-  const ab = await res.arrayBuffer();
+export async function loadCsKpiTargets(source = TARGET_FILE) {
+  let ab;
+  if (source instanceof ArrayBuffer) {
+    ab = source;
+  } else {
+    const res = await fetch(source || TARGET_FILE);
+    if (!res.ok) throw new Error('Failed to load CS KPI target file');
+    ab = await res.arrayBuffer();
+  }
   // Read without cellDates so MONTH column stays as Excel serial; we convert in toMonthKey for correct YYYY-MM
   const wb = XLSX.read(ab, { type: 'array', cellDates: false });
 
@@ -181,10 +186,15 @@ const CLUSTER_SHEET_NAMES = ['Cluster 1', 'Cluster 2', 'Cluster 3', 'Zanzibar'];
  * Load and parse CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx (KPI sheet + Cluster 1, Cluster 2, Cluster 3, Zanzibar).
  * Returns: { performanceStandards: { name, weight }[], clusters: { [sheetName]: { [monthKey]: { newBusiness, repeatBusiness, total } } } }
  */
-export async function loadCsKpiClusterTargets() {
-  const res = await fetch(CLUSTER_TARGET_FILE);
-  if (!res.ok) throw new Error('Failed to load CS cluster KPI target file');
-  const ab = await res.arrayBuffer();
+export async function loadCsKpiClusterTargets(source = CLUSTER_TARGET_FILE) {
+  let ab;
+  if (source instanceof ArrayBuffer) {
+    ab = source;
+  } else {
+    const res = await fetch(source || CLUSTER_TARGET_FILE);
+    if (!res.ok) throw new Error('Failed to load CS cluster KPI target file');
+    ab = await res.arrayBuffer();
+  }
   const wb = XLSX.read(ab, { type: 'array', cellDates: false });
 
   const out = {
