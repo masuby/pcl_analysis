@@ -79,3 +79,13 @@ node_modules
 *.docx
 *.pptx
 *.ppt
+
+# Large / compressed / archive files
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+*.tgz
+*.dumb
