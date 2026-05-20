@@ -136,84 +136,72 @@ const AreaChart = ({ data, height = 120 }) => {
     linePath += ` L ${p.x} ${p.y}`;
   });
 
-  const handleMouseMove = (e, index) => {
-    const chartContainer = e.currentTarget.closest('.sd-area-chart');
-    if (!chartContainer) return;
-    const rect = chartContainer.getBoundingClientRect();
-    setTooltipPosition({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-    setHoveredIndex(index);
-  };
-
   const handleMouseLeave = () => {
     setHoveredIndex(null);
   };
 
   return (
-    <div 
-      className="sd-area-chart" 
-      style={{ height: `${height}px` }}
-      onMouseLeave={handleMouseLeave}
-    >
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#2a5298" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="#2a5298" stopOpacity="0.05" />
-          </linearGradient>
-        </defs>
-        {/* Area */}
-        <path d={pathData} fill="url(#areaGradient)" />
-        {/* Line */}
-        <path d={linePath} fill="none" stroke="#2a5298" strokeWidth="2" />
-        {/* Points */}
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r={hoveredIndex === i ? "4" : "2.5"}
-            fill={hoveredIndex === i ? "#1e3c72" : "#2a5298"}
-            stroke="white"
-            strokeWidth={hoveredIndex === i ? "2" : "1"}
-            style={{ transition: 'all 0.2s ease' }}
-          />
-        ))}
-      </svg>
-      {/* Hover overlay areas */}
-      <div className="sd-area-hover-overlay">
-        {points.map((p, i) => {
-          const percentX = (p.x / width) * 100;
-          const percentY = (p.y / height) * 100;
-          return (
-            <div
+    <div className="sd-area-chart" onMouseLeave={handleMouseLeave}>
+      {/* Plot only: fixed height so global svg rules cannot stretch the chart to viewport width */}
+      <div className="sd-area-chart-plot" style={{ height: `${height}px` }}>
+        <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2a5298" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#2a5298" stopOpacity="0.05" />
+            </linearGradient>
+          </defs>
+          {/* Area */}
+          <path d={pathData} fill="url(#areaGradient)" />
+          {/* Line */}
+          <path d={linePath} fill="none" stroke="#2a5298" strokeWidth="2" />
+          {/* Points */}
+          {points.map((p, i) => (
+            <circle
               key={i}
-              className="sd-area-hover-zone"
-              style={{
-                left: `${percentX}%`,
-                top: `${percentY}%`,
-                transform: 'translate(-50%, -50%)'
-              }}
-              onMouseEnter={(e) => {
-                const chartContainer = e.currentTarget.closest('.sd-area-chart');
-                if (!chartContainer) return;
-                const rect = chartContainer.getBoundingClientRect();
-                const zoneRect = e.currentTarget.getBoundingClientRect();
-                setTooltipPosition({
-                  x: zoneRect.left - rect.left + (zoneRect.width / 2),
-                  y: zoneRect.top - rect.top - 10
-                });
-                setHoveredIndex(i);
-              }}
+              cx={p.x}
+              cy={p.y}
+              r={hoveredIndex === i ? "4" : "2.5"}
+              fill={hoveredIndex === i ? "#1e3c72" : "#2a5298"}
+              stroke="white"
+              strokeWidth={hoveredIndex === i ? "2" : "1"}
+              style={{ transition: 'all 0.2s ease' }}
             />
-          );
-        })}
+          ))}
+        </svg>
+        {/* Hover overlay areas */}
+        <div className="sd-area-hover-overlay">
+          {points.map((p, i) => {
+            const percentX = (p.x / width) * 100;
+            const percentY = (p.y / height) * 100;
+            return (
+              <div
+                key={i}
+                className="sd-area-hover-zone"
+                style={{
+                  left: `${percentX}%`,
+                  top: `${percentY}%`,
+                  transform: 'translate(-50%, -50%)'
+                }}
+                onMouseEnter={(e) => {
+                  const root = e.currentTarget.closest('.sd-area-chart');
+                  if (!root) return;
+                  const rect = root.getBoundingClientRect();
+                  const zoneRect = e.currentTarget.getBoundingClientRect();
+                  setTooltipPosition({
+                    x: zoneRect.left - rect.left + (zoneRect.width / 2),
+                    y: zoneRect.top - rect.top - 10
+                  });
+                  setHoveredIndex(i);
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
-      {/* Tooltip */}
+      {/* Tooltip: anchored to full chart root so it works for plot + date labels */}
       {hoveredIndex !== null && (
-        <div 
+        <div
           className="sd-area-tooltip"
           style={{
             left: `${tooltipPosition.x}px`,

@@ -115,7 +115,7 @@
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   border-radius: 18px;
-  padding: 1.5rem;
+  padding: 1.25rem;
   box-shadow: 
     0 20px 60px rgba(42, 82, 152, 0.1),
     0 0 0 1px rgba(255, 255, 255, 0.1),
@@ -538,7 +538,7 @@
   }
 
   .login-card {
-    padding: 2rem 1.5rem;
+    padding: 1.5rem 1.25rem;
     border-radius: 20px;
   }
 
@@ -614,7 +614,7 @@
   }
 
   .login-title {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
 
   .login-subtitle {

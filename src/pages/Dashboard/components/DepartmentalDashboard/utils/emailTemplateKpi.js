@@ -282,3 +282,84 @@ export const buildClusterKpiReportEmailHTML = (monthLabel, hasAttachment, cluste
 </body>
 </html>`;
 };
+
+/**
+ * HTML email for LBF or SME Total KPI Analysis (non-CS products).
+ * @param {'LBF'|'SME'} product
+ * @param {string} monthLabel - e.g. "Mar 2026"
+ * @param {boolean} hasAttachment
+ */
+export const buildNonCsKpiReportEmailHTML = (product, monthLabel, hasAttachment) => {
+  const safe = product === 'SME' ? 'SME' : 'LBF';
+  const title = `${safe} KPI Analysis Report`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} — ${monthLabel}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; line-height: 1.6;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f6f9; padding: 24px 16px;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); overflow: hidden;">
+          <tr>
+            <td style="background: linear-gradient(135deg, #14532d 0%, #166534 100%); padding: 32px 40px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700; letter-spacing: 0.5px;">
+                📊 ${title}
+              </h1>
+              <p style="margin: 12px 0 0; color: rgba(255,255,255,0.9); font-size: 18px; font-weight: 500;">
+                Performance standards &amp; targets (${safe})
+              </p>
+              ${monthLabel ? `<p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${monthLabel}</p>` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px 40px 24px;">
+              <p style="margin: 0 0 20px; color: #2d3748; font-size: 16px;">Dear Manager,</p>
+              <p style="margin: 0 0 20px; color: #4a5568; font-size: 15px;">
+                Please find your <strong>${title}</strong> for <strong>${monthLabel || 'the selected month'}</strong>.
+                This workbook summarizes KPI achievement from the management report, MTD, and CRM data where applicable.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 40px 24px;">
+              <div style="background: #ecfdf5; border-left: 4px solid #166534; padding: 20px 24px; border-radius: 0 8px 8px 0;">
+                <h3 style="margin: 0 0 12px; color: #14532d; font-size: 16px;">📋 Instructions</h3>
+                <ul style="margin: 0; padding-left: 20px; color: #4a5568; font-size: 14px;">
+                  <li style="margin-bottom: 8px;">Review the KPI Summary table in the attached analysis workbook.</li>
+                  <li style="margin-bottom: 8px;">${
+                    hasAttachment
+                      ? 'This email may include <strong>two attachments</strong>: (1) the <strong>KPI target file</strong> from the system, and (2) the <strong>KPI analysis Excel report</strong> generated for this month.'
+                      : 'Use <strong>Download xlsx</strong> in the KPI Analysis Report dashboard for the full workbook.'
+                  }</li>
+                  <li style="margin-bottom: 0;">For questions, reply to this email or contact your administrator.</li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 40px 32px;">
+              <div style="background: linear-gradient(135deg, #14532d 0%, #166534 100%); padding: 24px; border-radius: 8px; text-align: center;">
+                <p style="margin: 0; color: #ffffff; font-size: 15px; font-weight: 600;">
+                  ${hasAttachment ? '📎 See attached Excel file(s) for full detail.' : 'Open the dashboard for the full report.'}
+                </p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background: #f8fafc; padding: 24px 40px; border-top: 1px solid #e2e8f0; text-align: center;">
+              <p style="margin: 0; color: #718096; font-size: 12px;">
+                Automated message from PCL Analysis — ${safe} KPI Analysis Report.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};

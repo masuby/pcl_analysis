@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { getBranchesForCluster } from './constants';
-import { formatTzs } from '../utils/csKpiTargets';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 function gradeFromPct(pct) {
@@ -26,6 +26,9 @@ export default function ClusterKpi02RegionsNewBusiness({
   const hitCount = regionsNewBizTable.filter((r) => r.target > 0 && r.achieved >= r.target).length;
   const pct = totalRegions > 0 ? (hitCount / totalRegions) * 100 : null;
   const grade = gradeFromPct(pct);
+  const sumTarget = regionsNewBizTable.reduce((s, r) => s + (Number(r.target) || 0), 0);
+  const sumAchieved = regionsNewBizTable.reduce((s, r) => s + (Number(r.achieved) || 0), 0);
+  const pctWeighted = sumTarget > 0 ? (sumAchieved / sumTarget) * 100 : null;
 
   if (loading) {
     return (
@@ -61,14 +64,23 @@ export default function ClusterKpi02RegionsNewBusiness({
                 <td>{r.region}</td>
                 <td className="ckpi-num">{formatTzs(r.target)}</td>
                 <td className="ckpi-num">{formatTzs(r.achieved)}</td>
-                <td className="ckpi-num">{r.pct != null ? r.pct.toFixed(2) + '%' : '—'}</td>
+                <td className="ckpi-num">{formatPercentAccounting(r.pct)}</td>
                 <td>{r.target > 0 && r.achieved >= r.target ? <span className="ckpi-grade excellent">Yes</span> : <span className="ckpi-grade fail">No</span>}</td>
               </tr>
             ))}
+            {regionsNewBizTable.length > 0 ? (
+              <tr style={{ fontWeight: 600 }}>
+                <td>Total / Average</td>
+                <td className="ckpi-num">{formatTzs(sumTarget)}</td>
+                <td className="ckpi-num">{formatTzs(sumAchieved)}</td>
+                <td className="ckpi-num">{formatPercentAccounting(pctWeighted)}</td>
+                <td>—</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
         <p className="ckpi-note">
-          Regions in cluster: {branchNamesInCluster.join(', ')}. Summary: {hitCount} of {totalRegions} regions hit target = {pct != null ? pct.toFixed(2) + '%' : '—'}.
+          Regions in cluster: {branchNamesInCluster.join(', ')}. Summary: {formatTzs(hitCount)} of {formatTzs(totalRegions)} regions hit target = {formatPercentAccounting(pct)}.
         </p>
         <p className="ckpi-note">
           Grade: <span className={`ckpi-grade ${grade.className}`}>{grade.label}</span>

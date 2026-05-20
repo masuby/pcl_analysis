@@ -401,6 +401,7 @@ export const useMTDData = (department, selectedDate = null) => {
   const { refreshTrigger } = useReportRefresh();
   const [reports, setReports] = useState([]);
   const [parsedData, setParsedData] = useState(null);
+  const [monthlyParsedData, setMonthlyParsedData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const initialLoadDone = useRef(false);
@@ -476,6 +477,7 @@ export const useMTDData = (department, selectedDate = null) => {
       mtdParsedCache.clear();
       cacheInvalidate('reports');
       setParsedData(null);
+      setMonthlyParsedData([]);
       initialLoadDone.current = false;
       fetchMTDReports();
     }
@@ -484,6 +486,7 @@ export const useMTDData = (department, selectedDate = null) => {
   // When department changes (e.g. CS → LBF in Gap Analysis), clear previous data and fetch the new department's reports
   useEffect(() => {
     setParsedData(null);
+    setMonthlyParsedData([]);
     setReports([]);
     setError(null);
     initialLoadDone.current = false;
@@ -495,12 +498,14 @@ export const useMTDData = (department, selectedDate = null) => {
       parseReports();
     } else {
       setParsedData(null);
+      setMonthlyParsedData([]);
     }
   }, [reports, selectedDate]);
 
   const parseReports = async () => {
     if (reports.length === 0) {
       setParsedData(null);
+      setMonthlyParsedData([]);
       return;
     }
 
@@ -525,35 +530,63 @@ export const useMTDData = (department, selectedDate = null) => {
       }
       
       const cacheKey = `mtd_${department}_${targetReport.id}`;
-      if (mtdParsedCache.has(cacheKey)) {
+      const parseOneReport = async (report) => {
+        const oneCacheKey = `mtd_${department}_${report.id}`;
+        if (mtdParsedCache.has(oneCacheKey)) return mtdParsedCache.get(oneCacheKey);
+        if (!report.fileUrl) return null;
+        console.log(`[MTD] Parsing Excel file: ${report.fileName}`);
+        const data = await processExcelFile(report.fileUrl, report.fileName, department);
+        const parsed = { ...data, reportDate: report.date, reportId: report.id };
+        mtdParsedCache.set(oneCacheKey, parsed);
+        return parsed;
+      };
+
+      let parsed = mtdParsedCache.get(cacheKey);
+      if (!parsed) {
+        if (!targetReport.fileUrl) {
+          setError('No file URL available for parsing');
+          setParsedData(null);
+          setMonthlyParsedData([]);
+          return;
+        }
+        parsed = await parseOneReport(targetReport);
+      } else {
         console.log(`[Cache] Using cached MTD data for ${targetReport.fileName}`);
-        setParsedData(mtdParsedCache.get(cacheKey));
-        setLoading(false);
-        return;
       }
-      
-      if (!targetReport.fileUrl) {
-        setError('No file URL available for parsing');
-        setParsedData(null);
-        return;
+      setParsedData(parsed || null);
+
+      // YTD monthly data (Jan -> selected/latest month): use latest report in each month.
+      const latestDate = targetReport.date instanceof Date ? targetReport.date : new Date(targetReport.date);
+      const year = latestDate.getFullYear();
+      const lastMonth = latestDate.getMonth() + 1;
+      const ytdReports = [];
+      for (let month = 1; month <= lastMonth; month++) {
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const monthReport = getReportForMonth(reports, monthKey);
+        if (!monthReport) continue;
+        const d = monthReport.date instanceof Date ? monthReport.date : new Date(monthReport.date);
+        if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
+        ytdReports.push({ month, report: monthReport });
       }
 
-      console.log(`[MTD] Parsing Excel file: ${targetReport.fileName}`);
-      
-      const data = await processExcelFile(targetReport.fileUrl, targetReport.fileName, department);
-      
-      const parsed = {
-        ...data,
-        reportDate: targetReport.date,
-        reportId: targetReport.id
-      };
-      
-      mtdParsedCache.set(cacheKey, parsed);
-      setParsedData(parsed);
+      const parsedByMonth = await Promise.all(
+        ytdReports.map(async ({ month, report }) => ({
+          month,
+          reportId: report.id,
+          reportDate: report.date,
+          parsed: await parseOneReport(report),
+        }))
+      );
+      const monthly = parsedByMonth
+        .filter((x) => x.parsed)
+        .sort((a, b) => a.month - b.month)
+        .map((x) => ({ month: x.month, reportId: x.reportId, reportDate: x.reportDate, ...x.parsed }));
+      setMonthlyParsedData(monthly);
     } catch (err) {
       console.error('Error parsing MTD data:', err);
       setError(`Failed to parse MTD data: ${err.message}`);
       setParsedData(null);
+      setMonthlyParsedData([]);
     } finally {
       setLoading(false);
     }
@@ -562,6 +595,7 @@ export const useMTDData = (department, selectedDate = null) => {
   return {
     reports,
     parsedData,
+    monthlyParsedData,
     loading,
     error,
     hasData: parsedData !== null,

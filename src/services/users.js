@@ -2,7 +2,10 @@
  * Admin Users Service - Go Backend API
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Allow VITE_API_URL to be explicitly empty ('') to mean "use same origin".
+// If VITE_API_URL is undefined (not set), fall back to localhost for local development.
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = envApiUrl === undefined ? 'http://localhost:8080' : envApiUrl;
 
 // Get auth token
 const getToken = () => localStorage.getItem('pcl_token');

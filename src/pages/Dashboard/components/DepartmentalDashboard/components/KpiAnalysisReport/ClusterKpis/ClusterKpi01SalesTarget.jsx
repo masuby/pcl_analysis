@@ -4,7 +4,7 @@
  * vs Cluster target from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx.
  */
 import React from 'react';
-import { formatTzs } from '../utils/csKpiTargets';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import { getEffectiveKpiTargetFileLabel } from './clusterKpiUtils';
 import './clusterKpiStyles.css';
 
@@ -69,7 +69,7 @@ export default function ClusterKpi01SalesTarget({
             </tr>
             <tr>
               <td>% achieved</td>
-              <td className="ckpi-num">{pct != null ? pct.toFixed(2) + '%' : '—'}</td>
+              <td className="ckpi-num">{formatPercentAccounting(pct)}</td>
             </tr>
             <tr>
               <td>Grade</td>

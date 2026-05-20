@@ -1,5 +1,17 @@
 import PptxGenJS from 'pptxgenjs';
 import { addSectionSlides } from './pptxSectionSlides';
+import { estimateComparisonBulletHeight, PPTX_COMPARISON_TIGHT } from './pptxComparisonLayout';
+import {
+  pptxRunsTrendExplanation,
+  pptxRunsSummaryP1,
+  pptxRunsSummaryP2,
+  pptxRunsSummaryP3,
+  pptxRunsSummaryP4ActiveOnly,
+  pptxRunsCrmActual,
+  pptxRunsNewBusinessExplanation,
+  pptxRunsRepeatBusinessExplanation,
+  pptxRunsProductContributionSubtitle
+} from './pptxSalesReviewTextRuns';
 
 const PRIMARY_BLUE = '2a5298';
 const PRIMARY_BLUE_DARK = '1e3a6f';
@@ -381,17 +393,14 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     fontFace: FONT_FACE
   });
 
-  slide4.addText(trendExplanation, {
+  slide4.addText(pptxRunsTrendExplanation(trendExplanation, 12), {
     x: 0.5,
     y: 4.55,
     w: 8.5,
     h: CONTENT_END_Y - 4.55,
-    fontSize: 12,
-    color: DARK,
     valign: 'top',
     align: 'left',
-    wrap: true,
-    fontFace: FONT_FACE
+    wrap: true
   });
 
   addBottomLine(slide4, pptx);
@@ -439,18 +448,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
   if (summaryData) {
     const ml = summaryData.monthLabel || monthLabel;
-    const p1 =
-      `The total amount disbursed in the month of ${ml} is ${summaryData.disbursementsFormatted} TZS, having achieved ${summaryData.targetPct}% of the total target ${summaryData.targetFormatted} TZS.`;
-    slide5.addText(p1, {
+    slide5.addText(pptxRunsSummaryP1(summaryData, ml, 11), {
       x: 0.5,
       y: 1.1,
       w: 8.5,
       h: 0.5,
-      fontSize: 11,
-      color: DARK,
       valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
+      wrap: true
     });
 
     slide5.addShape(pptx.ShapeType.rect, {
@@ -462,18 +466,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
       line: { type: 'none' }
     });
 
-    const p2 =
-      `Of the total amount disbursed in the month of ${ml}, ${summaryData.newBusinessFormatted} TZS (${summaryData.newPct}%) came from new business and ${summaryData.repeatBusinessFormatted} TZS (${summaryData.repeatPct}%) came from repeat business.`;
-    slide5.addText(p2, {
+    slide5.addText(pptxRunsSummaryP2(summaryData, ml, 11), {
       x: 0.5,
       y: 1.85,
       w: 4.2,
       h: 1.4,
-      fontSize: 11,
-      color: DARK,
       valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
+      wrap: true
     });
 
     slide5.addShape(pptx.ShapeType.rect, {
@@ -526,18 +525,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
       line: { type: 'none' }
     });
 
-    const p3 =
-      `The total loan counts for the month of ${ml} is ${summaryData.numberOfLoansFormatted}, making the average loan size be ${summaryData.averageLoanSizeFormatted} TZS.`;
-    slide5.addText(p3, {
+    slide5.addText(pptxRunsSummaryP3(summaryData, ml, 11), {
       x: 0.5,
       y: 3.6,
       w: 8.5,
       h: 0.45,
-      fontSize: 11,
-      color: DARK,
       valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
+      wrap: true
     });
 
     slide5.addShape(pptx.ShapeType.rect, {
@@ -549,19 +543,26 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
       line: { type: 'none' }
     });
 
-    const p4 =
-      `The total number of Active agents for the month of ${ml} stands at ${summaryData.activeRepsFormatted}.`;
-    slide5.addText(p4, {
-      x: 0.5,
-      y: 4.3,
-      w: 8.5,
-      h: 0.4,
-      fontSize: 11,
-      color: DARK,
-      valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
-    });
+    if (summaryData.activeRepsFormatted != null) {
+      slide5.addText(pptxRunsSummaryP4ActiveOnly(ml, summaryData.activeRepsFormatted, 11), {
+        x: 0.5,
+        y: 4.3,
+        w: 8.5,
+        h: 0.4,
+        valign: 'top',
+        wrap: true
+      });
+    }
+    if (summaryData.crmActualRepsTotal != null) {
+      slide5.addText(pptxRunsCrmActual(ml, summaryData.crmActualRepsDate, summaryData.crmActualRepsTotal, 11), {
+        x: 0.5,
+        y: 4.72,
+        w: 8.5,
+        h: 0.4,
+        valign: 'top',
+        wrap: true
+      });
+    }
   } else {
     slide5.addText('No summary data available for the selected month. Upload management reports.', {
       x: 0.5,
@@ -618,21 +619,21 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     line: { type: 'none' }
   });
 
-  const bulletOpts = (y, h) => ({
-    x: 0.6,
-    y,
-    w: 8.3,
-    h: h || 0.2,
-    bullet: true,
-    fontSize: 12,
-    fontFace: FONT_FACE,
-    color: DARK,
-    valign: 'top',
-    wrap: true
-  });
+  const {
+    FS: COMP_BULLET_FS,
+    GAP: COMP_BULLET_GAP,
+    LM_TITLE_Y,
+    LM_TITLE_FS,
+    LM_TITLE_H,
+    LM_BULLETS_Y,
+    AFTER_DIVIDER,
+    LY_TITLE_H,
+    LY_HEADER_TO_BULLETS,
+    DIVIDER_PAD
+  } = PPTX_COMPARISON_TIGHT;
 
   const boldBlue = (str) => ({ text: str, options: { bold: true, color: PRIMARY_BLUE, fontFace: FONT_FACE } });
-  const plain = (str) => ({ text: str, options: { fontFace: FONT_FACE } });
+  const plain = (str) => ({ text: str, options: { fontFace: FONT_FACE, color: DARK } });
 
   const comparisonBulletRuns = (m) => [
     plain(' has '),
@@ -646,6 +647,16 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     plain(').')
   ];
 
+  const comparisonBulletsList = (data) =>
+    [
+      ['The total amount disbursed', data.disbursements],
+      ['The amount disbursed for new business', data.newBusiness],
+      ['The total loan counts', data.numberOfLoans],
+      ['The average loan size', data.averageLoanSize],
+      ['The total Outstanding Balance (portfolio)', data.portfolio],
+      ['The number of Active agents', data.activeReps]
+    ].filter(([, metric]) => metric);
+
   if (comparisonData) {
     const lm = comparisonData.lastMonth;
     const ly = comparisonData.lastYear;
@@ -654,58 +665,77 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
 
     slide6.addText(`Comparison to Last Month (${lmLabel})`, {
       x: 0.5,
-      y: 1.1,
+      y: LM_TITLE_Y,
       w: 8.5,
-      h: 0.28,
-      fontSize: 13,
+      h: LM_TITLE_H,
+      fontSize: LM_TITLE_FS,
       bold: true,
       color: DARK,
       fontFace: FONT_FACE
     });
 
+    let yAfterLm = LM_BULLETS_Y;
     if (lm) {
-      const bullets = [
-        ['The total amount disbursed', lm.disbursements],
-        ['The amount disbursed for new business', lm.newBusiness],
-        ['The total loan counts', lm.numberOfLoans],
-        ['The average loan size', lm.averageLoanSize],
-        ['The number of Active agents', lm.activeReps]
-      ];
-      bullets.forEach(([prefix, metric], i) => {
-        slide6.addText([plain(prefix), ...comparisonBulletRuns(metric)], bulletOpts(1.38 + i * 0.22, 0.22));
+      let y = LM_BULLETS_Y;
+      comparisonBulletsList(lm).forEach(([prefix, metric]) => {
+        const h = estimateComparisonBulletHeight(prefix, metric, COMP_BULLET_FS);
+        slide6.addText([plain(prefix), ...comparisonBulletRuns(metric)], {
+          x: 0.6,
+          y,
+          w: 8.3,
+          h,
+          bullet: true,
+          fontSize: COMP_BULLET_FS,
+          fontFace: FONT_FACE,
+          color: DARK,
+          valign: 'top',
+          wrap: true
+        });
+        y += h + COMP_BULLET_GAP;
       });
+      yAfterLm = y;
     }
 
+    const dividerY =
+      yAfterLm <= LM_BULLETS_Y + 0.02 ? 2.42 : yAfterLm - COMP_BULLET_GAP + DIVIDER_PAD;
     slide6.addShape(pptx.ShapeType.rect, {
       x: 0.5,
-      y: 2.55,
+      y: dividerY,
       w: 8.5,
-      h: 0.02,
+      h: 0.015,
       fill: { color: PRIMARY_BLUE },
       line: { type: 'none' }
     });
 
+    const lyHeadingY = dividerY + AFTER_DIVIDER;
     slide6.addText(`Comparison to Last Year (${lyLabel})`, {
       x: 0.5,
-      y: 2.7,
+      y: lyHeadingY,
       w: 8.5,
-      h: 0.28,
-      fontSize: 13,
+      h: LY_TITLE_H,
+      fontSize: LM_TITLE_FS,
       bold: true,
       color: DARK,
       fontFace: FONT_FACE
     });
 
     if (ly) {
-      const bullets = [
-        ['The total amount disbursed', ly.disbursements],
-        ['The amount disbursed for new business', ly.newBusiness],
-        ['The total loan counts', ly.numberOfLoans],
-        ['The average loan size', ly.averageLoanSize],
-        ['The number of Active agents', ly.activeReps]
-      ];
-      bullets.forEach(([prefix, metric], i) => {
-        slide6.addText([plain(prefix), ...comparisonBulletRuns(metric)], bulletOpts(2.98 + i * 0.22, 0.22));
+      let y = lyHeadingY + LY_HEADER_TO_BULLETS;
+      comparisonBulletsList(ly).forEach(([prefix, metric]) => {
+        const h = estimateComparisonBulletHeight(prefix, metric, COMP_BULLET_FS);
+        slide6.addText([plain(prefix), ...comparisonBulletRuns(metric)], {
+          x: 0.6,
+          y,
+          w: 8.3,
+          h,
+          bullet: true,
+          fontSize: COMP_BULLET_FS,
+          fontFace: FONT_FACE,
+          color: DARK,
+          valign: 'top',
+          wrap: true
+        });
+        y += h + COMP_BULLET_GAP;
       });
     }
   } else {
@@ -763,19 +793,10 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     const { monthLabel: nbMonth, lastMonthChange: nbLM, lastMonthLabel: nbLMLabel, lastYearChange: nbLY, lastYearLabel: nbLYLabel } = newBusinessComparison;
     const nbLMText = nbLM ? `${nbLM.dir} by ${nbLM.pct}%` : 'N/A';
     const nbLYText = nbLY ? `${nbLY.dir} by ${nbLY.pct}%` : 'N/A';
-    const nbExplanation = `The total amount disbursed for new business for the month of ${nbMonth} has ${nbLMText} in comparison to ${nbLMLabel || 'the previous month'}, and ${nbLYText} in comparison to ${nbLYLabel || 'the same month last year'}.`;
-    
-    slide7.addText(nbExplanation, {
-      x: 0.5,
-      y: 1.05,
-      w: 8.5,
-      h: 0.6,
-      fontSize: 12,
-      color: DARK,
-      valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
-    });
+    slide7.addText(
+      pptxRunsNewBusinessExplanation(nbMonth, nbLMText, nbLYText, nbLMLabel, nbLYLabel, 12),
+      { x: 0.5, y: 1.05, w: 8.5, h: 0.6, valign: 'top', wrap: true }
+    );
     
     const nbTrend = data.newBusinessTrend || [];
     if (nbTrend.length > 0) {
@@ -854,19 +875,10 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     const { monthLabel: rbMonth, lastMonthChange: rbLM, lastMonthLabel: rbLMLabel, lastYearChange: rbLY, lastYearLabel: rbLYLabel } = repeatBusinessComparison;
     const rbLMText = rbLM ? `${rbLM.dir} by ${rbLM.pct}%` : 'N/A';
     const rbLYText = rbLY ? `${rbLY.dir} by ${rbLY.pct}%` : 'N/A';
-    const rbExplanation = `The total amount disbursed for repeat business for the month of ${rbMonth} has ${rbLMText} in comparison to ${rbLMLabel || 'the previous month'}, and ${rbLYText} in comparison to ${rbLYLabel || 'the same month last year'}.`;
-    
-    slide8.addText(rbExplanation, {
-      x: 0.5,
-      y: 1.05,
-      w: 8.5,
-      h: 0.6,
-      fontSize: 12,
-      color: DARK,
-      valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
-    });
+    slide8.addText(
+      pptxRunsRepeatBusinessExplanation(rbMonth, rbLMText, rbLYText, rbLMLabel, rbLYLabel, 12),
+      { x: 0.5, y: 1.05, w: 8.5, h: 0.6, valign: 'top', wrap: true }
+    );
     
     const rbTrend = data.repeatBusinessTrend || [];
     if (rbTrend.length > 0) {
@@ -951,16 +963,13 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
     const pieProducts = products.filter((p) => p.value > 0);
     const tableRows = (productsRanked && productsRanked.length > 0) ? productsRanked : products.map((p, i) => ({ ...p, rank: i + 1 }));
 
-    slide9.addText(`Contribution to total sales (Disbursements This Month) — ${monthLabel}. Total: ${totalFormatted} TZS`, {
+    slide9.addText(pptxRunsProductContributionSubtitle(monthLabel, totalFormatted, 10), {
       x: 0.5,
       y: 1.05,
       w: 8.5,
       h: 0.35,
-      fontSize: 10,
-      color: DARK,
       valign: 'top',
-      wrap: true,
-      fontFace: FONT_FACE
+      wrap: true
     });
 
     if (pieProducts.length > 0) {
@@ -1018,8 +1027,8 @@ export async function generateSalesReviewPPTX(data, selectedMonth, userData, log
       return [
         { text: String(p.rank), options: { align: 'center', fontFace: FONT_FACE, fontSize: 9, color: PRIMARY_BLUE, bold: true, fill: { color: bgColor } } },
         { text: p.name, options: { fontFace: FONT_FACE, fontSize: 9, color: DARK, bold: false, fill: { color: bgColor } } },
-        { text: p.valueFormatted, options: { fontFace: FONT_FACE, fontSize: 9, color: DARK, bold: true, fill: { color: bgColor } } },
-        { text: p.percentage + '%', options: { align: 'right', fontFace: FONT_FACE, fontSize: 9, color: GRAY, fill: { color: bgColor } } }
+        { text: p.valueFormatted, options: { fontFace: FONT_FACE, fontSize: 9, color: PRIMARY_BLUE, bold: true, fill: { color: bgColor } } },
+        { text: p.percentage + '%', options: { align: 'right', fontFace: FONT_FACE, fontSize: 9, color: PRIMARY_BLUE, bold: true, fill: { color: bgColor } } }
       ];
     });
     try {

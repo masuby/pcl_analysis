@@ -7,7 +7,10 @@
  * 2. Replace Firebase/Supabase imports with this API service
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Allow VITE_API_URL to be explicitly empty ('') to mean "use same origin".
+// If VITE_API_URL is undefined (not set), fall back to localhost for local development.
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = envApiUrl === undefined ? 'http://localhost:8080' : envApiUrl;
 
 // Token management
 const getToken = () => localStorage.getItem('pcl_token');
@@ -430,6 +433,53 @@ export const emailAPI = {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  },
+};
+
+// ========== Marketing Digital Sales API ==========
+
+export const marketingAPI = {
+  /** Fetch all stored Digital Sales files (with parsed data) from the backend. */
+  async getFiles() {
+    const data = await apiRequest('/api/marketing/digital-sales/files');
+    return data?.data ?? [];
+  },
+
+  /**
+   * Upload a Digital Sales Excel file + its parsed JSON to the backend.
+   * @param {File}   file       – the raw .xlsx file
+   * @param {number} year       – the year this file covers (e.g. 2026)
+   * @param {object} parsedData – the full YearData object from parseDigitalSalesExcel
+   */
+  async uploadFile(file, year, parsedData) {
+    const token = localStorage.getItem('pcl_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('year', String(year));
+    formData.append('parsed_data', JSON.stringify(parsedData));
+
+    const response = await fetch(`${API_URL}/api/marketing/digital-sales/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { throw new Error(`Server error (${response.status})`); }
+    if (!response.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  /** Soft-delete the active file for a given year. */
+  async deleteFile(year) {
+    return apiRequest(`/api/marketing/digital-sales/files/${year}`, { method: 'DELETE' });
+  },
+
+  /** Returns the URL to download the original uploaded Excel for a year. */
+  downloadUrl(year) {
+    return `${API_URL}/api/marketing/digital-sales/files/${year}/download`;
   },
 };
 

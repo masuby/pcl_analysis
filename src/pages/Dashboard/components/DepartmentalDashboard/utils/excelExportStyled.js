@@ -33,14 +33,16 @@ const blendWithWhite = (hex, ratio = 0.8) => {
 };
 
 /**
-/** Columns that typically contain numeric values for accounting format (comma separators) */
+ * Columns that typically contain numeric values for accounting format (comma separators)
+ */
 const ACCOUNTING_HEADERS = new Set([
   'Target', 'Disbursement', 'Number of Loans', 'Active Reps', 'In Arrear', 'Value in Arrears', 'PAR>7', 'PAR>30',
   'Total Value', 'Total Loans', 'Loans', 'Month Target', 'Value', 'Active Reps', 'Reps',
   'Total Calls', 'Successful Calls', 'Unsuccessful Calls', 'Total Agents', '>50 Calls', '<50 Calls',
   'Number of Leads', 'Prospect', 'Total Agents (CRM)', 'Logged In Agents', 'Total TLS', 'Logged In TLS',
   'Agents >50 Calls', 'Agents <50 Calls', 'Total Agents (CC)',
-  'Achieved', 'Remaining', '% Achived', '% Unachived', 'Required to End', 'Active Client', 'Inactive Client', 'Total Clients', 'Average Loan Size'
+  'Achieved', 'Remaining', '% Achived', '% Unachived', 'Required to End', 'Active Client', 'Inactive Client', 'Total Clients', 'Average Loan Size',
+  'Total Leads', 'Logged in workforce', 'Total workforce (TL + agents)', 'Total workforce', 'Consented Leads', 'Rejected Leads', 'Not Provided Leads'
 ]);
 
 /**
@@ -181,7 +183,7 @@ export const buildSheetFromTables = (tables, options = {}) => {
             fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFFFF' } }
           };
         } else {
-          const isPctCol = h === '% Achived' || h === '% Unachived' || h === '% Achieved' || h === 'Percentage Change' || h === 'Change %';
+          const isPctCol = h === '% Achived' || h === '% Unachived' || h === '% Achieved' || h === '% Logged in' || h === 'Percentage Change' || h === 'Change %';
           if (twoDecimalPlaces && val !== null && val !== undefined && typeof val === 'number' && val === val) {
             if (!isPctCol && !Number.isInteger(val)) val = Math.round(val * 100) / 100;
           }

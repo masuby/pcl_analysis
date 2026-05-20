@@ -4,6 +4,29 @@
  */
 import * as XLSX from 'xlsx';
 
+async function fetchArrayBufferExpectExcel(url, label) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`${label} unavailable (HTTP ${res.status})`);
+  }
+  const ct = String(res.headers.get('content-type') || '').toLowerCase();
+  // When XLSX is missing, dev server commonly falls back to SPA HTML (text/html).
+  if (ct.includes('text/html')) {
+    throw new Error(`${label} unavailable (received HTML instead of XLSX)`);
+  }
+  const ab = await res.arrayBuffer();
+  // Extra safety: sniff the first bytes for "<html"/"<!DOCTYPE".
+  try {
+    const head = new TextDecoder('utf-8').decode(new Uint8Array(ab.slice(0, 512)));
+    if (/^\s*</.test(head) || /<!doctype\s+html/i.test(head)) {
+      throw new Error(`${label} unavailable (received HTML instead of XLSX)`);
+    }
+  } catch (e) {
+    // If sniffing fails, let XLSX parsing decide.
+  }
+  return ab;
+}
+
 /** Public URL for "View KPI" button (opens uploaded KPI target file). */
 export const CS_KPI_TARGET_FILE_URL = new URL('../CS KPI TARGET.xlsx', import.meta.url).href;
 const TARGET_FILE = CS_KPI_TARGET_FILE_URL;
@@ -63,6 +86,27 @@ function toMonthKey(val) {
   return null;
 }
 
+function monthNameToMonthOnlyKey(val) {
+  if (val == null) return null;
+  const t = String(val).trim().toLowerCase();
+  const map = {
+    jan: '01', january: '01',
+    feb: '02', february: '02',
+    mar: '03', march: '03',
+    apr: '04', april: '04',
+    may: '05',
+    jun: '06', june: '06',
+    jul: '07', july: '07',
+    aug: '08', august: '08',
+    sep: '09', sept: '09', september: '09',
+    oct: '10', october: '10',
+    nov: '11', november: '11',
+    dec: '12', december: '12'
+  };
+  const mm = map[t];
+  return mm ? `0000-${mm}` : null;
+}
+
 /**
  * Load and parse the target file. Returns:
  * - performanceStandards: string[] (10 items)
@@ -75,9 +119,7 @@ export async function loadCsKpiTargets(source = TARGET_FILE) {
   if (source instanceof ArrayBuffer) {
     ab = source;
   } else {
-    const res = await fetch(source || TARGET_FILE);
-    if (!res.ok) throw new Error('Failed to load CS KPI target file');
-    ab = await res.arrayBuffer();
+    ab = await fetchArrayBufferExpectExcel(source || TARGET_FILE, 'CS KPI target file');
   }
   // Read without cellDates so MONTH column stays as Excel serial; we convert in toMonthKey for correct YYYY-MM
   const wb = XLSX.read(ab, { type: 'array', cellDates: false });
@@ -191,9 +233,7 @@ export async function loadCsKpiClusterTargets(source = CLUSTER_TARGET_FILE) {
   if (source instanceof ArrayBuffer) {
     ab = source;
   } else {
-    const res = await fetch(source || CLUSTER_TARGET_FILE);
-    if (!res.ok) throw new Error('Failed to load CS cluster KPI target file');
-    ab = await res.arrayBuffer();
+    ab = await fetchArrayBufferExpectExcel(source || CLUSTER_TARGET_FILE, 'CS cluster KPI target file');
   }
   const wb = XLSX.read(ab, { type: 'array', cellDates: false });
 
@@ -255,6 +295,70 @@ export async function loadCsKpiClusterTargets(source = CLUSTER_TARGET_FILE) {
 }
 
 /**
+ * Parse LBF/SME style KPI target workbook (KPI + TARGET) directly from XLSX bytes.
+ * Returns { performanceStandards: [{name,weight}], targetsByMonth: { YYYY-MM|0000-MM: {...cols} } }
+ */
+export async function loadGenericKpiTargets(source) {
+  let ab;
+  if (source instanceof ArrayBuffer) {
+    ab = source;
+  } else {
+    ab = await fetchArrayBufferExpectExcel(source, 'KPI target file');
+  }
+  const wb = XLSX.read(ab, { type: 'array', cellDates: false });
+  const out = {
+    performanceStandards: [],
+    targetsByMonth: {}
+  };
+
+  const kpiSheet = wb.Sheets['KPI'];
+  if (kpiSheet) {
+    const rows = XLSX.utils.sheet_to_json(kpiSheet, { header: 1, defval: '' });
+    const header = rows[0] || [];
+    const nameIdx = header.findIndex((h) => /performance\s*standards|^kpi$/i.test(String(h || '').trim()));
+    const weightIdx = header.findIndex((h) => /weight/i.test(String(h || '').trim()));
+    const nI = nameIdx >= 0 ? nameIdx : 0;
+    const wI = weightIdx >= 0 ? weightIdx : 1;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const name = r[nI] != null ? String(r[nI]).trim() : '';
+      if (!name) continue;
+      let weight = Number(r[wI]);
+      if (Number.isFinite(weight) && weight > 1) weight = weight / 100;
+      if (!Number.isFinite(weight)) weight = 0;
+      out.performanceStandards.push({ name, weight });
+    }
+  }
+
+  const targetSheet = wb.Sheets['TARGET'];
+  if (targetSheet) {
+    const rows = XLSX.utils.sheet_to_json(targetSheet, { header: 1, defval: '' });
+    const header = (rows[0] || []).map((h) => String(h || '').trim());
+    const monthIdx = header.findIndex((h) => /month|period/i.test(h));
+    const mI = monthIdx >= 0 ? monthIdx : 0;
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i] || [];
+      const rawMonth = r[mI];
+      let key = toMonthKey(rawMonth);
+      if (!key) key = monthNameToMonthOnlyKey(rawMonth);
+      if (!key) continue;
+      const entry = {};
+      header.forEach((h, idx) => {
+        if (!h) return;
+        if (idx === mI) {
+          entry.monthLabel = String(rawMonth ?? '').trim();
+          return;
+        }
+        const n = Number(r[idx]);
+        entry[h] = Number.isFinite(n) ? n : r[idx];
+      });
+      out.targetsByMonth[key] = entry;
+    }
+  }
+  return out;
+}
+
+/**
  * Get weight from performanceStandards by matching KPI name (so correct weight is used regardless of row order in file).
  * @param {{ name: string, weight: number }[]} standards
  * @param {'growth'|'regions_clusters'|'crm'|'data_consent'} key
@@ -276,11 +380,24 @@ export function getWeightForKpiKey(standards, key) {
   return found && Number.isFinite(found.weight) ? found.weight : 0;
 }
 
+/** Comma-separated accounting-style numbers (full value, no K/M/B abbreviation). */
 export function formatTzs(num) {
-  if (num == null || isNaN(num)) return '—';
+  if (num == null || num === '') return '—';
+  const n = typeof num === 'number' ? num : Number(num);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(n);
+}
+
+/** Percentage with grouping (e.g. 1,234.56%). */
+export function formatPercentAccounting(num, decimals = 2) {
+  if (num == null || num === '') return '—';
   const n = Number(num);
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + ' B';
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + ' M';
-  if (n >= 1e3) return (n / 1e3).toFixed(2) + ' K';
-  return n.toLocaleString();
+  if (!Number.isFinite(n)) return '—';
+  return `${new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  }).format(n)}%`;
 }

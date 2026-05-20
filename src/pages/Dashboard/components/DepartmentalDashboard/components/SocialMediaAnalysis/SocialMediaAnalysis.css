@@ -1,0 +1,115 @@
+.pen-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pen-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid #cbd5e1;
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.08);
+}
+
+.pen-header-title {
+  margin: 0;
+  font-size: clamp(1rem, 0.85rem + 0.6vw, 1.25rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1e293b;
+}
+
+.pen-header-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.pen-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.3);
+  filter: brightness(1.03);
+}
+
+.pen-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.22);
+}
+
+.pen-btn-upload-client {
+  background: linear-gradient(135deg, #0f766e 0%, #0f766e 55%, #115e59 100%);
+  box-shadow: 0 8px 16px rgba(15, 118, 110, 0.25);
+}
+
+.pen-btn-upload-client:hover {
+  box-shadow: 0 10px 18px rgba(15, 118, 110, 0.3);
+}
+
+.pen-hidden-input {
+  display: none;
+}
+
+.pen-coming-soon-container {
+  width: 100%;
+}
+
+.pen-coming-soon-content {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  border: 1px solid #e2e8f0;
+}
+
+.pen-coming-soon-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  opacity: 0.8;
+}
+
+.pen-coming-soon-title {
+  color: #334155;
+  margin-bottom: 16px;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.pen-coming-soon-message {
+  color: #475569;
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.pen-coming-soon-description {
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1.6;
+  max-width: 500px;
+  margin: 0 auto;
+}
+

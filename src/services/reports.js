@@ -5,7 +5,10 @@
 
 import { cacheGet, cacheSet, cacheInvalidate } from './cache';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+// Allow VITE_API_URL to be explicitly empty ('') to mean "use same origin".
+// If VITE_API_URL is undefined (not set), fall back to localhost for local development.
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_URL = envApiUrl === undefined ? 'http://localhost:8080' : envApiUrl;
 
 // Token management
 const getToken = () => localStorage.getItem('pcl_token');
@@ -386,38 +389,76 @@ export const getReportDownloadUrl = (reportId) => {
   return `${API_URL}/api/reports/${reportId}/download`;
 };
 
-// Download all reports as ZIP
-export const downloadAllReportsAsZip = async (reports) => {
+/** Safe segment for filenames (matches selected report-type button label, e.g. MANAGEMENT, CALL_CENTER). */
+function sanitizeZipNameSegment(s) {
+  const t = String(s || 'REPORT')
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[/\\?%*:|"<>]/g, '')
+    .replace(/_+/g, '_');
+  return t || 'REPORT';
+}
+
+function reportDateForZipFilename(report) {
+  const raw = report?.date ?? report?.created_at;
+  const d = raw ? new Date(raw) : null;
+  if (!d || Number.isNaN(d.getTime())) return 'UNKNOWN_DATE';
+  return d.toISOString().split('T')[0];
+}
+
+function fileExtensionFromReportName(report) {
+  const name = report?.file_name || report?.fileName || '';
+  const base = String(name).split(/[/\\]/).pop() || '';
+  const m = base.match(/(\.[a-zA-Z0-9]+)$/);
+  return m ? m[1].toLowerCase() : '.xlsx';
+}
+
+/**
+ * Download all reports as one ZIP. Each file is named: {buttonName}_REPORT_{YYYY-MM-DD}.ext
+ * (same pattern as the report-type button, e.g. MANAGEMENT — not storage ids).
+ * @param {Array} reports
+ * @param {{ buttonName?: string }} [options] — label of the active report-type button (MANAGEMENT, CRM, …)
+ */
+export const downloadAllReportsAsZip = async (reports, options = {}) => {
   try {
     const JSZip = await import('jszip');
     const { saveAs } = await import('file-saver');
-    
+
+    const buttonSeg = sanitizeZipNameSegment(options.buttonName || options.reportTypeLabel || 'REPORT');
     const zip = new JSZip.default();
     const folder = zip.folder('Reports');
-    
+
+    const usedPerBase = {};
+
     // Add each report to zip
     for (const report of reports) {
       try {
         const token = getToken();
         const response = await fetch(`${API_URL}/api/reports/${report.id}/download`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
-        
-        if (!response.ok) throw new Error(`Failed to fetch ${report.file_name}`);
-        
+
+        if (!response.ok) throw new Error(`Failed to fetch ${report.file_name || report.id}`);
+
         const blob = await response.blob();
-        folder.file(report.file_name || `report_${report.id}.xlsx`, blob);
+        const dateStr = reportDateForZipFilename(report);
+        const ext = fileExtensionFromReportName(report);
+        const base = `${buttonSeg}_REPORT_${dateStr}`;
+        usedPerBase[base] = (usedPerBase[base] || 0) + 1;
+        const n = usedPerBase[base];
+        const entryName = n === 1 ? `${base}${ext}` : `${base}_${n}${ext}`;
+        folder.file(entryName, blob);
       } catch (error) {
-        console.error(`Error adding ${report.file_name} to zip:`, error);
+        console.error(`Error adding ${report.file_name || report.id} to zip:`, error);
       }
     }
-    
-    // Generate zip file
+
+    const bundleDay = new Date().toISOString().split('T')[0];
     const content = await zip.generateAsync({ type: 'blob' });
-    saveAs(content, `Reports_${new Date().toISOString().split('T')[0]}.zip`);
-    
+    saveAs(content, `${buttonSeg}_ALL_REPORTS_${bundleDay}.zip`);
+
     return { success: true };
   } catch (error) {
     console.error('Error creating zip file:', error);

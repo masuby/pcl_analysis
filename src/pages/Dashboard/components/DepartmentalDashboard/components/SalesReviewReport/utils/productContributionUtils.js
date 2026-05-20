@@ -54,7 +54,7 @@ function formatShort(num) {
 /**
  * Get the report for the selected month (YYYY-MM). If multiple reports in that month, use the latest (max date).
  */
-function getReportForMonth(parsedReports, selectedMonth) {
+export function getReportForMonth(parsedReports, selectedMonth) {
   if (!parsedReports || parsedReports.length === 0) return null;
   const [year, month] = selectedMonth.split('-').map(Number);
   const inMonth = parsedReports.filter((r) => {

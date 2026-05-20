@@ -1,0 +1,355 @@
+.tmp-reports-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 35%);
+  padding: 0 1rem 1rem;
+}
+
+.tmp-reports-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem 0;
+}
+
+.tmp-reports-title {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #1e293b;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+}
+
+.tmp-reports-header-controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tmp-reports-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tmp-reports-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.09);
+}
+
+.tmp-reports-btn-refresh:hover {
+  color: #334155;
+  border-color: #64748b;
+}
+
+.tmp-reports-btn-email:hover {
+  color: #2a5298;
+  border-color: #2a5298;
+}
+
+.tmp-reports-btn-download:hover {
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+.tmp-reports-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tmp-reports-top-buttons {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tmp-reports-top-btn {
+  padding: 0.45rem 0.95rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.tmp-reports-top-btn--active {
+  background: #2a5298;
+  border-color: #2a5298;
+  color: #fff;
+}
+
+.tmp-reports-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tmp-reports-help,
+.tmp-reports-last-built {
+  margin: 0;
+  color: #334155;
+}
+
+.tmp-reports-error {
+  margin: 0;
+  color: #dc2626;
+}
+
+.tmp-reports-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  color: #475569;
+}
+
+.tmp-reports-progress-card {
+  border: 1px solid #dbe7f7;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  box-shadow: 0 8px 22px rgba(42, 82, 152, 0.08);
+}
+
+.tmp-reports-progress-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.tmp-reports-progress-label {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.tmp-reports-progress-value {
+  color: #2a5298;
+  font-weight: 700;
+}
+
+.tmp-reports-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.tmp-reports-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2a5298 0%, #3b82f6 100%);
+  transition: width 0.25s ease;
+}
+
+.tmp-reports-progress-loading {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #475569;
+}
+
+.tmp-reports-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.tmp-reports-kpi-card {
+  border: 1px solid #dbe7f7;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 0.95rem;
+  box-shadow: 0 8px 22px rgba(42, 82, 152, 0.08);
+}
+
+.tmp-reports-kpi-card h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.tmp-reports-kpi-total {
+  margin: 0.45rem 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: #2a5298;
+}
+
+.tmp-reports-kpi-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.tmp-reports-kpi-card--highlight {
+  border-color: #2a5298;
+  background: linear-gradient(180deg, #f3f8ff, #ebf3ff);
+}
+
+.tmp-reports-table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+}
+
+.tmp-reports-table-wrap--fancy {
+  border-color: #dbe7f7;
+}
+
+.tmp-reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tmp-reports-table th,
+.tmp-reports-table td {
+  border: 1px solid #e2e8f0;
+  padding: 0.58rem 0.75rem;
+  text-align: right;
+}
+
+.tmp-reports-table th {
+  background: #2a5298;
+  color: #fff;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.tmp-reports-table td:first-child,
+.tmp-reports-table th:first-child {
+  text-align: left;
+}
+
+.tmp-reports-head-1 th {
+  background: linear-gradient(90deg, #1e3a8a 0%, #2a5298 100%);
+  font-size: 0.9rem;
+}
+
+.tmp-reports-head-2 th {
+  background: #344b84;
+  font-size: 0.8rem;
+}
+
+.tmp-reports-table tbody tr:nth-child(even) td {
+  background: #f8fbff;
+}
+
+.tmp-reports-total-row td {
+  background: #e8f1ff;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.tmp-reports-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.tmp-reports-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.tmp-reports-modal-header,
+.tmp-reports-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tmp-reports-modal-footer {
+  border-bottom: 0;
+  border-top: 1px solid #e2e8f0;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.tmp-reports-modal-close {
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.tmp-reports-modal-body {
+  padding: 1rem 1.25rem;
+}
+
+.tmp-reports-recipient-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tmp-reports-recipient-row input {
+  flex: 1 1 220px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.tmp-reports-paste-row {
+  margin-top: 0.6rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.tmp-reports-paste-row textarea {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.tmp-reports-recipient-row button,
+.tmp-reports-paste-row button,
+.tmp-reports-modal-footer button {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.tmp-reports-recipient-list {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tmp-reports-recipient-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+}
+

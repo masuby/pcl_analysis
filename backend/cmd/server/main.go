@@ -50,6 +50,7 @@ func main() {
 	// Initialize handlers
 	handlers.InitReportHandlers(&cfg.Storage)
 	handlers.InitProcedureHandlers(&cfg.Storage)
+	handlers.InitMarketingHandlers()
 
 	// Create Gin router
 	router := gin.New()
@@ -134,6 +135,38 @@ func main() {
 				reports.POST("", handlers.UploadReport)
 				reports.PUT("/:id", handlers.UpdateReport)
 				reports.DELETE("/:id", handlers.DeleteReport)
+			}
+
+			// Marketing Digital Sales routes
+			marketing := protected.Group("/marketing/digital-sales")
+			{
+				marketing.POST("/upload", handlers.UploadMarketingDSFile)
+				marketing.GET("/files", handlers.GetMarketingDSFiles)
+				marketing.DELETE("/files/:year", handlers.DeleteMarketingDSFile)
+				marketing.GET("/files/:year/download", handlers.DownloadMarketingDSFile)
+			}
+
+			// Settlements routes (auth-only; all analysts can upload/replace their Settlements inputs)
+			settlements := protected.Group("/settlements")
+			{
+				settlements.POST("/upload", handlers.UploadSettlementFile)
+				settlements.GET("/active", handlers.GetSettlementActive)
+				settlements.GET("/versions", handlers.ListSettlementVersions)
+				settlements.GET("/:fileId/download", handlers.DownloadSettlementFile)
+				settlements.DELETE("/:fileId", handlers.DeleteSettlementFile)
+			}
+
+			// KPI Targets routes (admin-only)
+			kpiTargets := protected.Group("/kpi-targets")
+			kpiTargets.Use(middleware.AdminMiddleware())
+			{
+				kpiTargets.POST("/upload", handlers.UploadKpiTargetFile)
+				kpiTargets.GET("/versions", handlers.GetKpiTargetVersions)
+				kpiTargets.GET("/active", handlers.GetKpiTargetActive)
+				kpiTargets.GET("/:fileId/parsed", handlers.GetKpiTargetParsedByFileID)
+				kpiTargets.POST("/:fileId/activate", handlers.ActivateKpiTargetVersion)
+				kpiTargets.DELETE("/:fileId", handlers.DeleteKpiTargetVersion)
+				kpiTargets.GET("/:fileId/download", handlers.DownloadKpiTargetFile)
 			}
 
 			// Dashboard routes

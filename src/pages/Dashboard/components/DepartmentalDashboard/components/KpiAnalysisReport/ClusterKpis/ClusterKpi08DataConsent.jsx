@@ -3,6 +3,7 @@
  * CS CRM reports: Lead_Report sheet; Product=CS, Zone for cluster; Consent_Status=ACCEPTED percentage.
  */
 import React from 'react';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 const TARGET_PCT = 80;
@@ -27,6 +28,9 @@ export default function ClusterKpi08DataConsent({
 }) {
   const pct = totalConsent > 0 ? (acceptedCount / totalConsent) * 100 : null;
   const grade = gradeFromPct(pct);
+  const consentSumLead = consentTable.reduce((s, row) => s + (Number(row.totalLead) || 0), 0);
+  const consentSumAccepted = consentTable.reduce((s, row) => s + (Number(row.accepted) || 0), 0);
+  const pctConsentBlended = consentSumLead > 0 ? (consentSumAccepted / consentSumLead) * 100 : null;
 
   if (loading) {
     return (
@@ -55,11 +59,19 @@ export default function ClusterKpi08DataConsent({
               {consentTable.map((row, i) => (
                 <tr key={i}>
                   <td>{row.reportDate}</td>
-                  <td className="ckpi-num">{row.totalLead}</td>
-                  <td className="ckpi-num">{row.accepted}</td>
-                  <td className="ckpi-num">{row.pctConsented != null ? row.pctConsented.toFixed(2) + '%' : '—'}</td>
+                  <td className="ckpi-num">{formatTzs(row.totalLead)}</td>
+                  <td className="ckpi-num">{formatTzs(row.accepted)}</td>
+                  <td className="ckpi-num">{formatPercentAccounting(row.pctConsented)}</td>
                 </tr>
               ))}
+              {consentTable.length > 0 ? (
+                <tr style={{ fontWeight: 600 }}>
+                  <td>Total / Average</td>
+                  <td className="ckpi-num">{formatTzs(consentSumLead)}</td>
+                  <td className="ckpi-num">{formatTzs(consentSumAccepted)}</td>
+                  <td className="ckpi-num">{formatPercentAccounting(pctConsentBlended)}</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         )}
@@ -77,9 +89,9 @@ export default function ClusterKpi08DataConsent({
               {byZone.map((z, i) => (
                 <tr key={i}>
                   <td>{z.zone}</td>
-                  <td className="ckpi-num">{z.accepted}</td>
-                  <td className="ckpi-num">{z.total}</td>
-                  <td className="ckpi-num">{z.total > 0 ? ((z.accepted / z.total) * 100).toFixed(2) + '%' : '—'}</td>
+                  <td className="ckpi-num">{formatTzs(z.accepted)}</td>
+                  <td className="ckpi-num">{formatTzs(z.total)}</td>
+                  <td className="ckpi-num">{z.total > 0 ? formatPercentAccounting((z.accepted / z.total) * 100) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -95,15 +107,15 @@ export default function ClusterKpi08DataConsent({
           <tbody>
             <tr>
               <td>Total lead (cluster, all reports in month)</td>
-              <td className="ckpi-num">{totalConsent}</td>
+              <td className="ckpi-num">{formatTzs(totalConsent)}</td>
             </tr>
             <tr>
               <td>Total consent (Accepted) (cluster)</td>
-              <td className="ckpi-num">{acceptedCount}</td>
+              <td className="ckpi-num">{formatTzs(acceptedCount)}</td>
             </tr>
             <tr>
               <td>% accepted</td>
-              <td className="ckpi-num">{pct != null ? pct.toFixed(2) + '%' : '—'}</td>
+              <td className="ckpi-num">{formatPercentAccounting(pct)}</td>
             </tr>
             <tr>
               <td>Grade</td>
@@ -111,7 +123,7 @@ export default function ClusterKpi08DataConsent({
             </tr>
           </tbody>
         </table>
-        <p className="ckpi-note">Source: CS CRM reports ({monthLabel}), Lead_Report sheet: Product=CS only, Zone=zones within this cluster only; then Consent_Status=ACCEPTED. Weight: {weightPct}%.</p>
+        <p className="ckpi-note">Source: CS CRM reports ({monthLabel}), Lead_Report sheet: Product=CS only, Zone=zones within this cluster only; then Consent_Status=ACCEPTED. Weight: {formatPercentAccounting(weightPct)}.</p>
       </div>
     </section>
   );

@@ -30,7 +30,7 @@
 
 .header-left h2 {
   color: #2a5298;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 600;
   margin: 0 0 0.5rem 0;
 }
@@ -143,7 +143,7 @@
 .empty-state h3 {
   color: #2a5298;
   margin: 0 0 0.75rem 0;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
 .empty-state p {
@@ -232,7 +232,7 @@
 
   .empty-state {
     height: 250px;
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   .empty-icon {

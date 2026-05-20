@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import './DepartmentalDashboard.css';
 import ScoreCardReports from './components/ScoreCardReports/ScoreCardReports';
-import Marketing from './components/Marketing/Marketing';
-import Credit from './components/Credit/Credit';
+import PenetrationAnalysis from './components/PenetrationAnalysis/PenetrationAnalysis';
+import SettlementsAnalysis from './components/SettlementsAnalysis/SettlementsAnalysis';
 import GapAnalysis from './components/GapAnalysis/GapAnalysis';
 import SalesReviewReport from './components/SalesReviewReport/SalesReviewReport';
-import KpiAnalysisReport from './components/KpiAnalysisReport/KpiAnalysisReport';
+import KpiAnalysisReport from './components/KpiAnalysisReport/KpiAnalysisReportShell';
+import TemporaryReports from './components/TemporaryReports/TemporaryReports';
+import Marketing from './components/Marketing/Marketing';
+import RsmScoreCard from './components/RsmScoreCard/RsmScoreCard';
 
 const DepartmentalDashboard = ({ reports, selectedDepartment, onDepartmentChange, userData }) => {
   const [activeView, setActiveView] = useState('SCORE_CARD_REPORTS');
@@ -40,16 +43,34 @@ const DepartmentalDashboard = ({ reports, selectedDepartment, onDepartmentChange
           KPI ANALYSIS REPORT
         </button>
         <button
+          className={`dept-toggle-btn ${activeView === 'PENETRATION_ANALYSIS' ? 'dept-toggle-btn--active' : ''}`}
+          onClick={() => setActiveView('PENETRATION_ANALYSIS')}
+        >
+          SOCIAL MEDIA ANALYSIS
+        </button>
+        <button
+          className={`dept-toggle-btn ${activeView === 'SETTLEMENTS_ANALYSIS' ? 'dept-toggle-btn--active' : ''}`}
+          onClick={() => setActiveView('SETTLEMENTS_ANALYSIS')}
+        >
+          SETTLEMENTS ANALYSIS
+        </button>
+        <button
+          className={`dept-toggle-btn ${activeView === 'TEMPORARY_REPORTS' ? 'dept-toggle-btn--active' : ''}`}
+          onClick={() => setActiveView('TEMPORARY_REPORTS')}
+        >
+          TEMPORARY REPORTS
+        </button>
+        <button
           className={`dept-toggle-btn ${activeView === 'MARKETING' ? 'dept-toggle-btn--active' : ''}`}
           onClick={() => setActiveView('MARKETING')}
         >
           MARKETING ANALYSIS
         </button>
         <button
-          className={`dept-toggle-btn ${activeView === 'CREDIT' ? 'dept-toggle-btn--active' : ''}`}
-          onClick={() => setActiveView('CREDIT')}
+          className={`dept-toggle-btn ${activeView === 'RSM_SCORE_CARD' ? 'dept-toggle-btn--active' : ''}`}
+          onClick={() => setActiveView('RSM_SCORE_CARD')}
         >
-          CREDIT ANALYSIS
+          RSM SCORE CARD
         </button>
       </div>
       </div>
@@ -68,8 +89,11 @@ const DepartmentalDashboard = ({ reports, selectedDepartment, onDepartmentChange
         )}
         {activeView === 'GAP_ANALYSIS' && <GapAnalysis />}
         {activeView === 'KPI_ANALYSIS' && <KpiAnalysisReport />}
+        {activeView === 'PENETRATION_ANALYSIS' && <PenetrationAnalysis />}
+        {activeView === 'SETTLEMENTS_ANALYSIS' && <SettlementsAnalysis />}
+        {activeView === 'TEMPORARY_REPORTS' && <TemporaryReports />}
         {activeView === 'MARKETING' && <Marketing />}
-        {activeView === 'CREDIT' && <Credit />}
+        {activeView === 'RSM_SCORE_CARD' && <RsmScoreCard />}
       </div>
     </div>
   );

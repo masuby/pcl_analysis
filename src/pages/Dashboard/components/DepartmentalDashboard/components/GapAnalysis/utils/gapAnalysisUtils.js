@@ -106,6 +106,14 @@ const fmtPct = (n) =>
 /** Row labels that are people counts: show 0 decimal places */
 const PEOPLE_ROW_LABELS = ['Active Reps', 'Actual Reps', 'Active', 'Actual'];
 const isPeopleRow = (rowLabel) => PEOPLE_ROW_LABELS.includes(rowLabel);
+const normalizeActualAchieved = (activeAchieved, actualCandidate) => {
+  const active = activeAchieved == null || activeAchieved === '' ? null : Math.round(num(activeAchieved));
+  const actual = actualCandidate == null || actualCandidate === '' ? null : Math.round(num(actualCandidate));
+  if (active == null && actual == null) return null;
+  if (active == null) return actual;
+  if (actual == null || actual < active) return active;
+  return actual;
+};
 
 /** Build one gap row: Target, Achieved, Remaining, % Archived, % Unarchived, Comment (optional) */
 const gapRow = (label, target, achieved, commentOnly = false) => {
@@ -178,7 +186,8 @@ export const buildCSGapRows = (rowData, colMap, supervisionName, actualRepsOverr
       : Math.round((monthTarget / activeDivisor) * 10) / 10;
   const actualTarget = Math.round(activeTarget * ACTUAL_TARGET_MULTIPLIER);
   const activeAchieved = activeRepsFromSheet != null ? Math.round(activeRepsFromSheet) : null;
-  const actualAchieved = actualRepsOverride != null && actualRepsOverride !== '' ? num(actualRepsOverride) : null;
+  const actualCandidate = actualRepsOverride != null && actualRepsOverride !== '' ? num(actualRepsOverride) : null;
+  const actualAchieved = normalizeActualAchieved(activeAchieved, actualCandidate);
 
   const newLoansTarget = num(rowData[colMap.newLoansTarget]);
   const newLoansAchieved = num(rowData[colMap.newLoans]);
@@ -210,7 +219,8 @@ export const buildLBFGapRows = (rowData, colMap, actualRepsOverride) => {
       ? minNoRequired
       : Math.round((monthTarget / LBF_ACTIVE_DIVISOR) * 10) / 10;
   const actualTarget = Math.round(activeTarget * ACTUAL_TARGET_MULTIPLIER);
-  const actualAchieved = actualRepsOverride != null && actualRepsOverride !== '' ? num(actualRepsOverride) : null;
+  const actualCandidate = actualRepsOverride != null && actualRepsOverride !== '' ? num(actualRepsOverride) : null;
+  const actualAchieved = normalizeActualAchieved(activeRepsFromSheet != null ? Math.round(activeRepsFromSheet) : null, actualCandidate);
 
   const rows = [
     gapRowWithComment('Monthly Disbursement', monthTarget, value, comment),
@@ -335,7 +345,10 @@ export const buildRSMData = (parsedData, product, actualRepsOverrides = {}) => {
       const actualAchievedSum = allRows
         .filter((r) => r.rowLabel === actualLabel)
         .reduce((s, r) => s + (r.Achieved != null && r.Achieved !== '' ? Number(r.Achieved) : 0), 0);
-      const actualAchieved = rsmOverride != null && rsmOverride !== '' ? Number(rsmOverride) : actualAchievedSum;
+      const activeLabel = product === 'CS' ? 'Active Reps' : 'Active';
+      const activeRow = rows.find((r) => r.rowLabel === activeLabel);
+      const activeAchieved = activeRow?.Achieved != null && activeRow?.Achieved !== '' ? Number(activeRow.Achieved) : null;
+      const actualAchieved = normalizeActualAchieved(activeAchieved, rsmOverride != null && rsmOverride !== '' ? Number(rsmOverride) : actualAchievedSum);
       rows = rows.map((r) => {
         if (r.rowLabel !== actualLabel) return r;
         const t = num(r.Target);
@@ -365,6 +378,177 @@ export const buildRSMData = (parsedData, product, actualRepsOverrides = {}) => {
     out.push({ supervision: supervisionName, key: rsmKey, rows });
   }
   return out;
+};
+
+const MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const isMovementRowLabel = (product, rowLabel) =>
+  product === 'CS'
+    ? rowLabel === 'Active Reps' || rowLabel === 'Actual Reps'
+    : rowLabel === 'Active' || rowLabel === 'Actual';
+
+const recomputeRow = (base, target, achieved) => {
+  const t = num(target);
+  const a = achieved == null || achieved === '' ? null : num(achieved);
+  const rem = Math.max(0, t - (a ?? 0));
+  const pctArch = a != null && t > 0 ? (a / t) * 100 : 0;
+  const pctUnarch = t > 0 ? 100 - pctArch : 0;
+  return {
+    ...base,
+    Target: t,
+    Achieved: a,
+    Remaining: rem,
+    '% Achived': pctArch,
+    '% Unachived': pctUnarch,
+  };
+};
+
+/** Build YTD trend rows with month columns (Achieved trend) + Cumulative.
+ *  Additive rows: cumulative = sum Jan..latest.
+ *  Movement rows (Active/Actual): cumulative = latest month value.
+ */
+export const buildYTDGapData = (monthlyParsedData = [], product, actualRepsOverrides = {}) => {
+  const sorted = [...(monthlyParsedData || [])]
+    .filter((m) => m && m.month && m.parsedData !== false)
+    .sort((a, b) => Number(a.month) - Number(b.month));
+  if (sorted.length === 0) return { monthColumns: [], branchData: [], rsmData: [], grandTotalRows: [] };
+
+  const monthColumns = sorted.map((m) => MONTH_NAMES_SHORT[Math.max(0, Math.min(11, Number(m.month) - 1))]);
+  const latest = sorted[sorted.length - 1];
+
+  const monthlyBranch = sorted.map((m) => ({
+    month: m.month,
+    monthLabel: MONTH_NAMES_SHORT[Math.max(0, Math.min(11, Number(m.month) - 1))],
+    data: buildBranchData(m, product, actualRepsOverrides),
+  }));
+  const monthlyRsm = sorted.map((m) => ({
+    month: m.month,
+    monthLabel: MONTH_NAMES_SHORT[Math.max(0, Math.min(11, Number(m.month) - 1))],
+    data: buildRSMData(m, product, actualRepsOverrides),
+  }));
+
+  const latestBranchData = buildBranchData(latest, product, actualRepsOverrides);
+  const latestRsmData = buildRSMData(latest, product, actualRepsOverrides);
+
+  const buildEntity = (latestEntities, monthlyEntities, getKey, withNames = false) => {
+    return latestEntities.map((entity) => {
+      const key = getKey(entity);
+      const rowMap = new Map();
+      (entity.rows || []).forEach((r) => {
+        rowMap.set(r.rowLabel, {
+          ...r,
+          __monthTarget: {},
+          __monthAchieved: {},
+          Cumulative: 0,
+        });
+      });
+
+      monthlyEntities.forEach((pack) => {
+        const found = (pack.data || []).find((x) => getKey(x) === key);
+        if (!found) return;
+        (found.rows || []).forEach((r) => {
+          const row = rowMap.get(r.rowLabel);
+          if (!row) return;
+          row.__monthTarget[pack.monthLabel] = typeof r.Target === 'number' ? r.Target : 0;
+          row.__monthAchieved[pack.monthLabel] = r.Achieved == null || r.Achieved === '' ? null : Number(r.Achieved);
+        });
+      });
+
+      const rows = Array.from(rowMap.values()).map((row) => {
+        const isMovement = isMovementRowLabel(product, row.rowLabel);
+        const monthAch = {};
+        const monthlyMetrics = {};
+        monthColumns.forEach((m) => {
+          const tRaw = Number(row.__monthTarget[m] || 0);
+          const aRaw = row.__monthAchieved[m];
+          const aNum = aRaw == null || aRaw === '' ? null : Number(aRaw);
+          const t = isMovement ? Math.round(tRaw) : tRaw;
+          const a = aNum == null ? null : (isMovement ? Math.round(aNum) : aNum);
+          const rem = Math.max(0, t - (a ?? 0));
+          const pctA = a != null && t > 0 ? (a / t) * 100 : 0;
+          const pctU = t > 0 ? 100 - pctA : 0;
+          monthAch[m] = a == null ? '' : a;
+          monthlyMetrics[m] = {
+            Target: t,
+            Achieved: a,
+            Remaining: rem,
+            '% Achived': pctA,
+            '% Unachived': pctU,
+            Grade: getGradeFromPctArchived(pctA),
+            Comment: getCommentFromPctArchived(pctA),
+          };
+        });
+        const targetVals = monthColumns.map((m) => Number(row.__monthTarget[m] || 0));
+        const achVals = monthColumns.map((m) => (row.__monthAchieved[m] == null ? 0 : Number(row.__monthAchieved[m])));
+        const latestTarget = targetVals[targetVals.length - 1] || 0;
+        const latestAch = row.__monthAchieved[monthColumns[monthColumns.length - 1]];
+        const cumulativeTarget = isMovement ? Math.round(latestTarget) : targetVals.reduce((a, b) => a + b, 0);
+        const cumulativeAch = isMovement ? (latestAch == null ? null : Math.round(Number(latestAch))) : achVals.reduce((a, b) => a + b, 0);
+        const recomputed = recomputeRow(row, cumulativeTarget, cumulativeAch);
+        return {
+          ...recomputed,
+          ...monthAch,
+          __monthlyMetrics: monthlyMetrics,
+          Cumulative: cumulativeAch == null ? '' : cumulativeAch,
+        };
+      });
+
+      return withNames
+        ? { ...entity, rows }
+        : { ...entity, rows };
+    });
+  };
+
+  const branchData = buildEntity(latestBranchData, monthlyBranch, (x) => x.key, true);
+  const rsmData = buildEntity(latestRsmData, monthlyRsm, (x) => x.key, false);
+
+  const colMap = getColumnMap(latest.headers, product);
+  const grandBase = latest.grandTotalRow
+    ? (product === 'CS' ? buildCSGapRows(latest.grandTotalRow, colMap, '') : buildLBFGapRows(latest.grandTotalRow, colMap, undefined))
+    : [];
+  const grandByLabel = new Map((grandBase || []).map((r) => [r.rowLabel, { ...r }]));
+  branchData.forEach((b) => {
+    b.rows.forEach((r) => {
+      const g = grandByLabel.get(r.rowLabel);
+      if (!g) return;
+      if (!g.__monthTarget) g.__monthTarget = {};
+      if (!g.__monthAchieved) g.__monthAchieved = {};
+      monthColumns.forEach((m) => {
+        const mm = r.__monthlyMetrics?.[m] || {};
+        g.__monthTarget[m] = (Number(g.__monthTarget[m] || 0) || 0) + Number(mm.Target || 0);
+        g.__monthAchieved[m] = (Number(g.__monthAchieved[m] || 0) || 0) + Number(mm.Achieved || 0);
+      });
+    });
+  });
+  const grandTotalRows = Array.from(grandByLabel.values()).map((g) => {
+    const isMovement = isMovementRowLabel(product, g.rowLabel);
+    const monthlyMetrics = {};
+    monthColumns.forEach((m) => {
+      const tRaw = Number(g.__monthTarget?.[m] || 0);
+      const aRaw = Number(g.__monthAchieved?.[m] || 0);
+      const t = isMovement ? Math.round(tRaw) : tRaw;
+      const a = isMovement ? Math.round(aRaw) : aRaw;
+      const rem = Math.max(0, t - a);
+      const pctA = t > 0 ? (a / t) * 100 : 0;
+      const pctU = t > 0 ? 100 - pctA : 0;
+      monthlyMetrics[m] = {
+        Target: t,
+        Achieved: a,
+        Remaining: rem,
+        '% Achived': pctA,
+        '% Unachived': pctU,
+        Grade: getGradeFromPctArchived(pctA),
+        Comment: getCommentFromPctArchived(pctA),
+      };
+    });
+    const monthAchVals = monthColumns.map((m) => Number(g.__monthAchieved?.[m] || 0));
+    const monthTargetVals = monthColumns.map((m) => Number(g.__monthTarget?.[m] || 0));
+    const cumulativeAch = isMovement ? Math.round(monthAchVals[monthAchVals.length - 1]) : monthAchVals.reduce((a, b) => a + b, 0);
+    const cumulativeTarget = isMovement ? Math.round(monthTargetVals[monthTargetVals.length - 1]) : monthTargetVals.reduce((a, b) => a + b, 0);
+    const recomputed = recomputeRow(g, cumulativeTarget, cumulativeAch);
+    return { ...recomputed, __monthlyMetrics: monthlyMetrics, Cumulative: cumulativeAch };
+  });
+
+  return { monthColumns, branchData, rsmData, grandTotalRows };
 };
 
 /**

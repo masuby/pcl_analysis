@@ -44,18 +44,18 @@ const defaultCommentColors = { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW
 export const gapTableHTMLWithColors = (rows, columns, gradeColors = defaultGradeColors, commentColors = defaultCommentColors) => {
   if (!rows?.length) return '<p>No data</p>';
   const headers = columns.filter((c) => c !== 'rowLabel');
-  let html = '<table style="border-collapse: collapse; width: 100%; margin: 12px 0;">';
+  let html = '<table style="border-collapse: collapse; width: 100%; margin: 14px 0; border: 1px solid #C5CAE9;">';
   html += '<thead><tr style="background: #1A237E; color: #fff;">';
-  html += '<th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Metric</th>';
+  html += '<th style="border: 1px solid #C5CAE9; padding: 9px 8px; text-align: left;">Metric</th>';
   headers.forEach((h) => {
-    html += `<th style="border: 1px solid #ddd; padding: 8px; text-align: right;">${h}</th>`;
+    html += `<th style="border: 1px solid #C5CAE9; padding: 9px 8px; text-align: right;">${h}</th>`;
   });
   html += '</tr></thead><tbody>';
   rows.forEach((row, i) => {
     const cells = rowToCells(row, columns);
-    const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+    const bg = i % 2 === 0 ? '#FFFFFF' : '#F3F6FB';
     html += `<tr style="background: ${bg};">`;
-    html += `<td style="border: 1px solid #ddd; padding: 8px; font-weight: 500;">${escapeHtml(row.rowLabel || '')}</td>`;
+    html += `<td style="border: 1px solid #D1D9E6; padding: 8px; font-weight: 600; color: #1E293B;">${escapeHtml(row.rowLabel || '')}</td>`;
     headers.forEach((h, idx) => {
       const val = cells[columns.indexOf(h)];
       const isGrade = h === 'Grade';
@@ -65,7 +65,7 @@ export const gapTableHTMLWithColors = (rows, columns, gradeColors = defaultGrade
         : isComment && commentColors[String(val).toUpperCase().trim()]
           ? commentColors[String(val).toUpperCase().trim()]
           : '';
-      const style = `border: 1px solid #ddd; padding: 8px; text-align: right;${cellBg ? ` background: ${cellBg}; color: #fff; font-weight: 600;` : ''}`;
+      const style = `border: 1px solid #D1D9E6; padding: 8px; text-align: right; color: #334155;${cellBg ? ` background: ${cellBg}; color: #fff; font-weight: 700;` : ''}`;
       html += `<td style="${style}">${escapeHtml(String(val ?? ''))}</td>`;
     });
     html += '</tr>';
@@ -78,9 +78,9 @@ const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
 
 /** Blue header block: product label + date of report, centered, white text */
 const emailHeaderBlock = (product, dateOfReport) => `
-  <div style="background: #1A237E; color: #fff; text-align: center; padding: 20px 16px; margin: 0 0 24px 0; border-radius: 4px;">
-    <h1 style="margin: 0 0 6px 0; font-size: 22px; color: #fff; letter-spacing: 0.02em; font-weight: 700;">${escapeHtml(String(product).toUpperCase())} GAP ANALYSIS</h1>
-    <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.95);">${escapeHtml(dateOfReport)}</p>
+  <div style="background: linear-gradient(135deg, #1A237E 0%, #283593 100%); color: #fff; text-align: center; padding: 20px 16px; margin: 0 0 24px 0; border-radius: 6px; border-bottom: 4px solid #0F172A;">
+    <h1 style="margin: 0 0 6px 0; font-size: 22px; color: #fff; letter-spacing: 0.03em; font-weight: 700;">${escapeHtml(String(product).toUpperCase())} GAP ANALYSIS</h1>
+    <p style="margin: 0; font-size: 14px; color: rgba(255,255,255,0.95); font-weight: 500;">${escapeHtml(dateOfReport)}</p>
   </div>`;
 
 /** Managers email: full width, blue header, Dear Managers, message, blue instruction box, RSM total table */
@@ -90,39 +90,33 @@ export const buildManagersGapEmailHTML = (dateLabel, product, rsmGrandTotalRows,
 
   const message = `
     <p style="margin: 0 0 16px; color: #334155; line-height: 1.6;">
-      This is the <strong>Gap Analysis Report</strong> for <strong>${escapeHtml(dateLabel)}</strong> (${escapeHtml(product)}). 
-      It compares targets vs achieved figures and shows % Achived, Grade, and Comment for each metric.
+      This is the <strong>Gap Analysis Report</strong> for <strong>${escapeHtml(dateLabel)}</strong> (${escapeHtml(product)}).
+      The summary table below is a <strong>cumulative year-to-date view</strong> (from January to the latest available month), showing consolidated performance for each metric.
     </p>`;
 
   const instructionBox = `
-    <div style="margin: 20px 0; padding: 16px; border: 2px solid #1A237E; border-radius: 8px; background: #E8EAF6;">
+    <div style="margin: 20px 0; padding: 16px; border: 2px solid #1A237E; border-radius: 8px; background: #EEF2FF;">
       <p style="margin: 0 0 8px; font-weight: 600; color: #1A237E;">How to use this report</p>
       <ul style="margin: 0; padding-left: 20px; color: #334155; line-height: 1.6;">
-        <li>Review the <strong>Total of all supervisions</strong> table below for the overall picture.</li>
-        <li>The full Excel attachment contains Branch (Team Leader) and RSM sheets with all details.</li>
-        <li>We are also sending each Team Leader and each RSM a personal email with their own subsection and attachment.</li>
+        <li>Review the <strong>cumulative total of all supervisions</strong> table below for the overall year-to-date picture.</li>
+        <li>For each metric, Target/Achieved/Remaining and percentages represent consolidated performance across the covered months.</li>
+        <li>The attached Excel file includes full Branch and RSM details in the same cumulative format.</li>
       </ul>
     </div>`;
-
-  const note = `
-    <p style="margin-top: 20px; padding: 12px; background: #E8EAF6; border-radius: 8px; color: #1A237E; font-size: 14px;">
-      <strong>Note:</strong> Each Team Leader and each RSM will receive a separate email with their own gap summary and a personalised Excel attachment (only their subsection). They are asked to use the report and to submit any challenge or amendment if they see something wrong.
-    </p>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #EEF2F8;">
   <div style="width: 100%; max-width: 100%; padding: 24px; box-sizing: border-box;">
-    <div style="max-width: 1200px; margin: 0 auto; background: #fff; padding: 32px; box-sizing: border-box;">
+    <div style="max-width: 1200px; margin: 0 auto; background: #fff; padding: 32px; box-sizing: border-box; border: 1px solid #CBD5E1; border-radius: 8px;">
       ${emailHeaderBlock(product, dateLabel)}
       <p style="margin: 0 0 16px;">Dear <strong>Managers</strong>,</p>
       ${message}
       ${instructionBox}
-      <p style="margin: 16px 0 8px; font-weight: 600; color: #1e293b;">Total of all supervisions (RSM)</p>
+      <p style="margin: 16px 0 8px; font-weight: 700; color: #1e293b;">Cumulative total of all supervisions (RSM)</p>
       ${tableHtml}
-      <p style="margin-top: 16px; color: #64748b; font-size: 14px;">Please find the full Gap Analysis Excel file attached.</p>
-      ${note}
+      <p style="margin-top: 16px; color: #475569; font-size: 14px;">Please find the full cumulative Gap Analysis Excel file attached.</p>
       <p style="margin-top: 24px; color: #718096; font-size: 12px;">PCL Analysis – Gap Analysis</p>
     </div>
   </div>
@@ -204,9 +198,9 @@ export const buildTeamLeaderGapEmailHTML = (teamLeaderName, supervision, product
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
-<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9;">
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #EEF2F8;">
   <div style="width: 100%; max-width: 100%; padding: 24px; box-sizing: border-box;">
-    <div style="max-width: 1200px; margin: 0 auto; background: #fff; padding: 32px; box-sizing: border-box;">
+    <div style="max-width: 1200px; margin: 0 auto; background: #fff; padding: 32px; box-sizing: border-box; border: 1px solid #CBD5E1; border-radius: 8px;">
       ${emailHeaderBlock(product, dateLabel)}
       ${greeting}
       ${message}

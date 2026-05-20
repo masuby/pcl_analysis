@@ -55,6 +55,29 @@ function formatMonthYear(date) {
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
+/** Dates (Jan 2025), compact values (12.5B), parenthetical numbers, increased/decreased — for bold blue styling */
+export const TREND_DATA_HIGHLIGHT_RE =
+  /(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{4}\b|\d+\.?\d*[KMB]|\([^)]*\)|\b(?:increased|decreased)\b)/g;
+
+/**
+ * Split trend explanation into plain vs data segments (for React + PPTX rich text).
+ * @returns {Array<{ type: 'text' | 'data', value: string }>}
+ */
+export function segmentTrendExplanation(text) {
+  if (!text || typeof text !== 'string') return [];
+  const out = [];
+  let last = 0;
+  const re = new RegExp(TREND_DATA_HIGHLIGHT_RE.source, 'g');
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ type: 'text', value: text.slice(last, m.index) });
+    out.push({ type: 'data', value: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ type: 'text', value: text.slice(last) });
+  return out;
+}
+
 export function getTrendExplanation(monthlyData) {
   if (!monthlyData || monthlyData.length < 2) {
     return 'Insufficient data to describe trend.';

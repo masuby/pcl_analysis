@@ -69,3 +69,13 @@ backend/data/
 # Backups (sensitive data)
 backend/backup/
 node_modules
+
+# Document and spreadsheet files (never push sensitive data)
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.doc
+*.docx
+*.pptx
+*.ppt

@@ -7,7 +7,7 @@ import React from 'react';
 function ComparisonBullet({ prefix, dir, pct, currentFmt, prevFmt, suffix = '.' }) {
   return (
     <li className="report-comparison-bullet">
-      {prefix} <strong className="report-comparison-value">{dir}</strong> by <strong className="report-comparison-value">{pct}%</strong> (<strong className="report-comparison-value">{currentFmt}</strong> vs <strong className="report-comparison-value">{prevFmt}</strong>){suffix}
+      {prefix} <strong className="report-data-value">{dir}</strong> by <strong className="report-data-value">{pct}%</strong> (<strong className="report-data-value">{currentFmt}</strong> vs <strong className="report-data-value">{prevFmt}</strong>){suffix}
     </li>
   );
 }
@@ -17,6 +17,7 @@ const BULLET_LABELS = {
   newBusiness: 'The amount disbursed for new business has',
   numberOfLoans: 'The total loan counts have',
   averageLoanSize: 'The average loan size has',
+  portfolio: 'The total Outstanding Balance (portfolio) has',
   activeReps: 'The number of Active agents has'
 };
 
@@ -24,6 +25,14 @@ export default function PerformanceComparison({ comparisonData, logoSrc }) {
   if (!comparisonData) return null;
 
   const { lastMonthLabel, lastYearLabel, lastMonth, lastYear } = comparisonData;
+  const toBullets = (data) => ([
+    [BULLET_LABELS.disbursements, data.disbursements],
+    [BULLET_LABELS.newBusiness, data.newBusiness],
+    [BULLET_LABELS.numberOfLoans, data.numberOfLoans],
+    [BULLET_LABELS.averageLoanSize, data.averageLoanSize],
+    [BULLET_LABELS.portfolio, data.portfolio],
+    [BULLET_LABELS.activeReps, data.activeReps]
+  ]).filter(([, metric]) => metric && metric.currentFmt != null && metric.prevFmt != null);
 
   return (
     <div className="report-page report-page--comparison">
@@ -38,11 +47,9 @@ export default function PerformanceComparison({ comparisonData, logoSrc }) {
         <ul className="report-comparison-list">
           {lastMonth ? (
             <>
-              <ComparisonBullet prefix={BULLET_LABELS.disbursements} {...lastMonth.disbursements} />
-              <ComparisonBullet prefix={BULLET_LABELS.newBusiness} {...lastMonth.newBusiness} />
-              <ComparisonBullet prefix={BULLET_LABELS.numberOfLoans} {...lastMonth.numberOfLoans} />
-              <ComparisonBullet prefix={BULLET_LABELS.averageLoanSize} {...lastMonth.averageLoanSize} suffix="." />
-              <ComparisonBullet prefix={BULLET_LABELS.activeReps} {...lastMonth.activeReps} />
+              {toBullets(lastMonth).map(([prefix, metric]) => (
+                <ComparisonBullet key={prefix} prefix={prefix} {...metric} />
+              ))}
             </>
           ) : (
             <li className="report-comparison-bullet">No data available for last month.</li>
@@ -57,11 +64,9 @@ export default function PerformanceComparison({ comparisonData, logoSrc }) {
         <ul className="report-comparison-list">
           {lastYear ? (
             <>
-              <ComparisonBullet prefix={BULLET_LABELS.disbursements} {...lastYear.disbursements} />
-              <ComparisonBullet prefix={BULLET_LABELS.newBusiness} {...lastYear.newBusiness} />
-              <ComparisonBullet prefix={BULLET_LABELS.numberOfLoans} {...lastYear.numberOfLoans} />
-              <ComparisonBullet prefix={BULLET_LABELS.averageLoanSize} {...lastYear.averageLoanSize} suffix="." />
-              <ComparisonBullet prefix={BULLET_LABELS.activeReps} {...lastYear.activeReps} />
+              {toBullets(lastYear).map(([prefix, metric]) => (
+                <ComparisonBullet key={prefix} prefix={prefix} {...metric} />
+              ))}
             </>
           ) : (
             <li className="report-comparison-bullet">No data available for same month last year.</li>

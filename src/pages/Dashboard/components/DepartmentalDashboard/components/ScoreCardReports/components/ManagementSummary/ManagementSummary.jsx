@@ -259,18 +259,36 @@ const ManagementSummary = forwardRef((_, ref) => {
     const report = latest;
     const rd = dOf(report);
     const mk = rd ? mKey(rd) : '';
-    const mtd = { CS: getMTDTotals(mtdCS.parsedData), LBF: getMTDTotals(mtdLBF.parsedData), SME: getMTDTotals(mtdSME.parsedData) };
+    const mtdByDept = {
+      CS: getMTDTotals(mtdCS.parsedData),
+      LBF: getMTDTotals(mtdLBF.parsedData),
+      SME: getMTDTotals(mtdSME.parsedData)
+    };
     return PRODUCTS.map((p) => {
       const d = getProductData(report, p);
-      const disb = num(d?.disbursement);
       const target = num(d?.target);
-      const noLoans = num(d?.noLoans);
-      const activeReps = (p === 'CS' || p === 'LBF')
-        ? num(mtd[p]?.activeReps)
-        : num(d?.activeReps);
+      const mgmtDisb = num(d?.disbursement);
+      const mtdT = p === 'Agrifinance' || p === 'SME' ? null : mtdByDept[p];
+      const mtdDisb = mtdT ? num(mtdT.disbursement) : 0;
+      // SME and Agrifinance: always Management. CS/LBF: pick whichever has higher disbursement.
+      const useManagement = p === 'Agrifinance' || p === 'SME' ? true : mgmtDisb > mtdDisb;
+      const source = useManagement ? 'Management' : 'MTD';
+      let disb;
+      let noLoans;
+      let activeReps;
+      if (useManagement) {
+        disb = mgmtDisb;
+        noLoans = num(d?.noLoans);
+        activeReps = num(d?.activeReps);
+      } else {
+        disb = mtdDisb;
+        noLoans = num(mtdT?.noLoans);
+        activeReps = num(mtdT?.activeReps);
+      }
       const actual = p === 'Agrifinance' ? activeReps : num(crmByMonth[p]?.[mk]);
       return {
         Product: p,
+        Source: source,
         Target: target,
         Disbursement: disb,
         '% Achieved': target > 0 ? (disb / target) * 100 : 0,
@@ -290,7 +308,10 @@ const ManagementSummary = forwardRef((_, ref) => {
   const activeRepsForMonth = (product, monthIndex, report) => {
     if (currentYear == null) return num(getProductData(report, product)?.activeReps);
     const mk = `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}`;
-    if (product === 'CS' || product === 'LBF' || product === 'SME') {
+    if (product === 'SME') {
+      return num(getProductData(report, product)?.activeReps);
+    }
+    if (product === 'CS' || product === 'LBF') {
       const monthly = num(mtdActiveByMonth[product]?.[mk]);
       if (monthly > 0) return monthly;
       const fromCurrentParsed = mtdByProduct[product]?.key === mk ? num(mtdByProduct[product]?.totals?.activeReps) : 0;
@@ -450,7 +471,8 @@ const ManagementSummary = forwardRef((_, ref) => {
     }));
     const repsData = repsRows.map((r) => ({ Month: r.Month, Category: r.Category, Count: r.Count, 'Change (MoM)': r.momText }));
     const portData = portfolioRows.map((r) => ({ Month: r.Month, [`Portfolio ${previousYear}`]: r.prev || '-', [`Portfolio ${currentYear}`]: r.curr || '-', 'Change (YoY)': r.yoyText, 'Change (MoM)': r.momText }));
-    const salesData = [...salesRows, { __separator: true }, { ...salesTotals, __totalRow: true }];
+    const salesRowsForExcel = salesRows.map(({ Source: _src, ...rest }) => rest);
+    const salesData = [...salesRowsForExcel, { __separator: true }, { ...salesTotals, __totalRow: true }];
 
     const styleColor = (type) => type === 'Active' ? '#F3FBF4' : type === 'Inactive' ? '#FEF8F2' : '#F3F8FF';
     const clientRowFills = clientRows.map((r) => styleColor(r.rowType));
@@ -502,11 +524,22 @@ const ManagementSummary = forwardRef((_, ref) => {
         <div className="ms-table-block">
           <h4 className="ms-table-title">Sales</h4>
           <table className="ms-table">
-            <thead><tr><th className="ms-th-product">Product</th><th className="ms-th-orange">Target</th><th className="ms-th-orange">Disbursement</th><th className="ms-th-orange">% Achieved</th><th className="ms-th-orange">No. Loans</th><th className="ms-th-orange">Active Reps</th><th className="ms-th-source">Actual Reps (CRM)</th></tr></thead>
+            <thead><tr><th className="ms-th-product">Product</th><th className="ms-th-source">Source</th><th className="ms-th-orange">Target</th><th className="ms-th-orange">Disbursement</th><th className="ms-th-orange">% Achieved</th><th className="ms-th-orange">No. Loans</th><th className="ms-th-orange">Active Reps</th><th className="ms-th-source">Actual Reps (CRM)</th></tr></thead>
             <tbody>
-              {salesRows.map((r, i) => <tr key={i}><td>{r.Product}</td><td>{fmt(r.Target)}</td><td>{fmt(r.Disbursement)}</td><td>{fmtPct(r['% Achieved'])}</td><td>{fmt(r['No. Loans'])}</td><td>{fmt(r['Active Reps'])}</td><td>{fmt(r['Actual Reps (CRM)'])}</td></tr>)}
-              <tr className="ms-separator"><td colSpan="7"></td></tr>
-              <tr className="ms-total-row"><td>{salesTotals.Product}</td><td>{fmt(salesTotals.Target)}</td><td>{fmt(salesTotals.Disbursement)}</td><td>{fmtPct(salesTotals['% Achieved'])}</td><td>{fmt(salesTotals['No. Loans'])}</td><td>{fmt(salesTotals['Active Reps'])}</td><td>{fmt(salesTotals['Actual Reps (CRM)'])}</td></tr>
+              {salesRows.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.Product}</td>
+                  <td className="ms-td-source">{r.Source}</td>
+                  <td>{fmt(r.Target)}</td>
+                  <td>{fmt(r.Disbursement)}</td>
+                  <td>{fmtPct(r['% Achieved'])}</td>
+                  <td>{fmt(r['No. Loans'])}</td>
+                  <td>{fmt(r['Active Reps'])}</td>
+                  <td>{fmt(r['Actual Reps (CRM)'])}</td>
+                </tr>
+              ))}
+              <tr className="ms-separator"><td colSpan="8"></td></tr>
+              <tr className="ms-total-row"><td>{salesTotals.Product}</td><td>—</td><td>{fmt(salesTotals.Target)}</td><td>{fmt(salesTotals.Disbursement)}</td><td>{fmtPct(salesTotals['% Achieved'])}</td><td>{fmt(salesTotals['No. Loans'])}</td><td>{fmt(salesTotals['Active Reps'])}</td><td>{fmt(salesTotals['Actual Reps (CRM)'])}</td></tr>
             </tbody>
           </table>
         </div>

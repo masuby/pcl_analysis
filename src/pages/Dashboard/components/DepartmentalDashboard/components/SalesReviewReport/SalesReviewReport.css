@@ -609,9 +609,40 @@
   color: #334155;
 }
 
+/* Numeric / metric emphasis — bold blue (all report narrative + tables) */
+.report-data-value,
 .report-comparison-value {
   color: #2a5298;
   font-weight: 700;
+}
+
+.sales-review-preview-inner .report-page strong {
+  color: #2a5298;
+  font-weight: 700;
+}
+
+.sales-review-preview-inner .report-supervision-td-right,
+.sales-review-preview-inner .report-supervision-td-center {
+  color: #2a5298;
+  font-weight: 700;
+}
+
+.sales-review-preview-inner .report-product-td-rank,
+.sales-review-preview-inner .report-product-td-amount,
+.sales-review-preview-inner .report-product-td-pct {
+  color: #2a5298;
+  font-weight: 700;
+}
+
+.report-content-para {
+  margin: 0 0 1.5rem 0;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.report-cover-subtitle .report-data-value {
+  font-size: inherit;
 }
 
 /* ----- New Business / Repeat Business pages: header, title, logo ----- */

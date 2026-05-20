@@ -1112,3 +1112,14 @@
 .dark-mode .kpi-ar-email-send:hover:not(:disabled) {
   filter: brightness(1.1);
 }
+
+.kpi-ar-subtable {
+  margin-top: 1rem;
+}
+
+.kpi-ar-subsection-title {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+}

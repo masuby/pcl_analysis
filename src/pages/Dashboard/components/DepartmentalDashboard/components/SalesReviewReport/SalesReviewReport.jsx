@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import './SalesReviewReport.css';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
@@ -11,11 +12,15 @@ import { getProductContributionData, getProductContributionForSection } from './
 import { getNewBusinessTrendData, getRepeatBusinessTrendData, getNewBusinessComparison, getRepeatBusinessComparison } from './utils/newRepeatBusinessUtils';
 import { REPORT_SECTIONS } from './config/reportSectionConfig';
 import { gapAnalysisAPI } from '../../../../../../services/api';
-import { getActiveActualTotals, getActualRepsForSupervision } from '../GapAnalysis/utils/gapAnalysisUtils';
+import { getActiveActualTotals } from '../GapAnalysis/utils/gapAnalysisUtils';
+import { parseCrmSummaryActualAgents, buildCrmActualAgentsLookup } from './utils/crmSummaryActualAgents';
+import { getCrmEmailAgentTotalForDept, getCrmEmailAgentTotalCountrywide } from './utils/crmTotalsForSalesReview';
 import { sendSalesReviewEmail } from './utils/emailSalesReview';
 import { buildSalesReviewEmailHTML } from './utils/emailTemplateSalesReview';
+import { getReportsByDepartmentAndType, getReportFileUrl } from '../../../../../../services/reports';
 import GeneralSalesTrendChart from './sections/GeneralSalesTrendChart';
 import SalesAndPerformanceSummary from './sections/SalesAndPerformanceSummary';
+import TrendExplanationText from './sections/TrendExplanationText';
 import PerformanceComparison from './sections/PerformanceComparison';
 import PerProductContribution from './sections/PerProductContribution';
 import NewBusinessPerformance from './sections/NewBusinessPerformance';
@@ -62,6 +67,31 @@ function getMTDTotalActiveReps(parsedData) {
   return Math.round(total);
 }
 
+/** True when parsed MTD is for the requested calendar month (avoids useMTDData fallback to the wrong report). */
+function mtdParsedMonthMatches(parsedData, yyyyMm) {
+  if (!parsedData || !yyyyMm || typeof yyyyMm !== 'string') return false;
+  const d = parsedData.reportDate instanceof Date ? parsedData.reportDate : new Date(parsedData.reportDate);
+  if (Number.isNaN(d.getTime())) return false;
+  const [y, m] = yyyyMm.split('-').map(Number);
+  if (!y || !m) return false;
+  return d.getFullYear() === y && d.getMonth() === m - 1;
+}
+
+/** MoM / YoY active agents: same four-way total as Management Summary (CS+LBF MTD + SME+Agrifinance management). */
+function comparisonMetricActiveMtdOnly(current, previous) {
+  if (current == null || previous == null) return null;
+  const cur = Number(current);
+  const prev = Number(previous);
+  if (!Number.isFinite(cur) || !Number.isFinite(prev)) return null;
+  const pctRaw = prev !== 0 ? ((cur - prev) / prev) * 100 : cur > 0 ? 100 : 0;
+  return {
+    dir: pctRaw >= 0 ? 'increased' : 'decreased',
+    pct: Math.abs(pctRaw).toFixed(2),
+    currentFmt: formatTZS(cur),
+    prevFmt: formatTZS(prev)
+  };
+}
+
 /** Count active reps: unique sales reps that have a non-empty Term (from listing), same as ProductSalesTracker */
 function countActiveRepsFromSupervision(supervision, columnMap, listingData) {
   const salesRepCol = columnMap?.salesRep ?? (listingData?.[0] && Object.keys(listingData[0]).find((k) => String(k).toUpperCase() === 'SALES REP')) ?? (listingData?.[0] && Object.keys(listingData[0]).find((k) => String(k).toUpperCase() === 'SALES REP. NAME'));
@@ -82,6 +112,22 @@ function countActiveRepsFromSupervision(supervision, columnMap, listingData) {
     }).filter(Boolean)
   );
   return uniqueNames.size;
+}
+
+function extractCRMAgentCountFromWorkbook(wb) {
+  if (!wb?.SheetNames?.includes('Email')) return 0;
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets.Email, { defval: '' });
+  const map = {};
+  rows.forEach((r) => {
+    const k = String(r.Text ?? r.text ?? '').trim().toLowerCase();
+    if (k) map[k] = r.Value ?? r.value ?? '';
+  });
+  const keys = ['total_count_agent', 'total_agent', 'today_total_agents', 'count_agent'];
+  for (const k of keys) {
+    const n = Number(map[k]) || 0;
+    if (n > 0) return Math.round(n);
+  }
+  return 0;
 }
 
 /** Build supervision performance list from MTD for table/chart: name, target, value, percentage, activeReps, sorted by % desc */
@@ -117,14 +163,30 @@ function getMTDSupervisionPerformance(parsedData) {
   return { rows, totalTarget, totalValue, totalActiveReps: Math.round(totalActiveReps) };
 }
 
-/** Augment supervision data with actual reps per row and total (from Gap Actual Reps overrides). */
-function augmentSupervisionWithActualReps(supervisionData, actualRepsOverrides) {
+/**
+ * Actual Reps from CRM summary (Branch/Zone + Actual Agent); fallback to Active Reps when no CRM match.
+ * If actual < active for a row, actual is raised to active.
+ * Total Actual Reps column footer uses the same value as the summary paragraph
+ * (`getCrmEmailAgentTotalForDept` → crmActualRepsByMonth from CRM Email sheet); if null, sum of row actuals.
+ */
+function augmentSupervisionWithCrmActualReps(supervisionData, crmLookup, crmEmailTotalAgents) {
   if (!supervisionData?.rows?.length) return supervisionData;
+  const lookup = typeof crmLookup === 'function' ? crmLookup : null;
   const rows = supervisionData.rows.map((r) => {
-    const raw = getActualRepsForSupervision(r.name, actualRepsOverrides);
-    return { ...r, actualReps: Math.round(Number(raw) || 0) };
+    const fromCrm = lookup ? lookup(r.name) : null;
+    let actual =
+      fromCrm != null && Number.isFinite(fromCrm)
+        ? Math.round(fromCrm)
+        : Math.round(Number(r.activeReps) || 0);
+    const active = Math.round(Number(r.activeReps) || 0);
+    if (actual < active) actual = active;
+    return { ...r, actualReps: actual };
   });
-  const totalActualReps = Math.round(rows.reduce((s, r) => s + (r.actualReps ?? 0), 0));
+  const t = crmEmailTotalAgents;
+  const totalActualReps =
+    t != null && Number.isFinite(Number(t)) && Number(t) >= 0
+      ? Math.round(Number(t))
+      : Math.round(rows.reduce((s, row) => s + (row.actualReps ?? 0), 0));
   return { ...supervisionData, rows, totalActualReps };
 }
 
@@ -157,6 +219,26 @@ const SalesReviewReport = ({ userData }) => {
   const mtdLBF = useMTDData('LBF', selectedMonth);
   const mtdCS = useMTDData('CS', selectedMonth);
   const mtdSME = useMTDData('SME', selectedMonth);
+
+  const prevMonthKey = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    if (!y || !m) return null;
+    if (m > 1) return `${y}-${String(m - 1).padStart(2, '0')}`;
+    return `${y - 1}-12`;
+  }, [selectedMonth]);
+
+  const lastYearMonthKey = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    if (!y || !m) return null;
+    return `${y - 1}-${String(m).padStart(2, '0')}`;
+  }, [selectedMonth]);
+
+  const mtdLBFPrev = useMTDData('LBF', prevMonthKey);
+  const mtdCSPrev = useMTDData('CS', prevMonthKey);
+  const mtdSMEPrev = useMTDData('SME', prevMonthKey);
+  const mtdLBFYoY = useMTDData('LBF', lastYearMonthKey);
+  const mtdCSYoY = useMTDData('CS', lastYearMonthKey);
+  const mtdSMEYoY = useMTDData('SME', lastYearMonthKey);
   const [generatingPPTX, setGeneratingPPTX] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipients, setRecipients] = useState(() => {
@@ -180,6 +262,10 @@ const SalesReviewReport = ({ userData }) => {
   const [lbfActualRepsOverrides, setLbfActualRepsOverrides] = useState({});
   const [csActualRepsOverrides, setCsActualRepsOverrides] = useState({});
   const [smeActualRepsOverrides, setSmeActualRepsOverrides] = useState({});
+  const [crmActualRepsByMonth, setCrmActualRepsByMonth] = useState({ CS: {}, LBF: {}, SME: {} });
+  const [crmActualDateByMonth, setCrmActualDateByMonth] = useState({ CS: {}, LBF: {}, SME: {} });
+  /** Per month: parsed CRM summary rows (Branch/Zone → Actual Agents) for supervision Actual Reps */
+  const [crmSummaryByDeptMonth, setCrmSummaryByDeptMonth] = useState({ CS: {}, LBF: {}, SME: {} });
   const reportContainerRef = useRef(null);
 
   useEffect(() => {
@@ -208,6 +294,60 @@ const SalesReviewReport = ({ userData }) => {
     }
     gapAnalysisAPI.getActualReps(reportId).then((res) => setSmeActualRepsOverrides(res?.data ?? {})).catch(() => setSmeActualRepsOverrides({}));
   }, [mtdSME.reports, selectedMonth]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const toMonthKey = (dateLike) => {
+      const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
+      if (Number.isNaN(d.getTime())) return null;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    const loadCrmActuals = async () => {
+      const out = { CS: {}, LBF: {}, SME: {} };
+      const outDates = { CS: {}, LBF: {}, SME: {} };
+      const summaryByMonth = { CS: {}, LBF: {}, SME: {} };
+      for (const dept of ['CS', 'LBF', 'SME']) {
+        const pattern = dept === 'CS' ? 'CS_CRM' : dept === 'LBF' ? 'LBF_CRM' : 'SME_CRM';
+        const res = await getReportsByDepartmentAndType(dept, 'CRM');
+        if (!res?.success) continue;
+        const sorted = (res.data || [])
+          .map((r) => ({ ...r, _d: r.date instanceof Date ? r.date : new Date(r.date || r.createdAt || r.created_at || '') }))
+          .filter((r) => !Number.isNaN(r._d.getTime()))
+          .filter((r) => String(r.fileName || r.file_name || '').includes(pattern))
+          .sort((a, b) => b._d - a._d);
+        const latestPerMonth = {};
+        sorted.forEach((r) => {
+          const key = toMonthKey(r._d);
+          if (key && !latestPerMonth[key]) latestPerMonth[key] = r;
+        });
+        for (const [monthKey, report] of Object.entries(latestPerMonth)) {
+          try {
+            const url = report.fileUrl || report.file_url || ((report.filePath || report.file_path) ? await getReportFileUrl(report.filePath || report.file_path) : null);
+            if (!url) continue;
+            const fetched = await fetch(url);
+            if (!fetched.ok) continue;
+            const ab = await fetched.arrayBuffer();
+            const wb = XLSX.read(ab, { type: 'array', raw: false });
+            out[dept][monthKey] = extractCRMAgentCountFromWorkbook(wb);
+            const summaryRows = parseCrmSummaryActualAgents(ab);
+            if (summaryRows.length > 0) {
+              summaryByMonth[dept][monthKey] = summaryRows;
+            }
+            outDates[dept][monthKey] = report._d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+          } catch {
+            // ignore month if CRM file cannot be parsed
+          }
+        }
+      }
+      if (!cancelled) {
+        setCrmActualRepsByMonth(out);
+        setCrmActualDateByMonth(outDates);
+        setCrmSummaryByDeptMonth(summaryByMonth);
+      }
+    };
+    loadCrmActuals();
+    return () => { cancelled = true; };
+  }, []);
 
   const copyRecipientList = () => {
     if (recipients.length === 0) return;
@@ -346,33 +486,85 @@ const SalesReviewReport = ({ userData }) => {
       }));
   }, [parsedReports]);
 
-  const monthlyTrendData = useMemo(() => getMonthlyTrendData(countrywiseData), [countrywiseData]);
-  const trendExplanation = useMemo(() => getTrendExplanation(monthlyTrendData), [monthlyTrendData]);
-  const summaryData = useMemo(() => getSummaryForMonth(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
-  const comparisonData = useMemo(() => getComparisonData(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
-  const productContributionData = useMemo(() => getProductContributionData(parsedReports, selectedMonth), [parsedReports, selectedMonth]);
-  
-  // New and Repeat Business performance for countrywide
-  const newBusinessTrend = useMemo(() => getNewBusinessTrendData(countrywiseData), [countrywiseData]);
-  const repeatBusinessTrend = useMemo(() => getRepeatBusinessTrendData(countrywiseData), [countrywiseData]);
-  const newBusinessComparison = useMemo(() => getNewBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
-  const repeatBusinessComparison = useMemo(() => getRepeatBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
+  const lbfMTDTotalActiveReps = useMemo(() => {
+    if (!mtdParsedMonthMatches(mtdLBF.parsedData, selectedMonth)) return null;
+    return getMTDTotalActiveReps(mtdLBF.parsedData);
+  }, [mtdLBF.parsedData, selectedMonth]);
+  const csMTDTotalActiveReps = useMemo(() => {
+    if (!mtdParsedMonthMatches(mtdCS.parsedData, selectedMonth)) return null;
+    return getMTDTotalActiveReps(mtdCS.parsedData);
+  }, [mtdCS.parsedData, selectedMonth]);
+  const smeMTDTotalActiveReps = useMemo(() => {
+    if (!mtdParsedMonthMatches(mtdSME.parsedData, selectedMonth)) return null;
+    return getMTDTotalActiveReps(mtdSME.parsedData);
+  }, [mtdSME.parsedData, selectedMonth]);
 
-  const lbfMTDTotalActiveReps = useMemo(() => getMTDTotalActiveReps(mtdLBF.parsedData), [mtdLBF.parsedData]);
+  const lbfMTDPrevTotalActiveReps = useMemo(() => {
+    if (!prevMonthKey || !mtdParsedMonthMatches(mtdLBFPrev.parsedData, prevMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdLBFPrev.parsedData);
+  }, [mtdLBFPrev.parsedData, prevMonthKey]);
+  const csMTDPrevTotalActiveReps = useMemo(() => {
+    if (!prevMonthKey || !mtdParsedMonthMatches(mtdCSPrev.parsedData, prevMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdCSPrev.parsedData);
+  }, [mtdCSPrev.parsedData, prevMonthKey]);
+  const smeMTDPrevTotalActiveReps = useMemo(() => {
+    if (!prevMonthKey || !mtdParsedMonthMatches(mtdSMEPrev.parsedData, prevMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdSMEPrev.parsedData);
+  }, [mtdSMEPrev.parsedData, prevMonthKey]);
+  const lbfMTDYoYTotalActiveReps = useMemo(() => {
+    if (!lastYearMonthKey || !mtdParsedMonthMatches(mtdLBFYoY.parsedData, lastYearMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdLBFYoY.parsedData);
+  }, [mtdLBFYoY.parsedData, lastYearMonthKey]);
+  const csMTDYoYTotalActiveReps = useMemo(() => {
+    if (!lastYearMonthKey || !mtdParsedMonthMatches(mtdCSYoY.parsedData, lastYearMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdCSYoY.parsedData);
+  }, [mtdCSYoY.parsedData, lastYearMonthKey]);
+  const smeMTDYoYTotalActiveReps = useMemo(() => {
+    if (!lastYearMonthKey || !mtdParsedMonthMatches(mtdSMEYoY.parsedData, lastYearMonthKey)) return null;
+    return getMTDTotalActiveReps(mtdSMEYoY.parsedData);
+  }, [mtdSMEYoY.parsedData, lastYearMonthKey]);
   const lbfSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdLBF.parsedData), [mtdLBF.parsedData]);
   const csSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdCS.parsedData), [mtdCS.parsedData]);
   const smeSupervisionDataRaw = useMemo(() => getMTDSupervisionPerformance(mtdSME.parsedData), [mtdSME.parsedData]);
+  const lbfCrmActualLookup = useMemo(
+    () => buildCrmActualAgentsLookup(crmSummaryByDeptMonth.LBF?.[selectedMonth] || []),
+    [crmSummaryByDeptMonth.LBF, selectedMonth]
+  );
+  const csCrmActualLookup = useMemo(
+    () => buildCrmActualAgentsLookup(crmSummaryByDeptMonth.CS?.[selectedMonth] || []),
+    [crmSummaryByDeptMonth.CS, selectedMonth]
+  );
+  const smeCrmActualLookup = useMemo(
+    () => buildCrmActualAgentsLookup(crmSummaryByDeptMonth.SME?.[selectedMonth] || []),
+    [crmSummaryByDeptMonth.SME, selectedMonth]
+  );
+
   const lbfSupervisionData = useMemo(
-    () => augmentSupervisionWithActualReps(lbfSupervisionDataRaw, lbfActualRepsOverrides),
-    [lbfSupervisionDataRaw, lbfActualRepsOverrides]
+    () =>
+      augmentSupervisionWithCrmActualReps(
+        lbfSupervisionDataRaw,
+        lbfCrmActualLookup,
+        getCrmEmailAgentTotalForDept(crmActualRepsByMonth, 'LBF', selectedMonth)
+      ),
+    [lbfSupervisionDataRaw, lbfCrmActualLookup, crmActualRepsByMonth, selectedMonth]
   );
   const csSupervisionData = useMemo(
-    () => augmentSupervisionWithActualReps(csSupervisionDataRaw, csActualRepsOverrides),
-    [csSupervisionDataRaw, csActualRepsOverrides]
+    () =>
+      augmentSupervisionWithCrmActualReps(
+        csSupervisionDataRaw,
+        csCrmActualLookup,
+        getCrmEmailAgentTotalForDept(crmActualRepsByMonth, 'CS', selectedMonth)
+      ),
+    [csSupervisionDataRaw, csCrmActualLookup, crmActualRepsByMonth, selectedMonth]
   );
   const smeSupervisionData = useMemo(
-    () => augmentSupervisionWithActualReps(smeSupervisionDataRaw, smeActualRepsOverrides),
-    [smeSupervisionDataRaw, smeActualRepsOverrides]
+    () =>
+      augmentSupervisionWithCrmActualReps(
+        smeSupervisionDataRaw,
+        smeCrmActualLookup,
+        getCrmEmailAgentTotalForDept(crmActualRepsByMonth, 'SME', selectedMonth)
+      ),
+    [smeSupervisionDataRaw, smeCrmActualLookup, crmActualRepsByMonth, selectedMonth]
   );
 
   const lbfActiveActualTotals = useMemo(
@@ -383,20 +575,109 @@ const SalesReviewReport = ({ userData }) => {
     () => (mtdCS.parsedData ? getActiveActualTotals(mtdCS.parsedData, 'CS', csActualRepsOverrides) : null),
     [mtdCS.parsedData, csActualRepsOverrides]
   );
-  const smeMTDTotalActiveReps = useMemo(() => getMTDTotalActiveReps(mtdSME.parsedData), [mtdSME.parsedData]);
   const smeActiveActualTotals = useMemo(
     () => (mtdSME.parsedData ? getActiveActualTotals(mtdSME.parsedData, 'SME', smeActualRepsOverrides) : null),
     [mtdSME.parsedData, smeActualRepsOverrides]
   );
+
+  const monthlyTrendData = useMemo(() => getMonthlyTrendData(countrywiseData), [countrywiseData]);
+  const trendExplanation = useMemo(() => getTrendExplanation(monthlyTrendData), [monthlyTrendData]);
+  const summaryData = useMemo(() => {
+    const base = getSummaryForMonth(countrywiseData, selectedMonth);
+    const crmTotal = getCrmEmailAgentTotalCountrywide(crmActualRepsByMonth, selectedMonth);
+    const activeTotal =
+      csMTDTotalActiveReps != null &&
+      lbfMTDTotalActiveReps != null &&
+      smeMTDTotalActiveReps != null
+        ? Math.round(csMTDTotalActiveReps + lbfMTDTotalActiveReps + smeMTDTotalActiveReps)
+        : null;
+    return {
+      ...base,
+      activeReps: activeTotal,
+      activeRepsFormatted: activeTotal != null ? formatTZS(activeTotal) : null,
+      crmActualRepsTotal: crmTotal,
+      crmActualRepsDate: base.monthLabel
+    };
+  }, [
+    countrywiseData,
+    selectedMonth,
+    crmActualRepsByMonth,
+    csMTDTotalActiveReps,
+    lbfMTDTotalActiveReps,
+    smeMTDTotalActiveReps
+  ]);
+  const comparisonData = useMemo(() => {
+    const base = getComparisonData(countrywiseData, selectedMonth);
+    if (!base) return base;
+    const curSum =
+      csMTDTotalActiveReps != null &&
+      lbfMTDTotalActiveReps != null &&
+      smeMTDTotalActiveReps != null
+        ? Math.round(csMTDTotalActiveReps + lbfMTDTotalActiveReps + smeMTDTotalActiveReps)
+        : null;
+    const prevMoMSum =
+      prevMonthKey &&
+      csMTDPrevTotalActiveReps != null &&
+      lbfMTDPrevTotalActiveReps != null &&
+      smeMTDPrevTotalActiveReps != null
+        ? Math.round(csMTDPrevTotalActiveReps + lbfMTDPrevTotalActiveReps + smeMTDPrevTotalActiveReps)
+        : null;
+    const yoySum =
+      lastYearMonthKey &&
+      csMTDYoYTotalActiveReps != null &&
+      lbfMTDYoYTotalActiveReps != null &&
+      smeMTDYoYTotalActiveReps != null
+        ? Math.round(csMTDYoYTotalActiveReps + lbfMTDYoYTotalActiveReps + smeMTDYoYTotalActiveReps)
+        : null;
+    const applyMoM = (block) => {
+      if (!block) return block;
+      return { ...block, activeReps: comparisonMetricActiveMtdOnly(curSum, prevMoMSum) };
+    };
+    const applyYoY = (block) => {
+      if (!block) return block;
+      return { ...block, activeReps: comparisonMetricActiveMtdOnly(curSum, yoySum) };
+    };
+    return {
+      ...base,
+      lastMonth: applyMoM(base.lastMonth),
+      lastYear: applyYoY(base.lastYear)
+    };
+  }, [
+    countrywiseData,
+    selectedMonth,
+    csMTDTotalActiveReps,
+    lbfMTDTotalActiveReps,
+    smeMTDTotalActiveReps,
+    csMTDPrevTotalActiveReps,
+    lbfMTDPrevTotalActiveReps,
+    smeMTDPrevTotalActiveReps,
+    csMTDYoYTotalActiveReps,
+    lbfMTDYoYTotalActiveReps,
+    smeMTDYoYTotalActiveReps,
+    prevMonthKey,
+    lastYearMonthKey
+  ]);
+  const productContributionData = useMemo(() => getProductContributionData(parsedReports, selectedMonth), [parsedReports, selectedMonth]);
+  
+  // New and Repeat Business performance for countrywide
+  const newBusinessTrend = useMemo(() => getNewBusinessTrendData(countrywiseData), [countrywiseData]);
+  const repeatBusinessTrend = useMemo(() => getRepeatBusinessTrendData(countrywiseData), [countrywiseData]);
+  const newBusinessComparison = useMemo(() => getNewBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
+  const repeatBusinessComparison = useMemo(() => getRepeatBusinessComparison(countrywiseData, selectedMonth), [countrywiseData, selectedMonth]);
 
   const sectionsData = useMemo(() => {
     return REPORT_SECTIONS.map((section) => {
       const sectionData = section.getData(parsedReports);
       const monthlyTrend = getMonthlyTrendData(sectionData);
       let summaryData = getSummaryForMonth(sectionData, selectedMonth);
+      let sectionComparisonData = getComparisonData(sectionData, selectedMonth);
       const isLBF = section.id === 'lbf';
       const isCSMainland = section.id === 'cs-mainland';
       const isSME = section.id === 'sme';
+      const mtdActiveForSection = isLBF ? lbfMTDTotalActiveReps : isCSMainland ? csMTDTotalActiveReps : isSME ? smeMTDTotalActiveReps : null;
+      const crmDept = isLBF ? 'LBF' : isCSMainland ? 'CS' : isSME ? 'SME' : null;
+      const crmActualForSection = crmDept ? getCrmEmailAgentTotalForDept(crmActualRepsByMonth, crmDept, selectedMonth) : null;
+      const crmActualDateForSection = crmDept ? (crmActualDateByMonth?.[crmDept]?.[selectedMonth] || null) : null;
       // LBF section: use MTD total Active Reps and Active/Actual summary lines
       if (isLBF && lbfMTDTotalActiveReps != null) {
         summaryData = {
@@ -434,6 +715,13 @@ const SalesReviewReport = ({ userData }) => {
           actualPct
         };
       }
+      if (isCSMainland && csMTDTotalActiveReps != null) {
+        summaryData = {
+          ...summaryData,
+          activeReps: csMTDTotalActiveReps,
+          activeRepsFormatted: formatTZS(csMTDTotalActiveReps)
+        };
+      }
       // SME section: use MTD total Active Reps and Active/Actual summary lines (same as LBF/CS Mainland)
       if (isSME && smeMTDTotalActiveReps != null) {
         summaryData = {
@@ -456,11 +744,49 @@ const SalesReviewReport = ({ userData }) => {
           };
         }
       }
+      if (crmActualForSection != null && crmDept) {
+        summaryData = {
+          ...summaryData,
+          crmActualRepsTotal: crmActualForSection,
+          crmActualRepsDate: crmActualDateForSection || summaryData.monthLabel
+        };
+      }
+      if (sectionComparisonData) {
+        const prevMoM =
+          isLBF ? lbfMTDPrevTotalActiveReps : isCSMainland ? csMTDPrevTotalActiveReps : isSME ? smeMTDPrevTotalActiveReps : null;
+        const prevYoY =
+          isLBF ? lbfMTDYoYTotalActiveReps : isCSMainland ? csMTDYoYTotalActiveReps : isSME ? smeMTDYoYTotalActiveReps : null;
+        const patchMoM = (block) => {
+          if (!block) return block;
+          if (mtdActiveForSection == null || !Number.isFinite(Number(mtdActiveForSection))) {
+            return { ...block, activeReps: null };
+          }
+          return {
+            ...block,
+            activeReps: comparisonMetricActiveMtdOnly(mtdActiveForSection, prevMoM)
+          };
+        };
+        const patchYoY = (block) => {
+          if (!block) return block;
+          if (mtdActiveForSection == null || !Number.isFinite(Number(mtdActiveForSection))) {
+            return { ...block, activeReps: null };
+          }
+          return {
+            ...block,
+            activeReps: comparisonMetricActiveMtdOnly(mtdActiveForSection, prevYoY)
+          };
+        };
+        sectionComparisonData = {
+          ...sectionComparisonData,
+          lastMonth: patchMoM(sectionComparisonData.lastMonth),
+          lastYear: patchYoY(sectionComparisonData.lastYear)
+        };
+      }
       return {
         section,
         sectionData,
         summaryData,
-        comparisonData: getComparisonData(sectionData, selectedMonth),
+        comparisonData: sectionComparisonData,
         monthlyTrendData: monthlyTrend,
         trendExplanation: getTrendExplanation(monthlyTrend),
         productContributionData: getProductContributionForSection(parsedReports, selectedMonth, section),
@@ -471,7 +797,27 @@ const SalesReviewReport = ({ userData }) => {
         supervisionData: isLBF ? lbfSupervisionData : isCSMainland ? csSupervisionData : isSME ? smeSupervisionData : null
       };
     });
-  }, [parsedReports, selectedMonth, lbfMTDTotalActiveReps, lbfSupervisionData, csSupervisionData, smeSupervisionData, lbfActiveActualTotals, csActiveActualTotals, smeMTDTotalActiveReps, smeActiveActualTotals]);
+  }, [
+    parsedReports,
+    selectedMonth,
+    lbfMTDTotalActiveReps,
+    csMTDTotalActiveReps,
+    lbfMTDPrevTotalActiveReps,
+    csMTDPrevTotalActiveReps,
+    smeMTDPrevTotalActiveReps,
+    lbfMTDYoYTotalActiveReps,
+    csMTDYoYTotalActiveReps,
+    smeMTDYoYTotalActiveReps,
+    lbfSupervisionData,
+    csSupervisionData,
+    smeSupervisionData,
+    lbfActiveActualTotals,
+    csActiveActualTotals,
+    smeMTDTotalActiveReps,
+    smeActiveActualTotals,
+    crmActualRepsByMonth,
+    crmActualDateByMonth
+  ]);
 
   const handleDownloadPPTX = async () => {
     setGeneratingPPTX(true);
@@ -575,7 +921,9 @@ const SalesReviewReport = ({ userData }) => {
             <div className="report-cover-line" />
             <div className="report-cover-title-wrap">
               <h2 className="report-cover-title">SALES REVIEW</h2>
-              <p className="report-cover-subtitle">{monthLabel}</p>
+              <p className="report-cover-subtitle">
+                <strong className="report-data-value">{monthLabel}</strong>
+              </p>
             </div>
             <div className="report-page-bottom-line" />
           </div>
@@ -632,7 +980,7 @@ const SalesReviewReport = ({ userData }) => {
               <GeneralSalesTrendChart monthlyData={monthlyTrendData} />
             </div>
             <div className="report-trend-explanation">
-              <p className="report-trend-explanation-text">{trendExplanation}</p>
+              <TrendExplanationText text={trendExplanation} />
             </div>
             <div className="report-page-bottom-line" />
           </div>

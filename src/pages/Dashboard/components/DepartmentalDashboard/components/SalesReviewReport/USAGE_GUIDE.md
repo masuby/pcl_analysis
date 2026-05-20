@@ -13,7 +13,7 @@
    - Click on "SALES REVIEW REPORT" (second button, right after "SCORE CARD REPORTS")
 
    ```
-   [SCORE CARD REPORTS] [SALES REVIEW REPORT] [GAP ANALYSIS] [MARKETING] [CREDIT]
+   [SCORE CARD REPORTS] [SALES REVIEW REPORT] [GAP ANALYSIS] [PENETRATION ANALYSIS] [SETTLEMENTS ANALYSIS]
                               ↑
                          Click here!
    ```

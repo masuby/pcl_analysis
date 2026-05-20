@@ -2,16 +2,13 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import {
-  buildBranchData,
-  buildRSMData,
-  buildCSGapRows,
-  buildLBFGapRows,
-  getColumnMap,
+  buildYTDGapData,
   formatGapRowForDisplay,
   getGradeFromPctArchived,
   getCommentFromPctArchived,
 } from './utils/gapAnalysisUtils';
-import { exportMultipleSheetsWithStyles, buildWorkbookBuffer } from '../../utils/excelExportStyled';
+import { exportMultipleSheetsWithStyles } from '../../utils/excelExportStyled';
+import { exportGapWorkbook, buildGapWorkbookBuffer } from './utils/gapAnalysisExcelExport';
 import { sendGapAnalysisEmail } from './utils/emailGapAnalysis';
 import {
   buildManagersGapEmailHTML,
@@ -97,7 +94,7 @@ const GapAnalysis = () => {
   const [rsmSearchQuery, setRsmSearchQuery] = useState('');
 
   // Fetch MTD report by product: CS → CS MTD, LBF → LBF MTD, SME → SME MTD (same as MTDCS/MTDLBF/MTDSME)
-  const { reports, parsedData, loading, error, hasData } = useMTDData(product, selectedDate);
+  const { reports, parsedData, monthlyParsedData, loading, error, hasData } = useMTDData(product, selectedDate);
   const reportId = parsedData?.reportId;
   const reportDate = parsedData?.reportDate;
 
@@ -201,15 +198,14 @@ const GapAnalysis = () => {
     [product, emailDateParts.day, emailDateParts.month, emailDateParts.year]
   );
 
-  const branchData = useMemo(
-    () => (parsedData ? buildBranchData(parsedData, product, actualRepsOverrides) : []),
-    [parsedData, product, actualRepsOverrides]
+  const ytdData = useMemo(
+    () => buildYTDGapData(monthlyParsedData, product, actualRepsOverrides),
+    [monthlyParsedData, product, actualRepsOverrides]
   );
-
-  const rsmData = useMemo(
-    () => (parsedData ? buildRSMData(parsedData, product, actualRepsOverrides) : []),
-    [parsedData, product, actualRepsOverrides]
-  );
+  const monthColumns = ytdData.monthColumns || [];
+  const branchData = ytdData.branchData || [];
+  const rsmData = ytdData.rsmData || [];
+  const grandTotalRows = ytdData.grandTotalRows || [];
 
   const branchSearchLower = (branchSearchQuery || '').trim().toLowerCase();
   const filteredBranchData = useMemo(() => {
@@ -227,9 +223,10 @@ const GapAnalysis = () => {
     return rsmData.filter((item) => (item.supervision || '').toLowerCase().includes(rsmSearchLower));
   }, [rsmData, rsmSearchLower]);
 
-  const columns = product === 'CS'
-    ? ['rowLabel', 'Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment']
-    : ['rowLabel', 'Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment'];
+  const columns = useMemo(
+    () => ['rowLabel', ...monthColumns, 'Cumulative', 'Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment'],
+    [monthColumns]
+  );
 
   const gradeColors = { A: '#7B1FA2', B: '#1976D2', C: '#388E3C', D: '#F57C00', E: '#C62828' };
   const commentColors = { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW STANDARD': '#F57C00', 'NOT ACCEPTABLE': '#C62828' };
@@ -283,39 +280,13 @@ const GapAnalysis = () => {
     return [...ordered, ...rest];
   }, [product]);
 
-  // Grand total: from MTD "Grand Total" row when available; Actual Reps Achieved = sum of all team leaders' Actual Achieved
-  const grandTotalRows = useMemo(() => {
-    if (!parsedData?.headers) return [];
-    const colMap = getColumnMap(parsedData.headers, product);
-    const actualLabel = product === 'CS' ? 'Actual Reps' : 'Actual';
-    const sumActualAchievedFromBranch = (rowsList) =>
-      rowsList
-        .filter((r) => r.rowLabel === actualLabel)
-        .reduce((s, r) => s + (r.Achieved != null && r.Achieved !== '' ? Number(r.Achieved) : 0), 0);
-
-    if (parsedData.grandTotalRow) {
-      let rows =
-        product === 'CS'
-          ? buildCSGapRows(parsedData.grandTotalRow, colMap, '')
-          : buildLBFGapRows(parsedData.grandTotalRow, colMap, undefined);
-      const totalActualAchieved = sumActualAchievedFromBranch(branchData.flatMap((d) => d.rows));
-      rows = rows.map((r) => {
-        if (r.rowLabel !== actualLabel) return r;
-        const t = Number(r.Target) || 0;
-        const a = totalActualAchieved;
-        const rem = Math.max(0, t - a);
-        const pctArch = t > 0 ? (a / t) * 100 : 0;
-        const pctUnarch = t > 0 ? 100 - pctArch : 0;
-        return { ...r, Achieved: a, Remaining: rem, '% Achived': pctArch, '% Unachived': pctUnarch };
-      });
-      return rows;
-    }
-    return sumRowsByLabel(rsmData.flatMap((d) => d.rows));
-  }, [parsedData, product, branchData, rsmData, sumRowsByLabel]);
-
   const buildSheetsForExport = useCallback(() => {
-    const dataCols = columns.filter((c) => c !== 'rowLabel');
-    const headerKeys = ['Zone', 'Branch', 'Team Leader Name', 'Metric', ...dataCols];
+    const monthSubCols = ['Target', 'Achieved', 'Remaining', '% Achived', '% Unachived', 'Grade', 'Comment'];
+    const monthlyCols = monthColumns.flatMap((m) => monthSubCols.map((s) => `${m} ${s}`));
+    const cumulativeCols = monthSubCols.map((s) => `Cumulative ${s}`);
+    const separatorCol = ' ';
+    const dataCols = [...monthlyCols, separatorCol, ...cumulativeCols];
+    const headerKeys = ['Zone', 'Branch', 'Metric', ...dataCols];
     const headerKeysRsm = ['Zone', 'Branch', 'Regional Sales Manager Name', 'Metric', ...dataCols];
     // Esoteric light palette (red → violet, ~40% opacity style) for columns and rows
     const esotericLight = ['#FFCDD2', '#FFE0B2', '#FFF9C4', '#C8E6C9', '#B3E5FC', '#C5CAE9', '#E1BEE7', '#F8BBD9', '#FFCCBC', '#D1C4E9', '#B2DFDB'];
@@ -323,17 +294,17 @@ const GapAnalysis = () => {
     headerKeys.forEach((h, i) => { headerColors[h] = esotericLight[i % esotericLight.length]; });
     const headerColorsRsm = {};
     headerKeysRsm.forEach((h, i) => { headerColorsRsm[h] = esotericLight[i % esotericLight.length]; });
-    const colWidths = [14, 18, 24, 26, 10, 10, 10, 10, 10, 8, 18];
+    const colWidths = [10, 14, 16, ...dataCols.map((c) => (c === separatorCol ? 3 : 8))];
     const accountingColumns = ['Target', 'Achieved', 'Remaining', '% Achived', '% Unachived'];
     const totalFill = '#E1BEE7';
     const DARK_BLUE_HEADER = '#1A237E';
 
     const sepRow = () => {
-      const r = { Zone: '', Branch: '', 'Team Leader Name': '', Metric: '', __separator: true };
+      const r = { Zone: '', Branch: '', Metric: '', __separator: true };
       dataCols.forEach((c) => (r[c] = ''));
       return r;
     };
-    const emptyIdent = () => ({ Zone: '', Branch: '', 'Team Leader Name': '' });
+    const emptyIdent = () => ({ Zone: '', Branch: '' });
 
     const branchRows = [];
     let lastSup = null;
@@ -345,15 +316,15 @@ const GapAnalysis = () => {
             const row = {
               Zone: idx === 0 ? lastSup : '',
               Branch: idx === 0 ? 'Total (' + lastSup + ')' : '',
-              'Team Leader Name': '',
               Metric: r.rowLabel,
               __supervisionTotalRow: true,
             };
-            dataCols.forEach((c) => {
-              if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-              else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-              else row[c] = r[c];
+            monthColumns.forEach((m) => {
+              const mm = r.__monthlyMetrics?.[m] || {};
+              monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
             });
+            row[separatorCol] = '';
+            monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
             branchRows.push(row);
           });
           branchRows.push(sepRow());
@@ -361,11 +332,9 @@ const GapAnalysis = () => {
       }
       lastSup = item.supervision;
       const branchName = item.teamLeaderName;
-      const tlName = (getTLRecipient(item)?.name || '').trim() || item.teamLeaderName || '';
       branchRows.push({
         Zone: item.supervision,
         Branch: branchName,
-        'Team Leader Name': tlName,
         Metric: '',
         ...Object.fromEntries(dataCols.map((c) => [c, ''])),
       });
@@ -374,11 +343,12 @@ const GapAnalysis = () => {
           ...emptyIdent(),
           Metric: r.rowLabel,
         };
-        dataCols.forEach((c) => {
-          if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-          else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-          else row[c] = r[c];
+        monthColumns.forEach((m) => {
+          const mm = r.__monthlyMetrics?.[m] || {};
+          monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
         });
+        row[separatorCol] = '';
+        monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
         branchRows.push(row);
       });
       branchRows.push(sepRow());
@@ -390,15 +360,15 @@ const GapAnalysis = () => {
           const row = {
             Zone: idx === 0 ? lastSup : '',
             Branch: idx === 0 ? 'Total (' + lastSup + ')' : '',
-            'Team Leader Name': '',
             Metric: r.rowLabel,
             __supervisionTotalRow: true,
           };
-          dataCols.forEach((c) => {
-            if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-            else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-            else row[c] = r[c];
+          monthColumns.forEach((m) => {
+            const mm = r.__monthlyMetrics?.[m] || {};
+            monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
           });
+          row[separatorCol] = '';
+          monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
           branchRows.push(row);
         });
         branchRows.push(sepRow());
@@ -408,20 +378,20 @@ const GapAnalysis = () => {
       const row = {
         Zone: idx === 0 ? 'TOTAL' : '',
         Branch: idx === 0 ? 'All Supervisions' : '',
-        'Team Leader Name': '',
         Metric: r.rowLabel,
         __totalRow: true,
       };
-      dataCols.forEach((c) => {
-        if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-        else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-        else row[c] = r[c];
+      monthColumns.forEach((m) => {
+        const mm = r.__monthlyMetrics?.[m] || {};
+        monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
       });
+      row[separatorCol] = '';
+      monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
       branchRows.push(row);
     });
 
     const branchTable = {
-      data: branchRows.length ? branchRows : [{ Zone: '', Branch: '', 'Team Leader Name': '', Metric: 'No data', ...Object.fromEntries(dataCols.map((c) => [c, ''])) }],
+      data: branchRows.length ? branchRows : [{ Zone: '', Branch: '', Metric: 'No data', ...Object.fromEntries(dataCols.map((c) => [c, ''])) }],
       headerColors,
       colWidths,
       accountingColumns,
@@ -431,6 +401,9 @@ const GapAnalysis = () => {
       totalRowDarkBlue: true,
       gradeColors: { A: '#7B1FA2', B: '#1976D2', C: '#388E3C', D: '#F57C00', E: '#C62828' },
       commentColors: { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW STANDARD': '#F57C00', 'NOT ACCEPTABLE': '#C62828' },
+      monthColumns,
+      monthSubCols,
+      separatorCol,
     };
 
     const rsmRows = [];
@@ -456,11 +429,12 @@ const GapAnalysis = () => {
           'Regional Sales Manager Name': rIdx === 0 ? rsmName : '',
           Metric: r.rowLabel,
         };
-        dataCols.forEach((c) => {
-          if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-          else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-          else row[c] = r[c];
+        monthColumns.forEach((m) => {
+          const mm = r.__monthlyMetrics?.[m] || {};
+          monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
         });
+        row[separatorCol] = '';
+        monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
         rsmRows.push(row);
       });
     });
@@ -473,11 +447,12 @@ const GapAnalysis = () => {
         Metric: r.rowLabel,
         __totalRow: true,
       };
-      dataCols.forEach((c) => {
-        if (c === 'Grade') row[c] = getGradeFromPctArchived(r['% Achived']);
-        else if (c === 'Comment') row[c] = getCommentFromPctArchived(r['% Achived']);
-        else row[c] = r[c];
+      monthColumns.forEach((m) => {
+        const mm = r.__monthlyMetrics?.[m] || {};
+        monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
       });
+      row[separatorCol] = '';
+      monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
       rsmRows.push(row);
     });
 
@@ -492,19 +467,22 @@ const GapAnalysis = () => {
       totalRowDarkBlue: true,
       gradeColors: { A: '#7B1FA2', B: '#1976D2', C: '#388E3C', D: '#F57C00', E: '#C62828' },
       commentColors: { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW STANDARD': '#F57C00', 'NOT ACCEPTABLE': '#C62828' },
+      monthColumns,
+      monthSubCols,
+      separatorCol,
     };
 
     return [
-      { name: 'Branch', tables: [branchTable], freeze: { row: 1, col: 4 } },
-      { name: 'RSM', tables: [rsmTable], freeze: { row: 1, col: 4 } },
+      { name: 'Branch', tables: [branchTable], freeze: { row: 2, col: 3 } },
+      { name: 'RSM', tables: [rsmTable], freeze: { row: 2, col: 3 } },
     ];
-  }, [branchData, rsmData, grandTotalRows, product, columns, rsmRecipients, tlRecipients]);
+  }, [branchData, rsmData, grandTotalRows, product, columns, rsmRecipients, tlRecipients, monthColumns]);
 
   const handleDownloadXlsx = async () => {
     const sheets = buildSheetsForExport();
     const dateStr = reportDate ? new Date(reportDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     const fileName = `Gap_Analysis_${product}_${dateStr}.xlsx`;
-    await exportMultipleSheetsWithStyles(sheets, fileName);
+    await exportGapWorkbook(sheets, fileName);
   };
 
   /** Build a one-sheet workbook for a single TL or RSM subsection (for email attachment) */
@@ -535,7 +513,7 @@ const GapAnalysis = () => {
       commentColors: { EXCELLENT: '#388E3C', STANDARD: '#1976D2', 'BELOW STANDARD': '#F57C00', 'NOT ACCEPTABLE': '#C62828' },
     };
     const sheets = [{ name: sheetName, tables: [table], freeze: { row: 1, col: 1 } }];
-    return await buildWorkbookBuffer(sheets, fileName);
+    return await buildGapWorkbookBuffer(sheets, fileName);
   }, []);
 
   const handleSendReportEmail = async () => {
@@ -555,7 +533,7 @@ const GapAnalysis = () => {
     const sheets = buildSheetsForExport();
     const dateStr = reportDate ? new Date(reportDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
     const fileName = `Gap_Analysis_${product}_${dateStr}.xlsx`;
-    const result = await buildWorkbookBuffer(sheets, fileName);
+    const result = await buildGapWorkbookBuffer(sheets, fileName);
     let attachmentBase64 = '';
     let attachmentName = '';
     if (result?.buffer) {
@@ -1609,7 +1587,7 @@ const GapAnalysis = () => {
                           </li>
                         ))}
                       </ul>
-                    </div>
+      </div>
                   ) : (
                     <p className="gap-analysis-modal-saved-hint">Add RSM emails in the template and upload. Then open this modal again and &quot;Send&quot;.</p>
                   )}

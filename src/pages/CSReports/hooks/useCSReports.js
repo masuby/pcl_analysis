@@ -185,7 +185,9 @@ export const useCSReports = (department = 'CS') => {
         return;
       }
       
-      await downloadAllReportsAsZip(downloadableReports);
+      await downloadAllReportsAsZip(downloadableReports, {
+        buttonName: selectedReportType || 'REPORT',
+      });
     } catch (error) {
       console.error('Error downloading all reports:', error);
       setError(error.message);

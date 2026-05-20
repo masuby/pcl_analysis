@@ -17,8 +17,6 @@ export default function NewBusinessPerformance({ comparisonData, trendData, logo
     ? `${lastYearChange.dir} by ${lastYearChange.pct}%`
     : 'N/A';
 
-  const explanation = `The total amount disbursed for new business for the month of ${monthLabel} has ${lmText} in comparison to ${lastMonthLabel || 'the previous month'}, and ${lyText} in comparison to ${lastYearLabel || 'the same month last year'}.`;
-
   return (
     <div className="report-page">
       <div className="report-header">
@@ -27,8 +25,12 @@ export default function NewBusinessPerformance({ comparisonData, trendData, logo
       </div>
 
       <div className="report-content">
-        <p style={{ fontSize: '1rem', lineHeight: '1.6', color: '#1e293b', marginBottom: '1.5rem' }}>
-          {explanation}
+        <p className="report-content-para">
+          The total amount disbursed for new business for the month of <strong className="report-data-value">{monthLabel}</strong> has{' '}
+          <strong className="report-data-value">{lmText}</strong> in comparison to{' '}
+          <strong className="report-data-value">{lastMonthLabel || 'the previous month'}</strong>, and{' '}
+          <strong className="report-data-value">{lyText}</strong> in comparison to{' '}
+          <strong className="report-data-value">{lastYearLabel || 'the same month last year'}</strong>.
         </p>
 
         {trendData && trendData.length > 0 && (

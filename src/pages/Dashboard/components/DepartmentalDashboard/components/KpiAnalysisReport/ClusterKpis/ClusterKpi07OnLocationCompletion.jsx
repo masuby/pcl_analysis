@@ -4,6 +4,7 @@
  * Status=COMPLETED, Target_Met=AT_LOCATION; % completed at location in cluster.
  */
 import React from 'react';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 const TARGET_PCT = 95;
@@ -28,6 +29,9 @@ export default function ClusterKpi07OnLocationCompletion({
 }) {
   const pct = totalCompleted > 0 ? (completedAtLocation / totalCompleted) * 100 : null;
   const grade = gradeFromPct(pct);
+  const locSumCompleted = onLocationTable.reduce((s, row) => s + (Number(row.completed) || 0), 0);
+  const locSumAtLoc = onLocationTable.reduce((s, row) => s + (Number(row.atLocation) || 0), 0);
+  const pctLocBlended = locSumCompleted > 0 ? (locSumAtLoc / locSumCompleted) * 100 : null;
 
   if (loading) {
     return (
@@ -56,11 +60,19 @@ export default function ClusterKpi07OnLocationCompletion({
               {onLocationTable.map((row, i) => (
                 <tr key={i}>
                   <td>{row.reportDate}</td>
-                  <td className="ckpi-num">{row.completed}</td>
-                  <td className="ckpi-num">{row.atLocation}</td>
-                  <td className="ckpi-num">{row.pctAtLocation != null ? row.pctAtLocation.toFixed(2) + '%' : '—'}</td>
+                  <td className="ckpi-num">{formatTzs(row.completed)}</td>
+                  <td className="ckpi-num">{formatTzs(row.atLocation)}</td>
+                  <td className="ckpi-num">{formatPercentAccounting(row.pctAtLocation)}</td>
                 </tr>
               ))}
+              {onLocationTable.length > 0 ? (
+                <tr style={{ fontWeight: 600 }}>
+                  <td>Total / Average</td>
+                  <td className="ckpi-num">{formatTzs(locSumCompleted)}</td>
+                  <td className="ckpi-num">{formatTzs(locSumAtLoc)}</td>
+                  <td className="ckpi-num">{formatPercentAccounting(pctLocBlended)}</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         )}
@@ -78,9 +90,9 @@ export default function ClusterKpi07OnLocationCompletion({
               {byZone.map((z, i) => (
                 <tr key={i}>
                   <td>{z.zone}</td>
-                  <td className="ckpi-num">{z.atLocation}</td>
-                  <td className="ckpi-num">{z.total}</td>
-                  <td className="ckpi-num">{z.total > 0 ? ((z.atLocation / z.total) * 100).toFixed(2) + '%' : '—'}</td>
+                  <td className="ckpi-num">{formatTzs(z.atLocation)}</td>
+                  <td className="ckpi-num">{formatTzs(z.total)}</td>
+                  <td className="ckpi-num">{z.total > 0 ? formatPercentAccounting((z.atLocation / z.total) * 100) : '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -96,15 +108,15 @@ export default function ClusterKpi07OnLocationCompletion({
           <tbody>
             <tr>
               <td>Completed at location (cluster)</td>
-              <td className="ckpi-num">{completedAtLocation}</td>
+              <td className="ckpi-num">{formatTzs(completedAtLocation)}</td>
             </tr>
             <tr>
               <td>Total completed (cluster)</td>
-              <td className="ckpi-num">{totalCompleted}</td>
+              <td className="ckpi-num">{formatTzs(totalCompleted)}</td>
             </tr>
             <tr>
               <td>% at location</td>
-              <td className="ckpi-num">{pct != null ? pct.toFixed(2) + '%' : '—'}</td>
+              <td className="ckpi-num">{formatPercentAccounting(pct)}</td>
             </tr>
             <tr>
               <td>Grade</td>
@@ -112,7 +124,7 @@ export default function ClusterKpi07OnLocationCompletion({
             </tr>
           </tbody>
         </table>
-        <p className="ckpi-note">Source: CS CRM reports ({monthLabel}), agent_activity sheet: Product=CS only, Zone=zones within this cluster only; then Status=COMPLETED, Target_Met=AT_LOCATION. Weight: {weightPct}%.</p>
+        <p className="ckpi-note">Source: CS CRM reports ({monthLabel}), agent_activity sheet: Product=CS only, Zone=zones within this cluster only; then Status=COMPLETED, Target_Met=AT_LOCATION. Weight: {formatPercentAccounting(weightPct)}.</p>
       </div>
     </section>
   );

@@ -4,7 +4,7 @@
  * Target vs Disbursement this month from Management report (branch-level).
  */
 import React from 'react';
-import { formatTzs } from '../utils/csKpiTargets';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import { getColorForPct } from './clusterKpiUtils';
 import './clusterKpiStyles.css';
 
@@ -29,6 +29,9 @@ export default function ClusterKpi03BranchesOnTarget({
   const atOrAbove100 = branches.filter((b) => (b.pct ?? 0) >= 100).length;
   const pctBranchesOnTarget = totalBranches > 0 ? (atOrAbove100 / totalBranches) * 100 : null;
   const grade = gradeFromPct(pctBranchesOnTarget);
+  const totalTargetSum = branches.reduce((s, b) => s + (Number(b.target) || 0), 0);
+  const totalDisbursementSum = branches.reduce((s, b) => s + (Number(b.disbursement) || 0), 0);
+  const pctBlended = totalTargetSum > 0 ? (totalDisbursementSum / totalTargetSum) * 100 : null;
 
   if (loading) {
     return (
@@ -59,14 +62,23 @@ export default function ClusterKpi03BranchesOnTarget({
                 <td>{b.branch}</td>
                 <td className="ckpi-num">{formatTzs(b.target)}</td>
                 <td className="ckpi-num">{formatTzs(b.disbursement)}</td>
-                <td className="ckpi-num">{b.pct != null ? b.pct.toFixed(2) + '%' : '—'}</td>
+                <td className="ckpi-num">{formatPercentAccounting(b.pct)}</td>
                 <td>{(b.pct ?? 0) >= 100 ? <span className="ckpi-grade excellent">Yes</span> : <span className="ckpi-grade fail">No</span>}</td>
               </tr>
             ))}
+            {branches.length > 0 ? (
+              <tr style={{ fontWeight: 600 }}>
+                <td>Total / Average</td>
+                <td className="ckpi-num">{formatTzs(totalTargetSum)}</td>
+                <td className="ckpi-num">{formatTzs(totalDisbursementSum)}</td>
+                <td className="ckpi-num">{formatPercentAccounting(pctBlended)}</td>
+                <td>—</td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
         <p className="ckpi-note">
-          Branches at ≥100%: {atOrAbove100} of {totalBranches} = {pctBranchesOnTarget != null ? pctBranchesOnTarget.toFixed(2) + '%' : '—'} (target {TARGET_PCT}%). Weight: {weightPct}%.
+          Branches at ≥100%: {formatTzs(atOrAbove100)} of {formatTzs(totalBranches)} = {formatPercentAccounting(pctBranchesOnTarget)} (target {TARGET_PCT}%). Weight: {formatPercentAccounting(weightPct)}.
         </p>
         <p className="ckpi-note">Grade: <span className={`ckpi-grade ${grade.className}`}>{grade.label}</span></p>
       </div>

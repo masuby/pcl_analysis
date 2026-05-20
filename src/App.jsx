@@ -23,23 +23,25 @@ function App() {
       <Router>
         <AuthProvider>
           <ReportRefreshProvider>
-            <ThemeToggle />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/gap-response" element={<GapResponse />} />
-              <Route path="/" element={<PrivateRoute />}>
-                <Route element={<MainLayout />}>
-                  <Route path="dashboard" element={<Dashboard />} />
-                  <Route path="cs-reports" element={<CSReports />} />
-                  <Route path="lbf-reports" element={<LBFReports />} />
-                  <Route path="sme-reports" element={<SMEReports />} />
-                  <Route path="all-reports" element={<AllReports />} />
-                  <Route path="administration" element={<Administration />} />
-                  <Route path="profile" element={<Profile />} />
-                  <Route index element={<Navigate to="/dashboard" />} />
+            <div className="app-shell app-compact">
+              <ThemeToggle />
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/gap-response" element={<GapResponse />} />
+                <Route path="/" element={<PrivateRoute />}>
+                  <Route element={<MainLayout />}>
+                    <Route path="dashboard" element={<Dashboard />} />
+                    <Route path="cs-reports" element={<CSReports />} />
+                    <Route path="lbf-reports" element={<LBFReports />} />
+                    <Route path="sme-reports" element={<SMEReports />} />
+                    <Route path="all-reports" element={<AllReports />} />
+                    <Route path="administration" element={<Administration />} />
+                    <Route path="profile" element={<Profile />} />
+                    <Route index element={<Navigate to="/dashboard" />} />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
+              </Routes>
+            </div>
           </ReportRefreshProvider>
         </AuthProvider>
       </Router>

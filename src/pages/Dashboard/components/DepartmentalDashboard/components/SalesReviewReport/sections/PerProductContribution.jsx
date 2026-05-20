@@ -17,7 +17,8 @@ export default function PerProductContribution({ productData, logoSrc }) {
       <div className="report-product-line" />
 
       <p className="report-product-subtitle">
-        Contribution to total sales (Disbursements This Month) — {monthLabel}. Total: <strong>{totalFormatted} TZS</strong>
+        Contribution to total sales (Disbursements This Month) — {monthLabel}. Total:{' '}
+        <strong className="report-data-value">{totalFormatted} TZS</strong>
       </p>
       <div className="report-product-split">
         <div className="report-product-left">

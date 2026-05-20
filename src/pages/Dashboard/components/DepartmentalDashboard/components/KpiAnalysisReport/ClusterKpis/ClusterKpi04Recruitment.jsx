@@ -3,12 +3,12 @@
  * Uses Gap Analysis: Achieved Sales Reps vs Target per region in cluster; show all region data, sum to cluster, then analysis.
  */
 import React from 'react';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 const TARGET_PCT = 85;
 
 function gradeFromPct(pct) {
-  if (pct == null || Number.isNaN(pct)) return { label: 'N/A', className: 'na' };
   if (pct >= 85) return { label: 'Achieved', className: 'excellent' };
   if (pct >= 70) return { label: 'Good', className: 'good' };
   if (pct >= 50) return { label: 'Fair', className: 'fair' };
@@ -53,23 +53,23 @@ export default function ClusterKpi04Recruitment({
             {recruitmentTable.map((r, i) => (
               <tr key={i}>
                 <td>{r.region}</td>
-                <td className="ckpi-num">{r.target ?? '—'}</td>
-                <td className="ckpi-num">{r.achieved ?? '—'}</td>
-                <td className="ckpi-num">{r.pct != null ? r.pct.toFixed(2) + '%' : '—'}</td>
+                <td className="ckpi-num">{formatTzs(r.target)}</td>
+                <td className="ckpi-num">{formatTzs(r.achieved)}</td>
+                <td className="ckpi-num">{formatPercentAccounting(r.pct)}</td>
               </tr>
             ))}
             {recruitmentTable.length > 0 && (
               <tr style={{ fontWeight: 600 }}>
                 <td>Cluster total</td>
-                <td className="ckpi-num">{clusterTotalTarget}</td>
-                <td className="ckpi-num">{clusterTotalAchieved}</td>
-                <td className="ckpi-num">{pct != null ? pct.toFixed(2) + '%' : '—'}</td>
+                <td className="ckpi-num">{formatTzs(clusterTotalTarget)}</td>
+                <td className="ckpi-num">{formatTzs(clusterTotalAchieved)}</td>
+                <td className="ckpi-num">{formatPercentAccounting(pct)}</td>
               </tr>
             )}
           </tbody>
         </table>
         <p className="ckpi-note">
-          Source: Gap Analysis RSM. Actual Sales Reps Attained vs Target per region in cluster; summed to cluster. Target: {TARGET_PCT}%. Weight: {weightPct}%.
+          Source: Gap Analysis RSM. Actual Sales Reps Attained vs Target per region in cluster; summed to cluster. Target: {TARGET_PCT}%. Weight: {formatPercentAccounting(weightPct)}.
         </p>
         <p className="ckpi-note">Grade: <span className={`ckpi-grade ${grade.className}`}>{grade.label}</span></p>
       </div>

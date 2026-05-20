@@ -6,6 +6,7 @@ import PerProductContribution from './PerProductContribution';
 import NewBusinessPerformance from './NewBusinessPerformance';
 import RepeatBusinessPerformance from './RepeatBusinessPerformance';
 import SupervisionPerformance from './SupervisionPerformance';
+import TrendExplanationText from './TrendExplanationText';
 
 /**
  * Reusable block for a product section (CS, LBF, IPF, SME, etc.).
@@ -47,6 +48,7 @@ export default function ProductPerformanceBlock({
         summaryData={summaryData}
         monthLabel={monthLabel}
         logoSrc={logoSrc}
+        hideActualAgentsMonthLine={section.id?.startsWith('cs-') || section.id === 'lbf'}
       />
 
       {/* Sales Trend (chart + explanation) */}
@@ -60,7 +62,7 @@ export default function ProductPerformanceBlock({
           <GeneralSalesTrendChart monthlyData={monthlyTrendData} />
         </div>
         <div className="report-trend-explanation">
-          <p className="report-trend-explanation-text">{trendExplanation}</p>
+          <TrendExplanationText text={trendExplanation} />
         </div>
         <div className="report-page-bottom-line" />
       </div>

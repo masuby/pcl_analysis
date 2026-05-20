@@ -465,5 +465,45 @@
 
   }
 
+/* Enterprise responsive pass */
+.date-filter.compact,
+.date-filter-toggle.compact,
+.date-filter-dropdown.compact {
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .date-filter.compact {
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 768px) {
+  .date-filter-header.compact {
+    width: 100%;
+  }
+
+  .date-filter-dropdown.compact {
+    top: 52%;
+  }
+}
+
+@media (max-width: 480px) {
+  .date-filter-toggle.compact {
+    min-height: 36px;
+    padding: 0.45rem 0.625rem;
+    font-size: 0.8rem;
+  }
+
+  .date-filter-dropdown.compact {
+    width: calc(100vw - 1rem);
+    max-height: 78vh;
+    border-radius: 10px;
+  }
+
+  .dropdown-content.compact {
+    max-height: 58vh;
+  }
+}
 
 

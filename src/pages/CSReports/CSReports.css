@@ -318,3 +318,49 @@
     transform: none;
   }
 }
+
+/* Enterprise responsive pass */
+.cs-reports-page.compact {
+  font-size: 14px;
+}
+
+.top-action-bar,
+.reports-content,
+.reports-buttons.compact .report-button,
+.action-icon {
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .top-action-bar {
+    margin: 1rem 0;
+    padding: 0.625rem 0.875rem;
+  }
+
+  .reports-content {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-action-bar {
+    gap: 0.75rem;
+  }
+
+  .right-section {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .cs-reports-page.compact {
+    padding: 0.625rem;
+    font-size: 13px;
+  }
+
+  .reports-content {
+    min-height: 360px;
+    border-radius: 10px;
+  }
+}

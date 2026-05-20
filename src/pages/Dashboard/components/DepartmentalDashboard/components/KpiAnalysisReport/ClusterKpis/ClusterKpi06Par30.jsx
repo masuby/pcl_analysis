@@ -3,6 +3,7 @@
  * Management report: PAR >30 per cluster; check if under 5%, grade and analysis.
  */
 import React from 'react';
+import { formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 const PAR_TARGET_PCT = 5;
@@ -23,7 +24,7 @@ export default function ClusterKpi06Par30({
   loading = false
 }) {
   const num = par30Pct != null ? (typeof par30Pct === 'number' ? par30Pct : parseFloat(par30Pct)) : NaN;
-  const display = Number.isFinite(num) ? num.toFixed(2) + '%' : '—';
+  const display = Number.isFinite(num) ? formatPercentAccounting(num) : '—';
   const grade = gradeFromPar(Number.isFinite(num) ? num : null);
 
   if (loading) {

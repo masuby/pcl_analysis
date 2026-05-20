@@ -206,3 +206,56 @@
   
   }
 
+/* Enterprise responsive pass */
+.analysis-modal-simple {
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-content-simple {
+  overflow-y: auto;
+  max-height: calc(min(88vh, 720px) - 152px);
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 0.75rem;
+  }
+
+  .analysis-modal-simple {
+    margin-top: 0.75rem;
+    max-height: calc(100vh - 1.5rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .analysis-modal-simple {
+    border-radius: 10px;
+  }
+
+  .modal-header-simple {
+    padding: 1rem;
+  }
+
+  .header-content h2 {
+    font-size: 1.1rem;
+    line-height: 1.3;
+  }
+
+  .modal-content-simple {
+    padding: 1rem;
+  }
+
+  .modal-footer-simple {
+    padding: 0.75rem 1rem;
+  }
+
+  .footer-button.close {
+    width: 100%;
+    min-height: 36px;
+    padding: 0.625rem 1rem;
+    font-size: 0.9rem;
+  }
+}

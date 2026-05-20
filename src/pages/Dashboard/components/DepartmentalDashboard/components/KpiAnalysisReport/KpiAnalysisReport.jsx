@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import './KpiAnalysisReport.css';
-import { loadCsKpiTargets, loadCsKpiClusterTargets, formatTzs, CS_KPI_TARGET_FILE_URL, CS_KPI_CLUSTER_TARGET_FILE_URL, getWeightForKpiKey } from './utils/csKpiTargets';
+import { formatTzs, formatPercentAccounting, getWeightForKpiKey, loadCsKpiTargets, loadCsKpiClusterTargets, loadGenericKpiTargets } from './utils/csKpiTargets';
 
 const CLUSTER_TARGET_ATTACHMENT_NAME = 'CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
@@ -10,7 +10,8 @@ import { getReportsByDepartmentAndType } from '../../../../../../services/report
 import { gapAnalysisAPI } from '../../../../../../services/api';
 import { exportMultipleSheetsWithStyles, buildWorkbookBuffer } from '../../utils/excelExportStyled';
 import { sendScoreCardEmail } from '../../utils/emailScoreCard';
-import { buildKpiReportEmailHTML, buildClusterKpiReportEmailHTML } from '../../utils/emailTemplateKpi';
+import { buildKpiReportEmailHTML, buildClusterKpiReportEmailHTML, buildNonCsKpiReportEmailHTML } from '../../utils/emailTemplateKpi';
+import { kpiTargetsAPI } from '../../../../../../services/kpiTargets';
 import { parseManagementReportCsBranches } from './utils/parseManagementReportCsBranches';
 import { getBranchToClusterCS, getBranchesByClusterCS } from './utils/zoneClusterMapping';
 import { buildRSMData, buildRSMDataFromBranches } from '../GapAnalysis/utils/gapAnalysisUtils';
@@ -21,6 +22,13 @@ import { extractMetrics } from '../../../CRMdashboard/utils/crmUtils';
 import { useCRMData } from '../../../CRMdashboard/hooks/useCRMData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import ClusterKpiView from './ClusterKpis/ClusterKpiView';
+import { useNonCsKpiAnalysis } from './hooks/useNonCsKpiAnalysis';
+import { useCsKpiAnalysis } from './hooks/useCsKpiAnalysis';
+import {
+  aggregateBranchDisbursementRows,
+  aggregateCrmConsentDailyRows,
+  aggregateCrmUsageDailyRows
+} from './utils/kpiAppendixAggregates';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const KPI_REPORT_RECIPIENTS_KEY = 'kpi_report_email_recipients';
@@ -65,6 +73,13 @@ function blendHexWithWhite(hex, ratio = 0.6) {
   return [r2, g2, b2].map((x) => x.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
+function getAchievedRowStyle(pct) {
+  if (!Number.isFinite(pct)) return undefined;
+  if (pct <= 0) return { backgroundColor: '#FF6B6B' };
+  if (pct < 50) return { backgroundColor: '#FFA94D' };
+  return { backgroundColor: '#69DB7C' };
+}
+
 /** Normalize PAR >30 value to percentage. Some reports (e.g. Dec) store as decimal (0.0582 = 5.82%); others as percentage (5.82). If value is less than 1, treat as decimal and convert. */
 function normalizeParToPercentage(val) {
   if (val == null || val === '') return NaN;
@@ -86,11 +101,30 @@ function arrayBufferToBase64(ab) {
   return btoa(binary);
 }
 
-const KpiAnalysisReport = () => {
-  const [product, setProduct] = useState('CS');
+const EMPTY_TOTAL_TARGETS = {
+  performanceStandards: [],
+  mainland: {},
+  zanzibar: {},
+  callCenter: {},
+};
+
+const EMPTY_CLUSTER_TARGETS = {
+  performanceStandards: [],
+  clusters: {},
+};
+
+function isMissingActiveKpiFileError(err) {
+  const msg = String(err?.message || err || '').toLowerCase();
+  return msg.includes('no active kpi target file');
+}
+
+const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
+  const [product, setProduct] = useState(initialProduct);
   const [targets, setTargets] = useState(null);
   const [targetsError, setTargetsError] = useState(null);
   const [targetsLoading, setTargetsLoading] = useState(true);
+  const [targetsMissing, setTargetsMissing] = useState(false);
+  const [clusterTargetsMissing, setClusterTargetsMissing] = useState(false);
   /** Selected month YYYY-MM; null = use latest available */
   const [selectedMonthKey, setSelectedMonthKey] = useState(null);
   /** CS sub-view: Total (all) or Cluster 1, Cluster 2, Cluster 3, Zanzibar */
@@ -103,16 +137,18 @@ const KpiAnalysisReport = () => {
   const [branchesByCluster, setBranchesByCluster] = useState(null);
   /** Cluster KPI targets from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx (when a cluster is selected) */
   const [clusterTargets, setClusterTargets] = useState(null);
-  /** Optional uploaded KPI files (same format as defaults) */
-  const [uploadedTotalKpiFileUrl, setUploadedTotalKpiFileUrl] = useState(null);
-  const [uploadedTotalKpiFileName, setUploadedTotalKpiFileName] = useState('');
-  const [uploadedClusterKpiFileUrl, setUploadedClusterKpiFileUrl] = useState(null);
-  const [uploadedClusterKpiFileName, setUploadedClusterKpiFileName] = useState('');
-  const [uploadedClusterKpiBase64, setUploadedClusterKpiBase64] = useState(null);
+  /** Backend-managed KPI target versions */
+  const [totalVersions, setTotalVersions] = useState([]);
+  const [clusterVersions, setClusterVersions] = useState([]);
+  const [totalVersionId, setTotalVersionId] = useState(null);
+  const [clusterVersionId, setClusterVersionId] = useState(null);
+  const [totalActiveFileName, setTotalActiveFileName] = useState('');
+  const [clusterActiveFileName, setClusterActiveFileName] = useState('');
 
   const [kpiUploadLoading, setKpiUploadLoading] = useState(false);
   const [kpiUploadError, setKpiUploadError] = useState('');
   const kpiTargetFileInputRef = useRef(null);
+  const fallbackParsedRef = useRef({ total: false, cluster: false });
   /** Parsed CRM agent_activity + Lead_Report for cluster view (by zone, then aggregated) */
   const [crmClusterSheetsData, setCrmClusterSheetsData] = useState(null);
   /** Actual reps from Gap Analysis API (uploaded template); keyed by RSM:Zone or TL|Supervision */
@@ -266,6 +302,7 @@ const KpiAnalysisReport = () => {
     return () => { cancelled = true; };
   }, [previousMonthManagementReport?.id]);
 
+
   useEffect(() => {
     if (product !== 'CS' || csView === 'Total' || !crmReportForMonth) {
       setCrmClusterSheetsData(null);
@@ -379,476 +416,209 @@ const KpiAnalysisReport = () => {
     return () => { cancelled = true; };
   }, [product]);
 
-  /** Filter branch summary by csView (Total = all; otherwise only branches in that cluster) */
-  const filteredBranchSummaryData = useMemo(() => {
-    if (!branchSummaryData) return null;
-    if (csView === 'Total' || !branchToClusterMap) return branchSummaryData;
-    const branchesInView = branchesByCluster?.[csView] || [];
-    const set = new Set(branchesInView);
-    const branches = (branchSummaryData.branches || []).filter((b) => set.has(b.branch));
-    const clusters = (branchSummaryData.clusters || []).filter((c) => c.branch === csView);
-    let totalTarget = 0;
-    let totalDisbursement = 0;
-    let achieved100Count = 0;
-    let notAchieved100Count = 0;
-    branches.forEach((b) => {
-      totalTarget += b.target || 0;
-      totalDisbursement += b.disbursement || 0;
-      if ((b.pct ?? 0) >= 100) achieved100Count += 1;
-      else notAchieved100Count += 1;
-    });
-    return {
-      branches,
-      clusters,
-      totalTarget,
-      totalDisbursement,
-      achieved100Count,
-      notAchieved100Count
-    };
-  }, [branchSummaryData, csView, branchToClusterMap, branchesByCluster]);
+  const {
+    filteredBranchSummaryData,
+    mtdSalesAchievedForView,
+    effectiveTargetsForKpi,
+    countrySheetClusterDisbursement,
+    countrySheetClusterPortfolio,
+    countrySheetClusterPar30,
+    countrySheetClusterPortfolioPrevious,
+    rsmDataForCluster,
+    crmClusterAggregated,
+    onLocationTable,
+    consentTable,
+    clusterKpiTables,
+    clusterDashboardRows,
+    dashboardSummaryRows
+  } = useCsKpiAnalysis({
+    product,
+    csView,
+    branchSummaryData,
+    branchToClusterMap,
+    branchesByCluster,
+    mtdParsedData,
+    targets,
+    clusterTargets,
+    clusterTargetsMissing,
+    effectiveMonthKey,
+    branchSummaryDataPrevious,
+    gapActualRepsFromServer,
+    crmReportsInMonthData,
+    crmClusterSheetsData,
+    latestManagementReport,
+    previousMonthManagementReport,
+    crmParsedDataForMonth,
+    toMonthKey,
+    normalizeParToPercentage,
+    formatTzs,
+    formatPercentAccounting
+  });
 
-  /** MTD sales achieved for current view: Total = grand total; cluster = sum of team leaders in that cluster */
-  const mtdSalesAchievedForView = useMemo(() => {
-    const raw = mtdParsedData?.grandTotalRow?.VALUE ?? mtdParsedData?.grandTotalRow?.value;
-    const fullTotal = typeof raw === 'number' ? raw : (raw != null ? parseFloat(raw) : NaN);
-    if (csView === 'Total' || !branchesByCluster || !mtdParsedData?.groupedData) {
-      return fullTotal;
-    }
-    const branchesInView = new Set(branchesByCluster[csView] || []);
-    if (branchesInView.size === 0) return fullTotal;
-    let sum = 0;
-    for (const [, group] of Object.entries(mtdParsedData.groupedData)) {
-      for (const tl of group.teamLeaders || []) {
-        const name = (tl.name || '').trim();
-        if (branchesInView.has(name)) {
-          const d = tl.data || {};
-          const v = Number(d.VALUE ?? d.Value ?? 0) || 0;
-          sum += v;
-        }
-      }
-    }
-    return Number.isFinite(sum) ? sum : fullTotal;
-  }, [mtdParsedData, csView, branchesByCluster]);
-
-  /** When a cluster is selected, use cluster target file for standards and sales target; otherwise main CS target file. */
-  const effectiveTargetsForKpi = useMemo(() => {
-    if (!targets || !effectiveMonthKey) return null;
-    const isCluster = csView !== 'Total' && (csView === 'Cluster 1' || csView === 'Cluster 2' || csView === 'Cluster 3' || csView === 'Zanzibar');
-    if (isCluster && clusterTargets?.clusters?.[csView]) {
-      const clusterRow = clusterTargets.clusters[csView][effectiveMonthKey];
-      return {
-        performanceStandards: clusterTargets.performanceStandards?.length ? clusterTargets.performanceStandards : targets.performanceStandards,
-        salesTarget: clusterRow?.total ?? 0
-      };
-    }
-    const mainT = (targets.mainland || {})[effectiveMonthKey];
-    const zanT = (targets.zanzibar || {})[effectiveMonthKey];
-    const ccT = (targets.callCenter || {})[effectiveMonthKey];
-    return {
-      performanceStandards: targets.performanceStandards || [],
-      salesTarget: (mainT?.total ?? 0) + (zanT?.total ?? 0) + (ccT ?? 0)
-    };
-  }, [targets, clusterTargets, csView, effectiveMonthKey]);
-
-  /** For cluster view: disbursement from Management report Country sheet (cluster row). */
-  const countrySheetClusterDisbursement = useMemo(() => {
-    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
-    const row = branchSummaryData.clusters.find(
-      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
-    );
-    return row?.disbursement ?? null;
-  }, [csView, branchSummaryData?.clusters]);
-
-  /** For cluster view: Portfolio and PAR>30 from Management report Country sheet (cluster row), when present. */
-  const countrySheetClusterPortfolio = useMemo(() => {
-    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
-    const row = branchSummaryData.clusters.find(
-      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
-    );
-    return row?.portfolio ?? null;
-  }, [csView, branchSummaryData?.clusters]);
-  const countrySheetClusterPar30 = useMemo(() => {
-    if (csView === 'Total' || !branchSummaryData?.clusters?.length) return null;
-    const row = branchSummaryData.clusters.find(
-      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
-    );
-    return row?.par30 ?? null;
-  }, [csView, branchSummaryData?.clusters]);
-
-  /** Previous month: Portfolio from Management report Country sheet (same cluster row). Used for portfolio growth. */
-  const countrySheetClusterPortfolioPrevious = useMemo(() => {
-    if (csView === 'Total' || !branchSummaryDataPrevious?.clusters?.length) return null;
-    const row = branchSummaryDataPrevious.clusters.find(
-      (c) => c.branch === csView || (csView === 'Zanzibar' && (c.branch === 'ZANZIBAR' || c.branch === 'Zanzibar'))
-    );
-    return row?.portfolio ?? null;
-  }, [csView, branchSummaryDataPrevious?.clusters]);
-
-  /** Actual Sales Reps from Gap Analysis for the same report: API (uploaded template) wins, then localStorage. */
-  const gapActualRepsOverrides = useMemo(() => {
-    const reportId = mtdParsedData?.reportId;
-    if (!reportId || product !== 'CS') return {};
-    let local = {};
-    try {
-      const key = `gap_analysis_actual_${reportId}_CS`;
-      const raw = localStorage.getItem(key);
-      local = raw ? JSON.parse(raw) : {};
-    } catch {
-      // ignore
-    }
-    return { ...local, ...gapActualRepsFromServer };
-  }, [mtdParsedData?.reportId, product, gapActualRepsFromServer]);
-
-  /** Normalize zone/supervision for matching: Gap/MTD uses "X Region", constants use "X Zone". Strip both, lowercase. */
-  const normalizeZoneForMatch = (s) =>
-    String(s ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+(zone|region)\s*$/i, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  /** RSM data for cluster: match supervisions to cluster zones (exact or normalized: "Highland Region" ↔ "Highland Zone"); else fallback to branch-based. */
-  const rsmDataForCluster = useMemo(() => {
-    if (product !== 'CS' || csView === 'Total' || !mtdParsedData?.groupedData) return [];
-    const zonesInCluster = ZONES_BY_CLUSTER_CS[csView] || [];
-    const zoneSet = new Set(zonesInCluster.map((z) => String(z).trim()));
-    const zoneNormSet = new Set(zonesInCluster.map((z) => normalizeZoneForMatch(z)));
-    const full = buildRSMData(mtdParsedData, 'CS', gapActualRepsOverrides);
-    const byZone = full.filter((item) => {
-      const sup = String(item.supervision || '').trim();
-      if (zoneSet.has(sup) || zoneSet.has(sup.toUpperCase())) return true;
-      if (csView === 'Zanzibar' && sup.toUpperCase().includes('ZANZIBAR')) return true;
-      if (zoneNormSet.has(normalizeZoneForMatch(sup))) return true;
-      return false;
-    });
-    if (byZone.length > 0) return byZone;
-    const branchesInCluster = branchesByCluster?.[csView] || [];
-    if (!branchesInCluster.length) return [];
-    return buildRSMDataFromBranches(mtdParsedData, 'CS', branchesInCluster, gapActualRepsOverrides);
-  }, [product, csView, mtdParsedData, gapActualRepsOverrides, branchesByCluster]);
-
-  /** CRM aggregated for current cluster only: Product=CS and Zone in cluster (ZONES_BY_CLUSTER_CS[csView]). */
-  const crmClusterAggregated = useMemo(() => {
-    if (csView === 'Total') return null;
-    const clusterZones = ZONES_BY_CLUSTER_CS[csView];
-    if (!clusterZones?.length) return null;
-    if (crmReportsInMonthData?.length > 0) {
-      const tot = crmReportsInMonthData.reduce(
-        (acc, r) => ({
-          completed: acc.completed + (r.completed ?? 0),
-          atLocation: acc.atLocation + (r.atLocation ?? 0),
-          accepted: acc.accepted + (r.accepted ?? 0),
-          total: acc.total + (r.totalLead ?? 0)
-        }),
-        { completed: 0, atLocation: 0, accepted: 0, total: 0 }
-      );
-      return tot;
-    }
-    if (!crmClusterSheetsData) return null;
-    return aggregateCrmForCluster(
-      crmClusterSheetsData.agentActivity,
-      crmClusterSheetsData.leadReport,
-      clusterZones
-    );
-  }, [crmClusterSheetsData, csView, crmReportsInMonthData]);
-
-  /** Per-report table: Report Date, Completed, At location, % At location (all CRM reports in month). */
-  const onLocationTable = useMemo(() => {
-    if (!crmReportsInMonthData?.length) return [];
-    return crmReportsInMonthData.map((r) => ({
-      reportDate: r.reportDate,
-      completed: r.completed,
-      atLocation: r.atLocation,
-      pctAtLocation: r.completed > 0 ? (r.atLocation / r.completed) * 100 : null
-    }));
-  }, [crmReportsInMonthData]);
-
-  /** Per-report table: Report Date, Total lead, Total consent (Accepted), % consented. */
-  const consentTable = useMemo(() => {
-    if (!crmReportsInMonthData?.length) return [];
-    return crmReportsInMonthData.map((r) => ({
-      reportDate: r.reportDate,
-      totalLead: r.totalLead,
-      accepted: r.accepted,
-      pctConsented: r.totalLead > 0 ? (r.accepted / r.totalLead) * 100 : null
-    }));
-  }, [crmReportsInMonthData]);
-
-  /** Tables for cluster KPI 2 (regions new business) and KPI 4 (recruitment) from RSM. */
-  const clusterKpiTables = useMemo(() => {
-    if (!rsmDataForCluster.length) return { regionsNewBiz: [], recruitment: [] };
-    const regionsNewBiz = [];
-    const recruitment = [];
-    for (const { supervision, rows } of rsmDataForCluster) {
-      const newLoansRow = rows.find((r) => r.rowLabel === 'New Loans');
-      if (newLoansRow) {
-        const target = Number(newLoansRow.Target) || 0;
-        const achieved = Number(newLoansRow.Achieved) ?? 0;
-        regionsNewBiz.push({ region: supervision, target, achieved, pct: target > 0 ? (achieved / target) * 100 : 0 });
-      }
-      const actualRow = rows.find((r) => r.rowLabel === 'Actual Reps');
-      if (actualRow) {
-        const target = Number(actualRow.Target) || 0;
-        const achieved = actualRow.Achieved != null && actualRow.Achieved !== '' ? Number(actualRow.Achieved) : 0;
-        recruitment.push({ region: supervision, target, achieved, pct: target > 0 ? (achieved / target) * 100 : 0 });
-      }
-    }
-    return { regionsNewBiz, recruitment };
-  }, [rsmDataForCluster]);
-
-  /** Cluster view: build rows only from cluster file's KPI sheet (8 KPIs, 76% total weight). */
-  const clusterDashboardRows = useMemo(() => {
-    if (csView === 'Total' || !clusterTargets?.performanceStandards?.length || !effectiveTargetsForKpi || !effectiveMonthKey) return null;
-    const isCluster = csView === 'Cluster 1' || csView === 'Cluster 2' || csView === 'Cluster 3' || csView === 'Zanzibar';
-    if (!isCluster || !clusterTargets.clusters?.[csView]) return null;
-
-    const standards = clusterTargets.performanceStandards;
-    const salesTarget = effectiveTargetsForKpi.salesTarget;
-    // Use Management report Country sheet cluster row Disbursement this month (not MTD)
-    const salesAchievedNum = typeof countrySheetClusterDisbursement === 'number' ? countrySheetClusterDisbursement : (countrySheetClusterDisbursement != null ? parseFloat(countrySheetClusterDisbursement) : NaN);
-    const pctSales = Number.isFinite(salesAchievedNum) && salesTarget > 0 ? (salesAchievedNum / salesTarget) * 100 : null;
-
-    const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
-    const pctBranches100 = totalBranches > 0 ? ((filteredBranchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
-
-    // KPI 2: Regions New Business from RSM (New Loans Target vs Achieved per region)
-    let regionsInClusterHit = 0;
-    let regionsInClusterTotal = 0;
-    const regionsNewBizTable = [];
-    if (rsmDataForCluster.length > 0) {
-      for (const { supervision, rows } of rsmDataForCluster) {
-        const newLoansRow = rows.find((r) => r.rowLabel === 'New Loans');
-        if (!newLoansRow) continue;
-        const target = Number(newLoansRow.Target) || 0;
-        const achieved = Number(newLoansRow.Achieved) ?? 0;
-        regionsInClusterTotal += 1;
-        const pctRow = target > 0 ? (achieved / target) * 100 : 0;
-        regionsNewBizTable.push({ region: supervision, target, achieved, pct: pctRow });
-        if (target > 0 && achieved >= target) regionsInClusterHit += 1;
-      }
-    }
-    const pctRegionsNewBiz100 = regionsInClusterTotal > 0 ? (regionsInClusterHit / regionsInClusterTotal) * 100 : null;
-
-    // KPI 4: Recruitment from RSM (Actual Reps Target vs Achieved per region, then cluster total)
-    let actualRepsTargetSum = 0;
-    let actualRepsAchievedSum = 0;
-    const recruitmentTable = [];
-    if (rsmDataForCluster.length > 0) {
-      for (const { supervision, rows } of rsmDataForCluster) {
-        const actualRow = rows.find((r) => r.rowLabel === 'Actual Reps');
-        if (!actualRow) continue;
-        const target = Number(actualRow.Target) || 0;
-        const achieved = actualRow.Achieved != null && actualRow.Achieved !== '' ? Number(actualRow.Achieved) : 0;
-        actualRepsTargetSum += target;
-        actualRepsAchievedSum += achieved;
-        const pctRow = target > 0 ? (achieved / target) * 100 : 0;
-        recruitmentTable.push({ region: supervision, target, achieved, pct: pctRow });
-      }
-    }
-    const pctRecruitment = actualRepsTargetSum > 0 ? (actualRepsAchievedSum / actualRepsTargetSum) * 100 : null;
-
-    const portfolioCurrent = countrySheetClusterPortfolio ?? latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'] ?? latestManagementReport?.cs?.['Principle Balance'] ?? null;
-    const portfolioNum = typeof portfolioCurrent === 'number' ? portfolioCurrent : (portfolioCurrent != null ? parseFloat(portfolioCurrent) : NaN);
-    const portfolioPrev = countrySheetClusterPortfolioPrevious ?? previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'] ?? previousMonthManagementReport?.cs?.['Principle Balance'] ?? null;
-    const portfolioPrevNum = typeof portfolioPrev === 'number' ? portfolioPrev : (portfolioPrev != null ? parseFloat(portfolioPrev) : NaN);
-    const growthPct = Number.isFinite(portfolioPrevNum) && portfolioPrevNum > 0 && Number.isFinite(portfolioNum) ? ((portfolioNum - portfolioPrevNum) / portfolioPrevNum) * 100 : null;
-    const annualizedGrowth = growthPct != null ? growthPct * 12 : null;
-
-    const par30Current = countrySheetClusterPar30 ?? latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null;
-    const par30Num = normalizeParToPercentage(par30Current);
-
-    // CRM for cluster: from parsed agent_activity + Lead_Report (cluster zones only)
-    const onLocationPct = crmClusterAggregated?.completed > 0
-      ? (crmClusterAggregated.atLocation / crmClusterAggregated.completed) * 100
-      : null;
-    const dataConsentPct = crmClusterAggregated?.total > 0
-      ? (crmClusterAggregated.accepted / crmClusterAggregated.total) * 100
-      : null;
-
-    const lower = (s) => String(s || '').toLowerCase();
-    const match = (name, phrases) => phrases.every((p) => lower(name).includes(lower(p)));
-
-    const rows = [];
-    for (const std of standards) {
-      const name = std?.name ?? '';
-      const w = Number(std?.weight) ?? 0;
-      if (!name) continue;
-
-      if (match(name, ['100%', 'overall cluster', 'sales target']) || match(name, ['cluster', 'sales target'])) {
-        const ws = pctSales != null ? (Math.min(100, pctSales) / 100) * w : 0;
-        rows.push({ kpi: name, target: salesTarget, achievedDisplay: Number.isFinite(salesAchievedNum) ? formatTzs(salesAchievedNum) : '—', pct: pctSales, weight: w, weightScored: ws });
-      } else if (match(name, ['regions', 'new business', '100%']) || match(name, ['regions hit', 'new business'])) {
-        const targetPct = 100;
-        const ws = pctRegionsNewBiz100 != null ? (Math.min(100, pctRegionsNewBiz100) / 100) * w : 0;
-        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: pctRegionsNewBiz100 != null ? pctRegionsNewBiz100.toFixed(2) + '%' : '—', pct: pctRegionsNewBiz100, weight: w, weightScored: ws });
-      } else if (match(name, ['90%', 'branches']) || match(name, ['branches', 'sales target'])) {
-        const targetPct = 90;
-        const ws = pctBranches100 != null ? (Math.min(100, (pctBranches100 / targetPct) * 100) / 100) * w : 0;
-        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', pct: pctBranches100, weight: w, weightScored: ws });
-      } else if (match(name, ['85%', 'recruitment']) || match(name, ['recruitment', 'sales agents'])) {
-        const ws = pctRecruitment != null ? (Math.min(100, (pctRecruitment / 85) * 100) / 100) * w : 0;
-        rows.push({ kpi: name, target: '85%', achievedDisplay: pctRecruitment != null ? pctRecruitment.toFixed(2) + '%' : '—', pct: pctRecruitment, weight: w, weightScored: ws });
-      } else if (match(name, ['growth', 'portfolio', '20%']) || match(name, ['portfolio', 'client base', '20%'])) {
-        const targetAnn = 20;
-        const ws = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / targetAnn) * 100) / 100) * w : 0;
-        rows.push({ kpi: name, target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', pct: annualizedGrowth, weight: w, weightScored: ws });
-      } else if (match(name, ['par', '30', '5%']) || match(name, ['maintain par'])) {
-        const par30Under5 = Number.isFinite(par30Num) && par30Num < 5;
-        const ws = par30Under5 ? w : 0;
-        rows.push({ kpi: name, target: '≤ 5%', achievedDisplay: Number.isFinite(par30Num) ? par30Num.toFixed(2) + '%' : '—', pct: Number.isFinite(par30Num) ? par30Num : null, weight: w, weightScored: ws });
-      } else if (match(name, ['95%', 'location', 'completion']) || match(name, ['on location', 'plans'])) {
-        const targetPct = 95;
-        const ws = onLocationPct != null ? (Math.min(100, (onLocationPct / targetPct) * 100) / 100) * w : 0;
-        rows.push({ kpi: name, target: '95%', achievedDisplay: onLocationPct != null ? onLocationPct.toFixed(2) + '%' : '—', pct: onLocationPct, weight: w, weightScored: ws });
-      } else if (match(name, ['80%', 'data consent']) || match(name, ['data consent', 'region'])) {
-        const targetPct = 80;
-        const ws = dataConsentPct != null ? (Math.min(100, (dataConsentPct / targetPct) * 100) / 100) * w : 0;
-        rows.push({ kpi: name, target: targetPct + '%', achievedDisplay: dataConsentPct != null ? dataConsentPct.toFixed(2) + '%' : '—', pct: dataConsentPct, weight: w, weightScored: ws });
-      } else {
-        rows.push({ kpi: name, target: '—', achievedDisplay: '—', pct: null, weight: w, weightScored: 0 });
-      }
-    }
-    const withPct = rows.map((r) => {
-      const w = Number(r.weight) || 0;
-      const ws = Number(r.weightScored) || 0;
-      const pctWeightScored = w > 0 ? (ws / w) * 100 : 0;
-      return { ...r, pctWeightScored };
-    });
-    return withPct.sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
-  }, [csView, clusterTargets, effectiveTargetsForKpi, effectiveMonthKey, countrySheetClusterDisbursement, countrySheetClusterPortfolio, countrySheetClusterPortfolioPrevious, countrySheetClusterPar30, filteredBranchSummaryData, branchesByCluster, rsmDataForCluster, crmClusterAggregated, latestManagementReport, previousMonthManagementReport]);
-
-  /** Summary rows for dashboard KPI Summary section. When cluster is selected, use cluster file's KPIs only; else Total view. */
-  const dashboardSummaryRows = useMemo(() => {
-    if (clusterDashboardRows) return clusterDashboardRows;
-    if (!targets || !effectiveMonthKey) return [];
-    const effective = effectiveTargetsForKpi;
-    if (!effective) return [];
-    const standards = effective.performanceStandards || [];
-    const salesTarget = effective.salesTarget;
-    const mainT = (targets.mainland || {})[effectiveMonthKey];
-    const zanT = (targets.zanzibar || {})[effectiveMonthKey];
-    const salesAchievedNum = mtdSalesAchievedForView;
-    const salesAchieved = typeof salesAchievedNum === 'number' ? salesAchievedNum : (salesAchievedNum != null ? parseFloat(salesAchievedNum) : NaN);
-    const pctSales = Number.isFinite(salesAchieved) && salesTarget > 0 ? (salesAchieved / salesTarget) * 100 : null;
-    const w1 = standards[0]?.weight ?? 0.1;
-    const ws1 = pctSales != null ? (Math.min(100, pctSales) / 100) * w1 : 0;
-
-    const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
-    const pctBranches100 = totalBranches > 0 ? ((filteredBranchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
-    const w2 = standards[1]?.weight ?? 0.1;
-    const ws2 = pctBranches100 != null ? (Math.min(100, (pctBranches100 / 85) * 100) / 100) * w2 : 0;
-
-    const newBizMainlandTarget = mainT?.newBusiness ?? null;
-    const newBizMainlandActual = latestManagementReport?.cs?.['New Business'] ?? latestManagementReport?.cs?.['New business'] ?? null;
-    const newBizMainlandNum = typeof newBizMainlandActual === 'number' ? newBizMainlandActual : (newBizMainlandActual != null ? parseFloat(newBizMainlandActual) : NaN);
-    const pctMainland65 = newBizMainlandTarget > 0 && Number.isFinite(newBizMainlandNum) ? (newBizMainlandNum / newBizMainlandTarget) * 100 : null;
-    const w3 = standards[2]?.weight ?? 0.15;
-    const ws3 = pctMainland65 != null ? (Math.min(100, (pctMainland65 / 65) * 100) / 100) * w3 : 0;
-
-    const newBizZanTarget = zanT?.newBusiness ?? null;
-    const newBizZanActual = latestManagementReport?.zanzibar?.['New Business'] ?? latestManagementReport?.zanzibar?.['New business'] ?? null;
-    const newBizZanNum = typeof newBizZanActual === 'number' ? newBizZanActual : (newBizZanActual != null ? parseFloat(newBizZanActual) : NaN);
-    const pctZan70 = newBizZanTarget > 0 && Number.isFinite(newBizZanNum) ? (newBizZanNum / newBizZanTarget) * 100 : null;
-    const w4 = standards[3]?.weight ?? 0.05;
-    const ws4 = pctZan70 != null ? (Math.min(100, (pctZan70 / 70) * 100) / 100) * w4 : 0;
-
-    const portfolioCurrent = latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'] ?? latestManagementReport?.cs?.['Principle Balance'] ?? null;
-    const portfolioNum = typeof portfolioCurrent === 'number' ? portfolioCurrent : (portfolioCurrent != null ? parseFloat(portfolioCurrent) : NaN);
-    const portfolioPrev = previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'] ?? previousMonthManagementReport?.cs?.['Principle Balance'] ?? null;
-    const portfolioPrevNum = typeof portfolioPrev === 'number' ? portfolioPrev : (portfolioPrev != null ? parseFloat(portfolioPrev) : NaN);
-    const growthPct = Number.isFinite(portfolioPrevNum) && portfolioPrevNum > 0 && Number.isFinite(portfolioNum) ? ((portfolioNum - portfolioPrevNum) / portfolioPrevNum) * 100 : null;
-    const w5 = standards[4]?.weight ?? 0.05;
-    const ws5 = growthPct != null ? (Math.min(100, (growthPct / (10 / 12)) * 100) / 100) * w5 : 0;
-
-    const par30Current = latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null;
-    const par30Num = normalizeParToPercentage(par30Current);
-    const par30Prev = previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30'] ?? null;
-    const par30PrevNum = normalizeParToPercentage(par30Prev);
-    const par30Improvement = Number.isFinite(par30PrevNum) && Number.isFinite(par30Num) ? par30PrevNum - par30Num : null;
-    const w6 = standards[5]?.weight ?? 0.05;
-    const ws6 = par30Improvement != null ? Math.max(0, Math.min(1, par30Improvement / 0.5)) * w6 : 0;
-
-    const activeNowVal = latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'];
-    const activePrevVal = previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'];
-    const toNumVal = (v) => (typeof v === 'number' && !isNaN(v)) ? v : (v != null ? parseFloat(v) : NaN);
-    const activeNumCur = toNumVal(activeNowVal);
-    const activeNumPrev = toNumVal(activePrevVal);
-    const monthlyGrowth = Number.isFinite(activeNumPrev) && activeNumPrev > 0 && Number.isFinite(activeNumCur) ? ((activeNumCur - activeNumPrev) / activeNumPrev) * 100 : null;
-    const annualizedGrowth = monthlyGrowth != null ? monthlyGrowth * 12 : null;
-    const w7 = getWeightForKpiKey(standards, 'growth') || 0.02;
-    const ws7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / 20) * 100) / 100) * w7 : 0;
-
-    const supervisionsList = mtdParsedData?.groupedData ? Object.entries(mtdParsedData.groupedData) : [];
-    const getTarget = (d) => Number(d?.['MONTH TARGET'] ?? d?.['Month Target'] ?? d?.Target ?? 0) || 0;
-    const getVal = (d) => Number(d?.VALUE ?? d?.Value ?? 0) || 0;
-    const regionsHit = supervisionsList.filter(([, g]) => { const d = g.supervisionData || {}; const t = getTarget(d); const v = getVal(d); return t > 0 && v >= t; }).length;
-    const clusterBranches = filteredBranchSummaryData?.clusters ?? [];
-    const clustersHit = clusterBranches.filter(b => (b.pct ?? 0) >= 100).length;
-    const totalR = supervisionsList.length;
-    const totalC = clusterBranches.length;
-    const regionsClustersPct = (totalR + totalC) > 0 ? ((regionsHit + clustersHit) / (totalR + totalC)) * 100 : null;
-    const w8 = getWeightForKpiKey(standards, 'regions_clusters') || 0.05;
-    const ws8 = regionsClustersPct != null ? (Math.min(100, regionsClustersPct) / 100) * w8 : 0;
-
-    const crmForMonth = crmParsedDataForMonth && toMonthKey(crmParsedDataForMonth.reportDate) === effectiveMonthKey ? crmParsedDataForMonth : null;
-    const crmMetrics = crmForMonth?.emailData ? extractMetrics(crmForMonth.emailData) : {};
-    const toN = (v) => (typeof v === 'number' && !isNaN(v)) ? v : (v != null ? parseFloat(String(v).replace(/%|,/g, '')) : 0);
-    const tlTotal = toN(crmMetrics.count_team_leaders ?? crmMetrics['count team leaders']);
-    const tlLogged = toN(crmMetrics.logged_in_team_leaders ?? crmMetrics['logged in team leaders']);
-    const loTotal = toN(crmMetrics.total_agent ?? crmMetrics['total agent']);
-    const loLogged = toN(crmMetrics.total_agent_logged_in ?? crmMetrics['total agent logged in']);
-    const totalWorkforce = tlTotal + loTotal;
-    const totalLogged = tlLogged + loLogged;
-    const overallUsagePct = totalWorkforce > 0 ? (totalLogged / totalWorkforce) * 100 : null;
-    const w9 = getWeightForKpiKey(standards, 'crm') || 0.05;
-    const ws9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / 90) * 100) / 100) * w9 : 0;
-    const totalLeads = toN(crmMetrics.lead ?? crmMetrics.count_leads ?? crmMetrics['lead']);
-    const consented = toN(crmMetrics.accepted_lead ?? crmMetrics['accepted lead']);
-    const avgConsentPct = totalLeads > 0 ? (consented / totalLeads) * 100 : null;
-    const w10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
-    const ws10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / 65) * 100) / 100) * w10 : 0;
-
-    const rows = [
-      { kpi: standards[0]?.name ?? 'Sales target', target: salesTarget, achievedDisplay: Number.isFinite(salesAchieved) ? salesAchieved : '—', pct: pctSales, weight: w1, weightScored: ws1 },
-      { kpi: standards[1]?.name ?? 'Branch sales', target: '85%', achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', pct: pctBranches100, weight: w2, weightScored: ws2 },
-      { kpi: standards[2]?.name ?? 'Mainland 65%', target: '65%', achievedDisplay: pctMainland65 != null ? pctMainland65.toFixed(2) + '%' : '—', pct: pctMainland65, weight: w3, weightScored: ws3 },
-      { kpi: standards[3]?.name ?? 'Zanzibar 70%', target: '70%', achievedDisplay: pctZan70 != null ? pctZan70.toFixed(2) + '%' : '—', pct: pctZan70, weight: w4, weightScored: ws4 },
-      { kpi: standards[4]?.name ?? 'Portfolio growth', target: '~1%', achievedDisplay: growthPct != null ? growthPct.toFixed(2) + '%' : '—', pct: growthPct, weight: w5, weightScored: ws5 },
-      { kpi: standards[5]?.name ?? 'PAR 30', target: '0.5% improvement', achievedDisplay: par30Improvement != null ? par30Improvement.toFixed(2) + '%' : '—', pct: null, weight: w6, weightScored: ws6 },
-      { kpi: 'Growth of active client base 20% annually', target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', pct: annualizedGrowth, weight: w7, weightScored: ws7 },
-      { kpi: 'Ensure all Regions and Clusters hit their target', target: '100% hit', achievedDisplay: regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', pct: regionsClustersPct, weight: w8, weightScored: ws8 },
-      { kpi: '90% proper usage of CRM', target: '90%', achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: w9, weightScored: ws9 },
-      { kpi: '65% achieved of Data consent from each Cluster', target: '65%', achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: w10, weightScored: ws10 }
-    ];
-    const withPct = rows.map((r) => {
-      const w = Number(r.weight) || 0;
-      const ws = Number(r.weightScored) || 0;
-      const pctWeightScored = w > 0 ? (ws / w) * 100 : 0;
-      return { ...r, pctWeightScored };
-    });
-    return withPct.sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
-  }, [clusterDashboardRows, targets, effectiveTargetsForKpi, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, mtdSalesAchievedForView, filteredBranchSummaryData, crmParsedDataForMonth]);
 
   useEffect(() => {
-    if (product !== 'CS') {
-      setTargets(null);
-      setTargetsLoading(false);
-      setClusterTargets(null);
-      return;
-    }
-    setTargetsLoading(true);
-    setTargetsError(null);
-    loadCsKpiTargets()
-      .then(setTargets)
-      .catch((err) => {
-        setTargetsError(err?.message || 'Failed to load targets');
-        setTargets(null);
-      })
-      .finally(() => setTargetsLoading(false));
-    loadCsKpiClusterTargets()
-      .then(setClusterTargets)
-      .catch(() => setClusterTargets(null));
+    let cancelled = false;
+    const loadBackendTargets = async () => {
+      setTargetsLoading(true);
+      setTargetsError(null);
+      setTargetsMissing(false);
+      setClusterTargetsMissing(false);
+
+      try {
+        const backendProduct = product;
+
+        // Versions lists (for dropdown)
+        const [totalVersRes, clusterVersRes] = await Promise.all([
+          kpiTargetsAPI.getVersions({ product: backendProduct, kind: 'TOTAL' }).catch(() => null),
+          kpiTargetsAPI.getVersions({ product: backendProduct, kind: 'CLUSTER' }).catch(() => null)
+        ]);
+
+        const totalVers = totalVersRes?.data || [];
+        const clusterVers = clusterVersRes?.data || [];
+
+        if (!cancelled) {
+          setTotalVersions(totalVers);
+          setClusterVersions(clusterVers);
+        }
+
+        // Active TOTAL (required, but can be missing until upload)
+        if (totalVers.length > 0) {
+          try {
+            const totalActiveRes = await kpiTargetsAPI.getActive({ product: backendProduct, kind: 'TOTAL' });
+            if (!cancelled) {
+              const file = totalActiveRes?.data?.file;
+              const parsed = totalActiveRes?.data?.parsed;
+              let parsedTargets = parsed || EMPTY_TOTAL_TARGETS;
+
+              // If backend parsing fails (empty month maps), parse the uploaded XLSX directly as a fallback.
+              // This is specifically for CS TOTAL where the UI depends on monthKey mappings.
+              if (
+                backendProduct === 'CS' &&
+                file?.id &&
+                !fallbackParsedRef.current.total &&
+                Object.keys(parsedTargets?.mainland || {}).length === 0 &&
+                Object.keys(parsedTargets?.zanzibar || {}).length === 0
+              ) {
+                fallbackParsedRef.current.total = true;
+                try {
+                  const blob = await kpiTargetsAPI.downloadBlob(file.id);
+                  const ab = await blob.arrayBuffer();
+                  const localParsed = await loadCsKpiTargets(ab);
+                  if (localParsed) parsedTargets = localParsed;
+                } catch (e) {
+                  // Best-effort: keep backend parsed output if fallback download/parse fails.
+                  console.warn('KPI fallback parse TOTAL failed:', e);
+                }
+              }
+              if (backendProduct !== 'CS' && file?.id) {
+                try {
+                  // For LBF/SME, prefer direct XLSX parsing on the client to avoid backend mapping drift.
+                  const blob = await kpiTargetsAPI.downloadBlob(file.id);
+                  const ab = await blob.arrayBuffer();
+                  const localParsed = await loadGenericKpiTargets(ab);
+                  if (localParsed) parsedTargets = localParsed;
+                } catch (e) {
+                  console.warn('KPI fallback parse non-CS failed:', e);
+                }
+              }
+
+              setTargets(parsedTargets || EMPTY_TOTAL_TARGETS);
+              setTargetsMissing(false);
+              setTotalVersionId(file?.id || null);
+              setTotalActiveFileName(file?.fileName || '');
+            }
+          } catch (err) {
+            if (isMissingActiveKpiFileError(err)) {
+              if (!cancelled) {
+                setTargets(EMPTY_TOTAL_TARGETS);
+                setTargetsMissing(true);
+                setTotalVersionId(null);
+                setTotalActiveFileName('');
+              }
+            } else {
+              throw err;
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setTargets(EMPTY_TOTAL_TARGETS);
+            setTargetsMissing(true);
+            setTotalVersionId(null);
+            setTotalActiveFileName('');
+          }
+        }
+
+        // Active CLUSTER (optional; needed when csView !== 'Total')
+        if (clusterVers.length > 0) {
+          try {
+            const clusterActiveRes = await kpiTargetsAPI.getActive({ product: backendProduct, kind: 'CLUSTER' });
+            if (!cancelled) {
+              const file = clusterActiveRes?.data?.file;
+              const parsed = clusterActiveRes?.data?.parsed;
+              let parsedTargets = parsed || EMPTY_CLUSTER_TARGETS;
+
+              // If backend parsing fails (empty cluster month maps), parse the uploaded XLSX directly.
+              if (backendProduct === 'CS' && file?.id && !fallbackParsedRef.current.cluster) {
+                const clustersObj = parsedTargets?.clusters || {};
+                const allEmpty = Object.values(clustersObj).length === 0
+                  ? true
+                  : Object.values(clustersObj).every((v) => !v || Object.keys(v || {}).length === 0);
+
+                if (allEmpty) {
+                  fallbackParsedRef.current.cluster = true;
+                  try {
+                    const blob = await kpiTargetsAPI.downloadBlob(file.id);
+                    const ab = await blob.arrayBuffer();
+                    const localParsed = await loadCsKpiClusterTargets(ab);
+                    if (localParsed) parsedTargets = localParsed;
+                  } catch (e) {
+                    console.warn('KPI fallback parse CLUSTER failed:', e);
+                  }
+                }
+              }
+
+              setClusterTargets(parsedTargets || EMPTY_CLUSTER_TARGETS);
+              setClusterTargetsMissing(false);
+              setClusterVersionId(file?.id || null);
+              setClusterActiveFileName(file?.fileName || '');
+            }
+          } catch (err) {
+            if (isMissingActiveKpiFileError(err)) {
+              if (!cancelled) {
+                setClusterTargets(EMPTY_CLUSTER_TARGETS);
+                setClusterTargetsMissing(true);
+                setClusterVersionId(null);
+                setClusterActiveFileName('');
+              }
+            } else {
+              throw err;
+            }
+          }
+        } else {
+          if (!cancelled) {
+            setClusterTargets(EMPTY_CLUSTER_TARGETS);
+            setClusterTargetsMissing(true);
+            setClusterVersionId(null);
+            setClusterActiveFileName('');
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTargetsError(err?.message || 'Targets not available');
+          setTargets(null);
+          setClusterTargets(null);
+          setTotalVersionId(null);
+          setClusterVersionId(null);
+          setTotalActiveFileName('');
+          setClusterActiveFileName('');
+        }
+      } finally {
+        if (!cancelled) setTargetsLoading(false);
+      }
+    };
+
+    loadBackendTargets();
+    return () => { cancelled = true; };
   }, [product]);
 
   // Build actuals by month from management reports (CS = mainland, zanzibar = zanzibar)
@@ -918,14 +688,14 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': csView !== 'Total' ? `Sales Target (${csView})` : 'Sales Target (Mainland + Zanzibar + Call Center)', 'Value': salesTarget },
         { 'Metric': csView !== 'Total' ? `Sales Achieved (${csView} — Management report)` : 'Sales Achieved (CS MTD)', 'Value': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—' },
-        { 'Metric': '% Achieved', 'Value': pctSales != null ? pctSales.toFixed(2) + '%' : '—' }
+        { 'Metric': '% Achieved', 'Value': pctSales != null ? formatPercentAccounting(pctSales) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [45, 22]
     }, {
       title: 'Summary',
       data: [
-        { 'KPI': standards[0]?.name ?? 'Achieve 100% sales target', 'Target': salesTarget, 'Achieved': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—', '% Achieved': pctSales != null ? pctSales.toFixed(2) + '%' : '—', 'Weight (%)': (weight1 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored1 * 100).toFixed(2) + '%' }
+        { 'KPI': standards[0]?.name ?? 'Achieve 100% sales target', 'Target': salesTarget, 'Achieved': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—', '% Achieved': pctSales != null ? formatPercentAccounting(pctSales) : '—', 'Weight (%)': formatPercentAccounting(weight1 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored1 * 100) }
       ],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', '% Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [50, 16, 16, 14, 12, 16]
@@ -967,7 +737,7 @@ const KpiAnalysisReport = () => {
       'Branch': b.branch,
       'Target': b.target,
       [disbursementColLabel]: b.disbursement,
-      '%': b.pct.toFixed(2) + '%'
+      '%': formatPercentAccounting(b.pct)
     }));
     const branchRowFillColors = sortedBranches.map(b => getColorForPct(b.pct ?? 0));
     if (sheet2Data.length > 0) {
@@ -976,7 +746,7 @@ const KpiAnalysisReport = () => {
         'Branch': 'Total',
         'Target': branchData.totalTarget,
         [disbursementColLabel]: branchData.totalDisbursement,
-        '%': branchData.totalTarget > 0 ? ((branchData.totalDisbursement / branchData.totalTarget) * 100).toFixed(2) + '%' : '—'
+        '%': branchData.totalTarget > 0 ? formatPercentAccounting((branchData.totalDisbursement / branchData.totalTarget) * 100) : '—'
       });
     }
     const sheet2Tables = [{
@@ -989,7 +759,7 @@ const KpiAnalysisReport = () => {
     }, {
       title: 'Summary (85% of branches at 100% target)',
       data: [
-        { 'Achieved ≥100%': branchData.achieved100Count, 'Not achieved <100%': branchData.notAchieved100Count, '% Branches at 100%': pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—', 'Weight (%)': (weight2 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored2 * 100).toFixed(2) + '%' }
+        { 'Achieved ≥100%': branchData.achieved100Count, 'Not achieved <100%': branchData.notAchieved100Count, '% Branches at 100%': pctBranches100 != null ? formatPercentAccounting(pctBranches100) : '—', 'Weight (%)': formatPercentAccounting(weight2 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored2 * 100) }
       ],
       headerColors: { 'Achieved ≥100%': '#70AD47', 'Not achieved <100%': '#ED7D31', '% Branches at 100%': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [18, 20, 22, 12, 16]
@@ -998,7 +768,7 @@ const KpiAnalysisReport = () => {
       kpi: standards[1]?.name ?? 'Branch sales',
       target: targetPct85 + '%',
       achieved: pctBranches100,
-      achievedDisplay: pctBranches100 != null ? pctBranches100.toFixed(2) + '%' : '—',
+      achievedDisplay: pctBranches100 != null ? formatPercentAccounting(pctBranches100) : '—',
       pct: pctBranches100,
       weight: weight2,
       weightScored: weightScored2
@@ -1017,13 +787,13 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'New Business Target (Mainland)', 'Value': newBizMainlandTarget ?? '—' },
         { 'Metric': 'New Business Actual (CS)', 'Value': Number.isFinite(newBizMainlandNum) ? newBizMainlandNum : '—' },
-        { 'Metric': '% of target', 'Value': pctMainland65 != null ? pctMainland65.toFixed(2) + '%' : '—' }
+        { 'Metric': '% of target', 'Value': pctMainland65 != null ? formatPercentAccounting(pctMainland65) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [35, 22]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': standards[2]?.name ?? '65% new business Mainland', 'Target': target65 + '%', 'Achieved': pctMainland65 != null ? pctMainland65.toFixed(2) + '%' : '—', 'Weight (%)': (weight3 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored3 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': standards[2]?.name ?? '65% new business Mainland', 'Target': target65 + '%', 'Achieved': pctMainland65 != null ? formatPercentAccounting(pctMainland65) : '—', 'Weight (%)': formatPercentAccounting(weight3 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored3 * 100) }],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [50, 12, 16, 10, 14]
     }];
@@ -1031,7 +801,7 @@ const KpiAnalysisReport = () => {
       kpi: standards[2]?.name ?? 'Mainland 65%',
       target: target65 + '%',
       achieved: pctMainland65,
-      achievedDisplay: pctMainland65 != null ? pctMainland65.toFixed(2) + '%' : '—',
+      achievedDisplay: pctMainland65 != null ? formatPercentAccounting(pctMainland65) : '—',
       pct: pctMainland65,
       weight: weight3,
       weightScored: weightScored3
@@ -1050,13 +820,13 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'New Business Target (Zanzibar)', 'Value': newBizZanTarget ?? '—' },
         { 'Metric': 'New Business Actual (Zanzibar)', 'Value': Number.isFinite(newBizZanNum) ? newBizZanNum : '—' },
-        { 'Metric': '% of target', 'Value': pctZan70 != null ? pctZan70.toFixed(2) + '%' : '—' }
+        { 'Metric': '% of target', 'Value': pctZan70 != null ? formatPercentAccounting(pctZan70) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [35, 22]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': standards[3]?.name ?? '70% Zanzibar new business', 'Target': target70 + '%', 'Achieved': pctZan70 != null ? pctZan70.toFixed(2) + '%' : '—', 'Weight (%)': (weight4 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored4 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': standards[3]?.name ?? '70% Zanzibar new business', 'Target': target70 + '%', 'Achieved': pctZan70 != null ? formatPercentAccounting(pctZan70) : '—', 'Weight (%)': formatPercentAccounting(weight4 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored4 * 100) }],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [50, 12, 16, 10, 14]
     }];
@@ -1064,7 +834,7 @@ const KpiAnalysisReport = () => {
       kpi: standards[3]?.name ?? 'Zanzibar 70%',
       target: target70 + '%',
       achieved: pctZan70,
-      achievedDisplay: pctZan70 != null ? pctZan70.toFixed(2) + '%' : '—',
+      achievedDisplay: pctZan70 != null ? formatPercentAccounting(pctZan70) : '—',
       pct: pctZan70,
       weight: weight4,
       weightScored: weightScored4
@@ -1084,14 +854,14 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'Current month portfolio (CS)', 'Value': Number.isFinite(portfolioNum) ? portfolioNum : '—' },
         { 'Metric': 'Previous month portfolio', 'Value': Number.isFinite(portfolioPrevNum) ? portfolioPrevNum : '—' },
-        { 'Metric': 'Growth %', 'Value': growthPct != null ? growthPct.toFixed(2) + '%' : '—' },
-        { 'Metric': 'Target (monthly ~1%)', 'Value': monthlyTargetGrowth.toFixed(2) + '%' }
+        { 'Metric': 'Growth %', 'Value': growthPct != null ? formatPercentAccounting(growthPct) : '—' },
+        { 'Metric': 'Target (monthly ~1%)', 'Value': formatPercentAccounting(monthlyTargetGrowth) }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [35, 22]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': standards[4]?.name ?? 'Portfolio growth 10%', 'Target': '~1% monthly', 'Achieved': growthPct != null ? growthPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight5 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored5 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': standards[4]?.name ?? 'Portfolio growth 10%', 'Target': '~1% monthly', 'Achieved': growthPct != null ? formatPercentAccounting(growthPct) : '—', 'Weight (%)': formatPercentAccounting(weight5 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored5 * 100) }],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [45, 14, 16, 10, 14]
     }];
@@ -1099,7 +869,7 @@ const KpiAnalysisReport = () => {
       kpi: standards[4]?.name ?? 'Portfolio growth',
       target: '~1%',
       achieved: growthPct,
-      achievedDisplay: growthPct != null ? growthPct.toFixed(2) + '%' : '—',
+      achievedDisplay: growthPct != null ? formatPercentAccounting(growthPct) : '—',
       pct: growthPct,
       weight: weight5,
       weightScored: weightScored5
@@ -1117,16 +887,16 @@ const KpiAnalysisReport = () => {
     const sheet6Tables = [{
       title: `Maintain PAR 30 below 5% — ${monthLabel}`,
       data: [
-        { 'Metric': 'Current PAR >30 (%)', 'Value': Number.isFinite(par30Num) ? par30Num : '—' },
-        { 'Metric': 'Previous month PAR >30 (%)', 'Value': Number.isFinite(par30PrevNum) ? par30PrevNum : '—' },
-        { 'Metric': 'Improvement (pp)', 'Value': par30Improvement != null ? par30Improvement.toFixed(2) : '—' },
+        { 'Metric': 'Current PAR >30 (%)', 'Value': Number.isFinite(par30Num) ? formatPercentAccounting(par30Num) : '—' },
+        { 'Metric': 'Previous month PAR >30 (%)', 'Value': Number.isFinite(par30PrevNum) ? formatPercentAccounting(par30PrevNum) : '—' },
+        { 'Metric': 'Improvement (pp)', 'Value': par30Improvement != null ? formatTzs(par30Improvement) : '—' },
         { 'Metric': 'Target improvement (0.5% per month)', 'Value': targetImprovement + '%' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [35, 22]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': standards[5]?.name ?? 'PAR 30 below 5%', 'Current': par30Num != null && Number.isFinite(par30Num) ? par30Num.toFixed(2) + '%' : '—', 'Improvement': par30Improvement != null ? par30Improvement.toFixed(2) + '%' : '—', 'Weight (%)': (weight6 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored6 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': standards[5]?.name ?? 'PAR 30 below 5%', 'Current': par30Num != null && Number.isFinite(par30Num) ? formatPercentAccounting(par30Num) : '—', 'Improvement': par30Improvement != null ? formatPercentAccounting(par30Improvement) : '—', 'Weight (%)': formatPercentAccounting(weight6 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored6 * 100) }],
       headerColors: { 'KPI': '#4472C4', 'Current': '#70AD47', 'Improvement': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [40, 12, 14, 10, 14]
     }];
@@ -1134,7 +904,7 @@ const KpiAnalysisReport = () => {
       kpi: standards[5]?.name ?? 'PAR 30',
       target: '0.5% improvement',
       achieved: par30Improvement,
-      achievedDisplay: par30Improvement != null ? par30Improvement.toFixed(2) + '%' : '—',
+      achievedDisplay: par30Improvement != null ? formatPercentAccounting(par30Improvement) : '—',
       pct: null,
       weight: weight6,
       weightScored: weightScored6
@@ -1157,14 +927,14 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'Active clients (current month)', 'Value': Number.isFinite(activeNum) ? activeNum : '—' },
         { 'Metric': 'Active clients (previous month)', 'Value': Number.isFinite(activePrevNum) ? activePrevNum : '—' },
-        { 'Metric': 'Monthly growth (%)', 'Value': monthlyGrowthPct != null ? monthlyGrowthPct.toFixed(2) + '%' : '—' },
-        { 'Metric': 'Annualized growth (%)', 'Value': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—' }
+        { 'Metric': 'Monthly growth (%)', 'Value': monthlyGrowthPct != null ? formatPercentAccounting(monthlyGrowthPct) : '—' },
+        { 'Metric': 'Annualized growth (%)', 'Value': annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [35, 18]
     }, {
       title: 'Summary',
-      data: [{ 'KPI': 'Growth of active client base 20% annually', 'Target': targetGrowth20 + '% (annualized)', 'Achieved': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—', 'Weight (%)': (weight7 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored7 * 100).toFixed(2) + '%' }],
+      data: [{ 'KPI': 'Growth of active client base 20% annually', 'Target': targetGrowth20 + '% (annualized)', 'Achieved': annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—', 'Weight (%)': formatPercentAccounting(weight7 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored7 * 100) }],
       headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' },
       colWidths: [45, 18, 16, 12, 16]
     }];
@@ -1172,7 +942,7 @@ const KpiAnalysisReport = () => {
       kpi: 'Growth of active client base 20% annually',
       target: targetGrowth20 + '% (annualized)',
       achieved: annualizedGrowth,
-      achievedDisplay: annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—',
+      achievedDisplay: annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—',
       pct: annualizedGrowth,
       weight: weight7,
       weightScored: weightScored7
@@ -1187,13 +957,13 @@ const KpiAnalysisReport = () => {
       const target = getSupTarget(d);
       const value = getSupValue(d);
       const pct = target > 0 ? (value / target) * 100 : 0;
-      return { 'Supervision': name, 'Target': target, 'Sales': value, '%': pct.toFixed(2) + '%', pct, hit: pct >= 100 };
+      return { 'Supervision': name, 'Target': target, 'Sales': value, '%': formatPercentAccounting(pct), pct, hit: pct >= 100 };
     });
     const clusterRows = (branchData.clusters || []).map(b => ({
       'Cluster': b.branch,
       'Target': b.target,
       'Disbursement': b.disbursement,
-      '%': b.pct.toFixed(2) + '%',
+      '%': formatPercentAccounting(b.pct),
       pct: b.pct ?? 0,
       hit: (b.pct ?? 0) >= 100
     }));
@@ -1211,25 +981,25 @@ const KpiAnalysisReport = () => {
     if (sheet8SupervisionData.length > 0) {
       const totTarget = sortedSupervisionRows.reduce((s, r) => s + r.Target, 0);
       const totSales = sortedSupervisionRows.reduce((s, r) => s + r.Sales, 0);
-      sheet8SupervisionData.push({ __totalRow: true, Supervision: 'Total', Target: totTarget, Sales: totSales, '%': totTarget > 0 ? ((totSales / totTarget) * 100).toFixed(2) + '%' : '—' });
+      sheet8SupervisionData.push({ __totalRow: true, Supervision: 'Total', Target: totTarget, Sales: totSales, '%': totTarget > 0 ? formatPercentAccounting((totSales / totTarget) * 100) : '—' });
     }
     const sheet8ClusterData = sortedClusterRows.map(({ Cluster, Target, Disbursement, '%': p }) => ({ Cluster, Target, Disbursement, '%': p }));
     const sheet8ClusterRowFillColors = sortedClusterRows.map(r => getColorForPct(r.pct ?? 0));
     if (sheet8ClusterData.length > 0) {
       const ct = sortedClusterRows.reduce((s, r) => s + r.Target, 0);
       const cd = sortedClusterRows.reduce((s, r) => s + r.Disbursement, 0);
-      sheet8ClusterData.push({ __totalRow: true, Cluster: 'Total', Target: ct, Disbursement: cd, '%': ct > 0 ? ((cd / ct) * 100).toFixed(2) + '%' : '—' });
+      sheet8ClusterData.push({ __totalRow: true, Cluster: 'Total', Target: ct, Disbursement: cd, '%': ct > 0 ? formatPercentAccounting((cd / ct) * 100) : '—' });
     }
     const sheet8Tables = [
       { title: `Supervisions (Regions) — ${monthLabel}`, data: sheet8SupervisionData.length ? sheet8SupervisionData : [{ Supervision: '—', Target: '—', Sales: '—', '%': '—' }], headerColors: { Supervision: '#1e3a5f', Target: '#c45a11', Sales: '#2d6a2d', '%': '#2d6a2d' }, colWidths: [28, 14, 14, 10], totalRowIndices: sheet8SupervisionData.length ? [sheet8SupervisionData.length - 1] : [], accountingColumns: ['Target', 'Sales'], rowFillColors: sheet8SupervisionRowFillColors },
       { title: `Clusters — ${monthLabel}`, data: sheet8ClusterData.length ? sheet8ClusterData : [{ Cluster: '—', Target: '—', Disbursement: '—', '%': '—' }], headerColors: { Cluster: '#1e3a5f', Target: '#c45a11', Disbursement: '#2d6a2d', '%': '#2d6a2d' }, colWidths: [18, 14, 16, 10], totalRowIndices: sheet8ClusterData.length ? [sheet8ClusterData.length - 1] : [], accountingColumns: ['Target', 'Disbursement'], rowFillColors: sheet8ClusterRowFillColors },
-      { title: 'Summary', data: [{ 'KPI': 'Ensure all Regions and Clusters hit their target', 'Regions hit': regionsHit, 'Regions total': totalRegions, 'Clusters hit': clustersHit, 'Clusters total': totalClusters, '% Hit': regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight8 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored8 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Regions hit': '#70AD47', 'Regions total': '#70AD47', 'Clusters hit': '#70AD47', 'Clusters total': '#70AD47', '% Hit': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [40, 12, 12, 12, 12, 10, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': 'Ensure all Regions and Clusters hit their target', 'Regions hit': regionsHit, 'Regions total': totalRegions, 'Clusters hit': clustersHit, 'Clusters total': totalClusters, '% Hit': regionsClustersPct != null ? formatPercentAccounting(regionsClustersPct) : '—', 'Weight (%)': formatPercentAccounting(weight8 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored8 * 100) }], headerColors: { 'KPI': '#4472C4', 'Regions hit': '#70AD47', 'Regions total': '#70AD47', 'Clusters hit': '#70AD47', 'Clusters total': '#70AD47', '% Hit': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [40, 12, 12, 12, 12, 10, 12, 16] }
     ];
     summaryRows.push({
       kpi: 'Ensure all Regions and Clusters hit their target',
       target: '100% hit',
       achieved: regionsClustersPct,
-      achievedDisplay: regionsClustersPct != null ? regionsClustersPct.toFixed(2) + '%' : '—',
+      achievedDisplay: regionsClustersPct != null ? formatPercentAccounting(regionsClustersPct) : '—',
       pct: regionsClustersPct,
       weight: weight8,
       weightScored: weightScored8
@@ -1249,8 +1019,8 @@ const KpiAnalysisReport = () => {
       const loTotal = metrics.total_agent || 0;
       const loLogged = metrics.total_agent_logged_in || 0;
       const dateStr = date ? (date instanceof Date ? date.toLocaleDateString() : new Date(date).toLocaleDateString()) : '—';
-      crmUsageRows.push({ 'Date': dateStr, 'Role': 'Team Leader', 'Total workforce': tlTotal, 'Logged in': tlLogged, 'Percentage logged in': tlTotal > 0 ? ((tlLogged / tlTotal) * 100).toFixed(2) + '%' : '0%' });
-      crmUsageRows.push({ 'Date': dateStr, 'Role': 'Loan Officer', 'Total workforce': loTotal, 'Logged in': loLogged, 'Percentage logged in': loTotal > 0 ? ((loLogged / loTotal) * 100).toFixed(2) + '%' : '0%' });
+      crmUsageRows.push({ 'Date': dateStr, 'Role': 'Team Leader', 'Total workforce': tlTotal, 'Logged in': tlLogged, 'Percentage logged in': tlTotal > 0 ? formatPercentAccounting((tlLogged / tlTotal) * 100) : formatPercentAccounting(0) });
+      crmUsageRows.push({ 'Date': dateStr, 'Role': 'Loan Officer', 'Total workforce': loTotal, 'Logged in': loLogged, 'Percentage logged in': loTotal > 0 ? formatPercentAccounting((loLogged / loTotal) * 100) : formatPercentAccounting(0) });
       const totalLeads = metrics.lead || 0;
       const consented = metrics.accepted_lead || 0;
       const rejected = metrics.rejected_lead || 0;
@@ -1261,15 +1031,15 @@ const KpiAnalysisReport = () => {
       crmConsentRows.push({
         'Date': dateStr,
         'Total Leads': totalLeads,
-        'Rejected Leads': `${rejected} (${totalLeads > 0 ? ((rejected / totalLeads) * 100).toFixed(2) : 0}%)`,
-        'Not Provided Leads': `${notProvided} (${totalLeads > 0 ? ((notProvided / totalLeads) * 100).toFixed(2) : 0}%)`,
-        'Consented Leads': `${consented} (${consentPct.toFixed(2)}%)`
+        'Rejected Leads': `${formatTzs(rejected)} (${formatPercentAccounting(totalLeads > 0 ? (rejected / totalLeads) * 100 : 0)})`,
+        'Not Provided Leads': `${formatTzs(notProvided)} (${formatPercentAccounting(totalLeads > 0 ? (notProvided / totalLeads) * 100 : 0)})`,
+        'Consented Leads': `${formatTzs(consented)} (${formatPercentAccounting(consentPct)})`
       });
     });
     const totalWorkforce = crmUsageRows.reduce((s, r) => s + (Number(r['Total workforce']) || 0), 0);
     const totalLoggedIn = crmUsageRows.reduce((s, r) => s + (Number(r['Logged in']) || 0), 0);
     const overallUsagePct = totalWorkforce > 0 ? (totalLoggedIn / totalWorkforce) * 100 : null;
-    const crmUsageTotalRow = { 'Date': 'Total', 'Role': '—', 'Total workforce': totalWorkforce, 'Logged in': totalLoggedIn, 'Percentage logged in': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—' };
+    const crmUsageTotalRow = { 'Date': 'Total', 'Role': '—', 'Total workforce': totalWorkforce, 'Logged in': totalLoggedIn, 'Percentage logged in': overallUsagePct != null ? formatPercentAccounting(overallUsagePct) : '—' };
     const weight9 = getWeightForKpiKey(standards, 'crm') || 0.05;
     const targetUsage90 = 90;
     const weightScored9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / targetUsage90) * 100) / 100) * weight9 : 0;
@@ -1279,19 +1049,19 @@ const KpiAnalysisReport = () => {
     const weightScored10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / targetConsent65) * 100) / 100) * weight10 : 0;
     const sheet9Data = crmUsageRows.length ? [...crmUsageRows, crmUsageTotalRow] : [{ 'Date': '—', 'Role': '—', 'Total workforce': '—', 'Logged in': '—', 'Percentage logged in': '—' }];
     const sheet9RowFillColors = crmUsageRows.length ? crmUsageRows.map((r) => r['Role'] === 'Team Leader' ? blendHexWithWhite('FFEB3B', 0.6) : blendHexWithWhite('87CEEB', 0.6)) : [];
-    const sheet10TotalRow = { __totalRow: true, 'Date': 'Total', 'Total Leads': totalLeadsSum, 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': avgConsentPct != null ? `${totalConsentedSum} (${avgConsentPct.toFixed(2)}%)` : String(totalConsentedSum) };
+    const sheet10TotalRow = { __totalRow: true, 'Date': 'Total', 'Total Leads': totalLeadsSum, 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': avgConsentPct != null ? `${formatTzs(totalConsentedSum)} (${formatPercentAccounting(avgConsentPct)})` : String(formatTzs(totalConsentedSum)) };
     const sheet10Data = crmConsentRows.length ? crmConsentRows.concat([sheet10TotalRow]) : [{ 'Date': '—', 'Total Leads': '—', 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': '—' }];
     const sheet10RowFillColors = crmConsentRows.length ? crmConsentRows.map((_, i) => (i % 2 === 0 ? blendHexWithWhite('FFEB3B', 0.4) : blendHexWithWhite('87CEEB', 0.4))) : [];
     const sheet9Tables = [
       { title: `90% proper usage of CRM — ${monthLabel}`, data: sheet9Data, headerColors: { 'Date': '#4472C4', 'Role': '#4472C4', 'Total workforce': '#70AD47', 'Logged in': '#70AD47', 'Percentage logged in': '#70AD47' }, colWidths: [14, 14, 16, 12, 18], totalRowIndices: crmUsageRows.length ? [sheet9Data.length - 1] : [], accountingColumns: ['Total workforce', 'Logged in'], rowFillColors: sheet9RowFillColors },
-      { title: 'Summary', data: [{ 'KPI': '90% proper usage of CRM', 'Target': targetUsage90 + '%', 'Achieved': overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', 'Weight (%)': (weight9 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored9 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [32, 12, 14, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': '90% proper usage of CRM', 'Target': targetUsage90 + '%', 'Achieved': overallUsagePct != null ? formatPercentAccounting(overallUsagePct) : '—', 'Weight (%)': formatPercentAccounting(weight9 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored9 * 100) }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Achieved': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [32, 12, 14, 12, 16] }
     ];
     const sheet10Tables = [
       { title: `65% achieved of Data consent from each Cluster — ${monthLabel}`, data: sheet10Data, headerColors: { 'Date': '#4472C4', 'Total Leads': '#70AD47', 'Rejected Leads': '#ED7D31', 'Not Provided Leads': '#ED7D31', 'Consented Leads': '#70AD47' }, colWidths: [12, 14, 20, 22, 18], totalRowIndices: crmConsentRows.length ? [sheet10Data.length - 1] : [], accountingColumns: ['Total Leads'], rowFillColors: sheet10RowFillColors },
-      { title: 'Summary', data: [{ 'KPI': '65% achieved of Data consent from each Cluster', 'Target': targetConsent65 + '%', 'Average consent': avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', 'Weight (%)': (weight10 * 100).toFixed(2) + '%', 'Weight Scored (%)': (weightScored10 * 100).toFixed(2) + '%' }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Average consent': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [42, 12, 16, 12, 16] }
+      { title: 'Summary', data: [{ 'KPI': '65% achieved of Data consent from each Cluster', 'Target': targetConsent65 + '%', 'Average consent': avgConsentPct != null ? formatPercentAccounting(avgConsentPct) : '—', 'Weight (%)': formatPercentAccounting(weight10 * 100), 'Weight Scored (%)': formatPercentAccounting(weightScored10 * 100) }], headerColors: { 'KPI': '#4472C4', 'Target': '#ED7D31', 'Average consent': '#70AD47', 'Weight (%)': '#5B9BD5', 'Weight Scored (%)': '#5B9BD5' }, colWidths: [42, 12, 16, 12, 16] }
     ];
-    summaryRows.push({ kpi: '90% proper usage of CRM', target: targetUsage90 + '%', achieved: overallUsagePct, achievedDisplay: overallUsagePct != null ? overallUsagePct.toFixed(2) + '%' : '—', pct: overallUsagePct, weight: weight9, weightScored: weightScored9 });
-    summaryRows.push({ kpi: '65% achieved of Data consent from each Cluster', target: targetConsent65 + '%', achieved: avgConsentPct, achievedDisplay: avgConsentPct != null ? avgConsentPct.toFixed(2) + '%' : '—', pct: avgConsentPct, weight: weight10, weightScored: weightScored10 });
+    summaryRows.push({ kpi: '90% proper usage of CRM', target: targetUsage90 + '%', achieved: overallUsagePct, achievedDisplay: overallUsagePct != null ? formatPercentAccounting(overallUsagePct) : '—', pct: overallUsagePct, weight: weight9, weightScored: weightScored9 });
+    summaryRows.push({ kpi: '65% achieved of Data consent from each Cluster', target: targetConsent65 + '%', achieved: avgConsentPct, achievedDisplay: avgConsentPct != null ? formatPercentAccounting(avgConsentPct) : '—', pct: avgConsentPct, weight: weight10, weightScored: weightScored10 });
 
     // ----- KPI Summary (first sheet): add % weight scored, sort by it (best first), colour rows like Branch Sales -----
     const totalWeight = summaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
@@ -1308,10 +1078,10 @@ const KpiAnalysisReport = () => {
       'KPI': r.kpi,
       'Target': r.target,
       'Achieved': r.achievedDisplay !== undefined ? r.achievedDisplay : (r.achieved != null ? String(r.achieved) : '—'),
-      '% Achieved': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
-      'Weight (%)': (Number(r.weight) * 100).toFixed(2) + '%',
-      'Weight Scored (%)': r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—',
-      '% Weight Scored': Number.isFinite(r.pctWeightScored) ? r.pctWeightScored.toFixed(2) + '%' : '—'
+      '% Achieved': formatPercentAccounting(r.pct),
+      'Weight (%)': formatPercentAccounting(Number(r.weight) * 100),
+      'Weight Scored (%)': r.weightScored != null ? formatPercentAccounting(Number(r.weightScored) * 100) : '—',
+      '% Weight Scored': Number.isFinite(r.pctWeightScored) ? formatPercentAccounting(r.pctWeightScored) : '—'
     }));
     summaryTableDataWithDisplay.push({
       __totalRow: true,
@@ -1319,9 +1089,9 @@ const KpiAnalysisReport = () => {
       'Target': '',
       'Achieved': '',
       '% Achieved': '',
-      'Weight (%)': (totalWeight * 100).toFixed(2) + '%',
-      'Weight Scored (%)': (totalWeightScored * 100).toFixed(2) + '%',
-      '% Weight Scored': totalPctWeightScored.toFixed(2) + '%'
+      'Weight (%)': formatPercentAccounting(totalWeight * 100),
+      'Weight Scored (%)': formatPercentAccounting(totalWeightScored * 100),
+      '% Weight Scored': formatPercentAccounting(totalPctWeightScored)
     });
     const kpiSummaryRowFillColors = sortedSummaryRows.map((r) => getColorForPct(r.pctWeightScored ?? 0));
 
@@ -1394,10 +1164,10 @@ const KpiAnalysisReport = () => {
       'KPI': r.kpi,
       'Target': typeof r.target === 'number' ? formatTzs(r.target) : r.target,
       'Achieved': r.achievedDisplay !== undefined ? r.achievedDisplay : (r.achieved != null ? String(r.achieved) : '—'),
-      '% Achieved': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
-      'Weight (%)': (Number(r.weight) * 100).toFixed(2) + '%',
-      'Weight Scored (%)': r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—',
-      '% Weight Scored': r.pctWeightScored != null ? r.pctWeightScored.toFixed(2) + '%' : '—'
+      '% Achieved': formatPercentAccounting(r.pct),
+      'Weight (%)': formatPercentAccounting(Number(r.weight) * 100),
+      'Weight Scored (%)': r.weightScored != null ? formatPercentAccounting(Number(r.weightScored) * 100) : '—',
+      '% Weight Scored': r.pctWeightScored != null ? formatPercentAccounting(r.pctWeightScored) : '—'
     }));
     const totalWeight = (clusterDashboardRows || []).reduce((s, r) => s + (Number(r.weight) || 0), 0);
     const totalWeightScored = (clusterDashboardRows || []).reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
@@ -1407,9 +1177,9 @@ const KpiAnalysisReport = () => {
       'Target': '',
       'Achieved': '',
       '% Achieved': '',
-      'Weight (%)': (totalWeight * 100).toFixed(2) + '%',
-      'Weight Scored (%)': (totalWeightScored * 100).toFixed(2) + '%',
-      '% Weight Scored': totalWeight > 0 ? ((totalWeightScored / totalWeight) * 100).toFixed(2) + '%' : '—'
+      'Weight (%)': formatPercentAccounting(totalWeight * 100),
+      'Weight Scored (%)': formatPercentAccounting(totalWeightScored * 100),
+      '% Weight Scored': totalWeight > 0 ? formatPercentAccounting((totalWeightScored / totalWeight) * 100) : '—'
     });
 
     const clusterSummaryRowFillColors = (clusterDashboardRows || []).map((r) => getColorForPct(r.pctWeightScored ?? 0));
@@ -1426,7 +1196,7 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'Cluster target', 'Value': salesTarget },
         { 'Metric': 'Disbursement this month (Management report)', 'Value': Number.isFinite(salesAchievedNum) ? salesAchievedNum : '—' },
-        { 'Metric': '% Achieved', 'Value': pctSales != null ? pctSales.toFixed(2) + '%' : '—' }
+        { 'Metric': '% Achieved', 'Value': pctSales != null ? formatPercentAccounting(pctSales) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [45, 22]
@@ -1435,7 +1205,7 @@ const KpiAnalysisReport = () => {
       'Region': r.region,
       'New Business Target': r.target,
       'Achieved': r.achieved,
-      '%': r.pct != null ? r.pct.toFixed(2) + '%' : '—',
+      '%': formatPercentAccounting(r.pct),
       'Hit target': r.target > 0 && r.achieved >= r.target ? 'Yes' : 'No'
     }));
     const sheet3 = {
@@ -1450,7 +1220,7 @@ const KpiAnalysisReport = () => {
       'Region': r.region,
       'Target': r.target,
       'Achieved': r.achieved,
-      '%': r.pct != null ? r.pct.toFixed(2) + '%' : '—'
+      '%': formatPercentAccounting(r.pct)
     }));
     if (recruitment.length > 0) {
       sheetRecData.push({
@@ -1458,7 +1228,7 @@ const KpiAnalysisReport = () => {
         'Region': 'Cluster total',
         'Target': recTotalTarget,
         'Achieved': recTotalAchieved,
-        '%': recTotalTarget > 0 ? ((recTotalAchieved / recTotalTarget) * 100).toFixed(2) + '%' : '—'
+        '%': recTotalTarget > 0 ? formatPercentAccounting((recTotalAchieved / recTotalTarget) * 100) : '—'
       });
     }
     const sheetRec = {
@@ -1474,7 +1244,7 @@ const KpiAnalysisReport = () => {
       'Branch': b.branch,
       'Target': b.target,
       'Disbursement this Month': b.disbursement,
-      '%': b.pct != null ? b.pct.toFixed(2) + '%' : '—'
+      '%': b.pct != null ? formatPercentAccounting(b.pct) : '—'
     }));
     if (sheet4Data.length > 0 && filteredBranchSummaryData) {
       sheet4Data.push({
@@ -1482,7 +1252,7 @@ const KpiAnalysisReport = () => {
         'Branch': 'Total',
         'Target': filteredBranchSummaryData.totalTarget,
         'Disbursement this Month': filteredBranchSummaryData.totalDisbursement,
-        '%': filteredBranchSummaryData.totalTarget > 0 ? ((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100).toFixed(2) + '%' : '—'
+        '%': filteredBranchSummaryData.totalTarget > 0 ? formatPercentAccounting((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100) : '—'
       });
     }
     const branchRowFillColors = sortedBranches.map((b) => getColorForPct(b.pct ?? 0));
@@ -1509,8 +1279,8 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': `Portfolio (${monthLabel})`, 'Value': Number.isFinite(curPort) ? curPort : '—' },
         { 'Metric': 'Portfolio (previous month)', 'Value': Number.isFinite(prevPort) ? prevPort : '—' },
-        { 'Metric': 'Monthly growth %', 'Value': growthPct != null ? growthPct.toFixed(2) + '%' : '—' },
-        { 'Metric': 'Annualized growth %', 'Value': annualizedGrowth != null ? annualizedGrowth.toFixed(2) + '%' : '—' }
+        { 'Metric': 'Monthly growth %', 'Value': growthPct != null ? formatPercentAccounting(growthPct) : '—' },
+        { 'Metric': 'Annualized growth %', 'Value': annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [45, 22],
@@ -1519,7 +1289,7 @@ const KpiAnalysisReport = () => {
 
     const par30Val = countrySheetClusterPar30 ?? latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null;
     const par30Pct = normalizeParToPercentage(par30Val);
-    const par30Display = Number.isFinite(par30Pct) ? par30Pct.toFixed(2) + '%' : '—';
+    const par30Display = Number.isFinite(par30Pct) ? formatPercentAccounting(par30Pct) : '—';
     const sheet6 = {
       title: `6. Maintain PAR 30 days under 5% — ${csView}`,
       data: [
@@ -1541,7 +1311,7 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'Completed (Status=COMPLETED)', 'Value': crmClusterAggregated?.completed ?? '—' },
         { 'Metric': 'At location (Target_Met=AT_LOCATION)', 'Value': crmClusterAggregated?.atLocation ?? '—' },
-        { 'Metric': '% At location', 'Value': onLocationPct != null ? onLocationPct.toFixed(2) + '%' : '—' }
+        { 'Metric': '% At location', 'Value': onLocationPct != null ? formatPercentAccounting(onLocationPct) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [45, 18]
@@ -1550,7 +1320,7 @@ const KpiAnalysisReport = () => {
       'Report Date': r.reportDate,
       'Completed': r.completed,
       'At location': r.atLocation,
-      '% At location': r.pctAtLocation != null ? r.pctAtLocation.toFixed(2) + '%' : '—'
+      '% At location': r.pctAtLocation != null ? formatPercentAccounting(r.pctAtLocation) : '—'
     }));
     const tableOnLocationByDate = onLocationTableData.length > 0 ? {
       title: 'Per-report (all CRM reports in month)',
@@ -1564,7 +1334,7 @@ const KpiAnalysisReport = () => {
       data: [
         { 'Metric': 'Total lead (cluster, all reports in month)', 'Value': crmClusterAggregated?.total ?? '—' },
         { 'Metric': 'Total consent (Accepted) (cluster)', 'Value': crmClusterAggregated?.accepted ?? '—' },
-        { 'Metric': '% consented', 'Value': dataConsentPct != null ? dataConsentPct.toFixed(2) + '%' : '—' }
+        { 'Metric': '% consented', 'Value': dataConsentPct != null ? formatPercentAccounting(dataConsentPct) : '—' }
       ],
       headerColors: { 'Metric': '#4472C4', 'Value': '#70AD47' },
       colWidths: [45, 18]
@@ -1573,7 +1343,7 @@ const KpiAnalysisReport = () => {
       'Report Date': r.reportDate,
       'Total lead': r.totalLead,
       'Total consent (Accepted)': r.accepted,
-      '% consented': r.pctConsented != null ? r.pctConsented.toFixed(2) + '%' : '—'
+      '% consented': r.pctConsented != null ? formatPercentAccounting(r.pctConsented) : '—'
     }));
     const tableConsentByDate = consentTableData.length > 0 ? {
       title: 'Per-report (all CRM reports in month)',
@@ -1629,34 +1399,168 @@ const KpiAnalysisReport = () => {
     }
   }, [buildKpiReportSheetsAndFile, buildClusterKpiReportSheetsAndFile, csView]);
 
+  const {
+    nonCsSummaryRows,
+    buildNonCsReportSheetsAndFile,
+    lbfBranchSummaryData,
+    lbfCrmDailyRows = [],
+    sortedBranchesByPct = []
+  } = useNonCsKpiAnalysis({
+    product,
+    targets,
+    effectiveMonthKey,
+    latestManagementReport,
+    previousMonthManagementReport,
+    toMonthKey,
+    monthKeyToLabel,
+    normalizeParToPercentage,
+    formatTzs
+  });
+
+  const crmConsentTotals = useMemo(() => aggregateCrmConsentDailyRows(lbfCrmDailyRows), [lbfCrmDailyRows]);
+  const crmUsageTotals = useMemo(() => aggregateCrmUsageDailyRows(lbfCrmDailyRows), [lbfCrmDailyRows]);
+  const branchDisbursementTotals = useMemo(
+    () => aggregateBranchDisbursementRows(sortedBranchesByPct),
+    [sortedBranchesByPct]
+  );
+
   const handleUploadKpiTargetFile = async (file) => {
     if (!file) return;
     setKpiUploadLoading(true);
     setKpiUploadError('');
     try {
-      const ab = await file.arrayBuffer();
-      if (csView !== 'Total') {
-        const parsedCluster = await loadCsKpiClusterTargets(ab);
-        setClusterTargets(parsedCluster);
+      const kindToUpload = csView !== 'Total' ? 'CLUSTER' : 'TOTAL';
+      const res = await kpiTargetsAPI.upload({ product, kind: kindToUpload, file });
+      if (!res?.success) {
+        throw new Error(res?.error || 'KPI target upload failed');
+      }
 
-        // Update "View KPI" URL
-        if (uploadedClusterKpiFileUrl) URL.revokeObjectURL(uploadedClusterKpiFileUrl);
-        setUploadedClusterKpiFileUrl(URL.createObjectURL(file));
-        setUploadedClusterKpiFileName(file.name);
+      // Refresh versions + active parsed JSON for the uploaded kind
+      if (kindToUpload === 'TOTAL') {
+        const versRes = await kpiTargetsAPI.getVersions({ product, kind: 'TOTAL' }).catch(() => null);
+        setTotalVersions(versRes?.data || []);
 
-        setUploadedClusterKpiBase64(arrayBufferToBase64(ab));
+        const activeRes = await kpiTargetsAPI.getActive({ product, kind: 'TOTAL' });
+        const fileMeta = activeRes?.data?.file;
+        setTargets(activeRes?.data?.parsed || null);
+        setTargetsMissing(false);
+        setTotalVersionId(fileMeta?.id || null);
+        setTotalActiveFileName(fileMeta?.fileName || '');
       } else {
-        const parsedTotal = await loadCsKpiTargets(ab);
-        setTargets(parsedTotal);
+        const versRes = await kpiTargetsAPI.getVersions({ product, kind: 'CLUSTER' }).catch(() => null);
+        setClusterVersions(versRes?.data || []);
 
-        if (uploadedTotalKpiFileUrl) URL.revokeObjectURL(uploadedTotalKpiFileUrl);
-        setUploadedTotalKpiFileUrl(URL.createObjectURL(file));
-        setUploadedTotalKpiFileName(file.name);
+        const activeRes = await kpiTargetsAPI.getActive({ product, kind: 'CLUSTER' });
+        const fileMeta = activeRes?.data?.file;
+        setClusterTargets(activeRes?.data?.parsed || null);
+        setClusterTargetsMissing(false);
+        setClusterVersionId(fileMeta?.id || null);
+        setClusterActiveFileName(fileMeta?.fileName || '');
       }
     } catch (e) {
       setKpiUploadError(e?.message || 'Failed to parse KPI target file. Ensure it matches the expected format.');
     } finally {
       setKpiUploadLoading(false);
+    }
+  };
+
+  const activateTotalKpiVersion = async (fileId) => {
+    if (!fileId) return;
+    setTargetsLoading(true);
+    setTargetsError(null);
+    try {
+      await kpiTargetsAPI.activate(fileId);
+      const [activeRes, versRes] = await Promise.all([
+        kpiTargetsAPI.getActive({ product, kind: 'TOTAL' }),
+        kpiTargetsAPI.getVersions({ product, kind: 'TOTAL' }).catch(() => null)
+      ]);
+      const fileMeta = activeRes?.data?.file;
+      setTargets(activeRes?.data?.parsed || null);
+      setTargetsMissing(false);
+      setTotalVersionId(fileMeta?.id || null);
+      setTotalActiveFileName(fileMeta?.fileName || '');
+      setTotalVersions(versRes?.data || []);
+    } catch (e) {
+      setTargetsError(e?.message || 'Failed to activate KPI version');
+      setTargets(null);
+      setTargetsMissing(true);
+    } finally {
+      setTargetsLoading(false);
+    }
+  };
+
+  const activateClusterKpiVersion = async (fileId) => {
+    if (!fileId) return;
+    setTargetsLoading(true);
+    try {
+      await kpiTargetsAPI.activate(fileId);
+      const [activeRes, versRes] = await Promise.all([
+        kpiTargetsAPI.getActive({ product, kind: 'CLUSTER' }),
+        kpiTargetsAPI.getVersions({ product, kind: 'CLUSTER' }).catch(() => null)
+      ]);
+      const fileMeta = activeRes?.data?.file;
+      setClusterTargets(activeRes?.data?.parsed || null);
+      setClusterTargetsMissing(false);
+      setClusterVersionId(fileMeta?.id || null);
+      setClusterActiveFileName(fileMeta?.fileName || '');
+      setClusterVersions(versRes?.data || []);
+    } catch (e) {
+      // Keep totals intact; only cluster KPI changes.
+      setClusterTargets(null);
+      setClusterVersionId(null);
+      setClusterActiveFileName('');
+      setClusterTargetsMissing(true);
+    } finally {
+      setTargetsLoading(false);
+    }
+  };
+
+  const removeTotalKpiVersion = async () => {
+    if (!totalVersionId) return;
+    const ok = window.confirm('Soft-delete this TOTAL KPI target version?');
+    if (!ok) return;
+    setTargetsLoading(true);
+    setTargetsError(null);
+    try {
+      await kpiTargetsAPI.remove(totalVersionId);
+      const [versRes, activeRes] = await Promise.all([
+        kpiTargetsAPI.getVersions({ product, kind: 'TOTAL' }).catch(() => null),
+        kpiTargetsAPI.getActive({ product, kind: 'TOTAL' }).catch(() => null)
+      ]);
+      setTotalVersions(versRes?.data || []);
+      const fileMeta = activeRes?.data?.file;
+      setTargets(activeRes?.data?.parsed || null);
+      setTotalVersionId(fileMeta?.id || null);
+      setTotalActiveFileName(fileMeta?.fileName || '');
+      setTargetsMissing(activeRes?.data?.file ? false : true);
+    } catch (e) {
+      setTargetsError(e?.message || 'Failed to remove KPI target version');
+    } finally {
+      setTargetsLoading(false);
+    }
+  };
+
+  const removeClusterKpiVersion = async () => {
+    if (!clusterVersionId) return;
+    const ok = window.confirm('Soft-delete this CLUSTER KPI target version?');
+    if (!ok) return;
+    setTargetsLoading(true);
+    try {
+      await kpiTargetsAPI.remove(clusterVersionId);
+      const [versRes, activeRes] = await Promise.all([
+        kpiTargetsAPI.getVersions({ product, kind: 'CLUSTER' }).catch(() => null),
+        kpiTargetsAPI.getActive({ product, kind: 'CLUSTER' }).catch(() => null)
+      ]);
+      setClusterVersions(versRes?.data || []);
+      const fileMeta = activeRes?.data?.file;
+      setClusterTargets(activeRes?.data?.parsed || null);
+      setClusterVersionId(fileMeta?.id || null);
+      setClusterActiveFileName(fileMeta?.fileName || '');
+      setClusterTargetsMissing(activeRes?.data?.file ? false : true);
+    } catch (e) {
+      // Keep going: total targets remain intact.
+    } finally {
+      setTargetsLoading(false);
     }
   };
 
@@ -1718,6 +1622,18 @@ const KpiAnalysisReport = () => {
 
   const copyMessageBody = () => {
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
+    if (product !== 'CS') {
+      const html = emailBody || buildNonCsKpiReportEmailHTML(product, monthLabel, true);
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      const text = (div.innerText || div.textContent || '').trim();
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        setCopiedBody(true);
+        setTimeout(() => setCopiedBody(false), 2000);
+      }).catch(() => {});
+      return;
+    }
     const html = emailBody || (csView !== 'Total'
       ? buildClusterKpiReportEmailHTML(monthLabel, true, csView)
       : buildKpiReportEmailHTML(monthLabel, true));
@@ -1733,6 +1649,12 @@ const KpiAnalysisReport = () => {
 
   const generatePreview = () => {
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
+    if (product !== 'CS') {
+      setEmailSubject(`${product} KPI Analysis Report — ${monthLabel}`);
+      setEmailBody(buildNonCsKpiReportEmailHTML(product, monthLabel, true));
+      setShowPreview(true);
+      return;
+    }
     const defaultSubject = csView !== 'Total'
       ? `CS Cluster KPI Report — ${monthLabel} — ${csView}`
       : `CS KPI Analysis Report — ${monthLabel}`;
@@ -1754,6 +1676,62 @@ const KpiAnalysisReport = () => {
     setSendProgress(recipients.map((email) => ({ email, status: 'sending', error: null })));
 
     const monthLabel = monthKeyToLabel(effectiveMonthKey);
+
+    if (product !== 'CS') {
+      const defaultSubject = `${product} KPI Analysis Report — ${monthLabel}`;
+      const subject = emailSubject || defaultSubject;
+      const htmlBody = emailBody || buildNonCsKpiReportEmailHTML(product, monthLabel, true);
+      const attachments = [];
+      if (totalVersionId) {
+        try {
+          const blob = await kpiTargetsAPI.downloadBlob(totalVersionId);
+          const ab = await blob.arrayBuffer();
+          attachments.push({
+            base64: arrayBufferToBase64(ab),
+            name: totalActiveFileName || `${product}_KPI_TARGET.xlsx`
+          });
+        } catch (e) {
+          setSendProgress((prev) => prev.map((p) => ({
+            ...p,
+            status: 'failed',
+            error: e?.message || 'Could not download KPI target file for attachment'
+          })));
+          setSending(false);
+          return;
+        }
+      }
+      const nonCsReport = buildNonCsReportSheetsAndFile();
+      if (nonCsReport) {
+        const built = await buildWorkbookBuffer(nonCsReport.sheets, nonCsReport.fileName, { twoDecimalPlaces: true });
+        if (built?.buffer) {
+          const binary = Array.from(built.buffer).map((b) => String.fromCharCode(b)).join('');
+          attachments.push({ base64: btoa(binary), name: built?.fileName || nonCsReport.fileName });
+        }
+      }
+      if (attachments.length === 0) {
+        setSendProgress((prev) => prev.map((p) => ({
+          ...p,
+          status: 'failed',
+          error: 'Could not build report for attachment. Download xlsx first or check KPI data.'
+        })));
+        setSending(false);
+        return;
+      }
+      const emailOptions = { mode: 'KPI' };
+      if (attachments.length === 1) {
+        emailOptions.attachmentBase64 = attachments[0].base64;
+        emailOptions.attachmentName = attachments[0].name;
+      } else {
+        emailOptions.attachments = attachments;
+      }
+      const emailResult = await sendScoreCardEmail(recipients, subject, htmlBody, emailOptions);
+      const status = emailResult.success ? 'success' : 'failed';
+      const error = emailResult.success ? null : (emailResult.error || 'Failed to send');
+      setSendProgress((prev) => prev.map((p) => ({ ...p, status, error })));
+      setSending(false);
+      return;
+    }
+
     const defaultSubject = csView !== 'Total'
       ? `CS Cluster KPI Report — ${monthLabel} — ${csView}`
       : `CS KPI Analysis Report — ${monthLabel}`;
@@ -1768,19 +1746,16 @@ const KpiAnalysisReport = () => {
     if (isCluster) {
       // Cluster email: attach (1) target file, (2) KPI analysis workbook
       try {
-        if (uploadedClusterKpiBase64) {
-          attachments.push({
-            base64: uploadedClusterKpiBase64,
-            name: uploadedClusterKpiFileName || CLUSTER_TARGET_ATTACHMENT_NAME
-          });
-        } else {
-          const targetRes = await fetch(CS_KPI_CLUSTER_TARGET_FILE_URL);
-          if (targetRes.ok) {
-            const targetBuf = await targetRes.arrayBuffer();
-            const targetBinary = Array.from(new Uint8Array(targetBuf)).map((b) => String.fromCharCode(b)).join('');
-            attachments.push({ base64: btoa(targetBinary), name: CLUSTER_TARGET_ATTACHMENT_NAME });
-          }
+        if (!clusterVersionId) {
+          throw new Error('No active cluster KPI target file selected.');
         }
+        const blob = await kpiTargetsAPI.downloadBlob(clusterVersionId);
+        const ab = await blob.arrayBuffer();
+        const base64 = arrayBufferToBase64(ab);
+        attachments.push({
+          base64,
+          name: clusterActiveFileName || CLUSTER_TARGET_ATTACHMENT_NAME
+        });
       } catch (e) {
         setSendProgress((prev) => prev.map((p) => ({ ...p, status: 'failed', error: 'Could not load cluster target file for attachment' })));
         setSending(false);
@@ -1823,37 +1798,614 @@ const KpiAnalysisReport = () => {
     setSending(false);
   };
 
+  const renderKpiEmailModal = () => {
+    if (!showEmailModal) return null;
+    return (
+      <div
+        className="kpi-ar-email-overlay"
+        onClick={() => { if (!sending) { setShowEmailModal(false); setSendProgress(null); } }}
+      >
+        <div className="kpi-ar-email-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="kpi-ar-email-modal-header">
+            <div className="kpi-ar-email-modal-title-wrap">
+              <h3 className="kpi-ar-email-modal-title">Send KPI Analysis Report by Email</h3>
+              <p className="kpi-ar-email-modal-view-hint">
+                {product !== 'CS' ? (
+                  <>Sending <strong>{product}</strong> KPI Analysis Report (KPI target file + analysis workbook when available).</>
+                ) : (
+                  <>
+                    Sending for current view: <strong>{csView}</strong>
+                    {csView !== 'Total' && ' — attachment and content are for this cluster only.'}
+                  </>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="kpi-ar-email-modal-close"
+              onClick={() => { if (!sending) { setShowEmailModal(false); setShowPreview(false); setSendProgress(null); } }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+
+          {sendProgress && sendProgress.length > 0 && (
+            <div className="kpi-ar-email-progress">
+              <h4 className="kpi-ar-email-progress-title">
+                {sending ? 'Sending email to all recipients…' : 'Send result'}
+              </h4>
+              <ul className="kpi-ar-email-progress-list">
+                {sendProgress.map(({ email, status, error }) => (
+                  <li key={email} className={`kpi-ar-email-progress-item kpi-ar-email-progress-item--${status}`}>
+                    <span className="kpi-ar-email-progress-email">{email}</span>
+                    <span className="kpi-ar-email-progress-status">
+                      {status === 'sending' && <span className="kpi-ar-email-progress-spinner" aria-hidden>⏳</span>}
+                      {status === 'success' && <span className="kpi-ar-email-progress-ok" title="Sent">✓</span>}
+                      {status === 'failed' && <span className="kpi-ar-email-progress-fail" title={error || 'Failed'}>✗</span>}
+                    </span>
+                    {status === 'failed' && error && (
+                      <span className="kpi-ar-email-progress-error">{error}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="kpi-ar-email-modal-body">
+            <p className="kpi-ar-email-hint">Recipients (saved for next time):</p>
+            <div className="kpi-ar-email-recipients-input">
+              <input
+                type="email"
+                placeholder="Enter email address"
+                value={newRecipient}
+                onChange={(e) => setNewRecipient(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
+                className="kpi-ar-email-recipient-input"
+              />
+              <button type="button" className="kpi-ar-email-add-btn" onClick={addRecipient}>
+                Add
+              </button>
+            </div>
+            <div className="kpi-ar-email-copy-actions">
+              <button
+                type="button"
+                className="kpi-ar-email-copy-btn"
+                onClick={copyRecipientList}
+                disabled={sending || recipients.length === 0}
+                title="Copy all emails to clipboard"
+              >
+                {copiedList ? '✓ Copied!' : 'Copy email list'}
+              </button>
+              <button
+                type="button"
+                className="kpi-ar-email-copy-btn"
+                onClick={pasteEmails}
+                disabled={sending}
+                title="Paste emails from clipboard (one per line or comma/semicolon separated)"
+              >
+                Paste
+              </button>
+              <button
+                type="button"
+                className="kpi-ar-email-copy-btn kpi-ar-email-copy-body-btn"
+                onClick={copyMessageBody}
+                disabled={sending}
+                title="Copy message (plain text)"
+              >
+                {copiedBody ? '✓ Copied!' : 'Copy message'}
+              </button>
+            </div>
+            <div className="kpi-ar-email-paste-box-wrap">
+              <textarea
+                className="kpi-ar-email-paste-box"
+                placeholder="Or paste emails here (one per line or comma/semicolon separated)"
+                value={pasteBox}
+                onChange={(e) => setPasteBox(e.target.value)}
+                rows={2}
+              />
+              <button type="button" className="kpi-ar-email-copy-btn kpi-ar-email-add-pasted-btn" onClick={addPasteBoxEmails}>
+                Add pasted
+              </button>
+            </div>
+            <ul className="kpi-ar-email-recipients-list">
+              {recipients.map((email) => (
+                <li key={email} className="kpi-ar-email-recipient-item">
+                  <span className="kpi-ar-email-recipient-email">{email}</span>
+                  <button type="button" className="kpi-ar-email-remove-btn" onClick={() => removeRecipient(email)} title="Remove">
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {recipients.length === 0 && (
+              <p className="kpi-ar-email-empty">No recipients yet. Add one above.</p>
+            )}
+
+            <div className="kpi-ar-email-preview-section">
+              <button type="button" className="kpi-ar-email-preview-toggle" onClick={() => showPreview ? setShowPreview(false) : generatePreview()}>
+                {showPreview ? '▼ Hide Email Preview' : '▶ Preview Email'}
+              </button>
+              {showPreview && (
+                <div className="kpi-ar-email-preview-container">
+                  <div className="kpi-ar-email-preview-subject">
+                    <label>Subject:</label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      className="kpi-ar-email-subject-input"
+                    />
+                  </div>
+                  <div className="kpi-ar-email-preview-body">
+                    <label>Email Body:</label>
+                    <div className="kpi-ar-email-preview-html" dangerouslySetInnerHTML={{ __html: emailBody }} />
+                  </div>
+                  <p className="kpi-ar-email-preview-attachment">
+                    📎 {product !== 'CS' ? (
+                      totalVersionId && totalActiveFileName ? (
+                        <>Attachments: (1) {totalActiveFileName} (2) {product}_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx</>
+                      ) : (
+                        <>Attachment: {product}_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx</>
+                      )
+                    ) : csView !== 'Total' ? (
+                      <>Attachments: (1) {CLUSTER_TARGET_ATTACHMENT_NAME} (2) CS_Cluster_KPI_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}_{csView.replace(/\s+/g, '_')}.xlsx</>
+                    ) : (
+                      <>Attachment: CS_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx</>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {sendError && <p className="kpi-ar-email-error">{sendError}</p>}
+          </div>
+          <div className="kpi-ar-email-modal-footer">
+            <button
+              type="button"
+              className="kpi-ar-email-cancel"
+              onClick={() => { if (!sending) { setShowEmailModal(false); setShowPreview(false); setSendProgress(null); } }}
+            >
+              {sendProgress && !sending ? 'Close' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              className="kpi-ar-email-send"
+              onClick={handleSendEmail}
+              disabled={sending || recipients.length === 0}
+            >
+              {sending ? 'Sending…' : 'Send Email'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (product !== 'CS') {
     return (
       <div className="kpi-ar-container">
         <div className="kpi-ar-header-bar">
-          <h1 className="kpi-ar-title">KPI ANALYSIS REPORT</h1>
+          <h1 className="kpi-ar-title">KPI ANALYSIS REPORT — {product}</h1>
           <div className="kpi-ar-header-controls">
-            <button type="button" className="kpi-ar-btn kpi-ar-btn-download" disabled title="Only CS implemented">
+            <label className="kpi-ar-month-label">
+              Month
+              <select
+                className="kpi-ar-month-select"
+                value={effectiveMonthKey || ''}
+                onChange={(e) => setSelectedMonthKey(e.target.value || null)}
+              >
+                {availableMonths.length === 0 && <option value="">No data</option>}
+                {availableMonths.map((key) => (
+                  <option key={key} value={key}>{monthKeyToLabel(key)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="kpi-ar-month-label">
+              Total KPI Version
+              <select
+                className="kpi-ar-month-select"
+                value={totalVersionId || ''}
+                onChange={(e) => activateTotalKpiVersion(e.target.value)}
+                disabled={!totalVersions?.length}
+              >
+                {(!totalVersions || totalVersions.length === 0) && <option value="">No versions</option>}
+                {(totalVersions || []).map((v) => (
+                  <option key={v.id} value={v.id}>{v.fileName}</option>
+                ))}
+              </select>
+              <button type="button" className="kpi-ar-btn" onClick={removeTotalKpiVersion} disabled={!totalVersionId}>Remove</button>
+            </label>
+            <button type="button" className="kpi-ar-btn kpi-ar-btn-email" onClick={() => setShowEmailModal(true)}>
+              <span className="kpi-ar-btn-icon">✉</span> Send Email
+            </button>
+            <button
+              type="button"
+              className="kpi-ar-btn kpi-ar-btn-view"
+              disabled={!totalVersionId}
+              onClick={() => {
+                if (!totalVersionId) return;
+                (async () => {
+                  const blob = await kpiTargetsAPI.downloadBlob(totalVersionId);
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = totalActiveFileName || 'kpi-target.xlsx';
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+                })().catch(() => {});
+              }}
+            >
+              <span className="kpi-ar-btn-icon">📋</span> View KPI
+            </button>
+            <button
+              type="button"
+              className="kpi-ar-btn kpi-ar-btn-upload"
+              onClick={() => kpiTargetFileInputRef.current?.click()}
+              disabled={kpiUploadLoading}
+              title="Upload KPI target XLSX (backend-managed)"
+            >
+              <span className="kpi-ar-btn-icon">⤒</span> Upload KPI (TOTAL)
+            </button>
+            <input
+              ref={kpiTargetFileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadKpiTargetFile(file);
+                // allow re-upload of the same file name
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              className="kpi-ar-btn kpi-ar-btn-download"
+              onClick={async () => {
+                const report = buildNonCsReportSheetsAndFile();
+                if (!report) return;
+                await exportMultipleSheetsWithStyles(report.sheets, report.fileName, { twoDecimalPlaces: true });
+              }}
+              disabled={targetsMissing || !totalVersionId}
+              title="Download KPI summary xlsx"
+            >
               <span className="kpi-ar-btn-icon">📥</span> Download xlsx
             </button>
           </div>
         </div>
-        <div className="kpi-ar-product-toggles">
-          <button
-            type="button"
-            className={`kpi-ar-product-btn ${product === 'CS' ? 'kpi-ar-product-btn--active' : ''}`}
-            onClick={() => setProduct('CS')}
-          >CS</button>
-          <button
-            type="button"
-            className={`kpi-ar-product-btn ${product === 'LBF' ? 'kpi-ar-product-btn--active' : ''}`}
-            onClick={() => setProduct('LBF')}
-          >LBF</button>
-          <button
-            type="button"
-            className={`kpi-ar-product-btn ${product === 'SME' ? 'kpi-ar-product-btn--active' : ''}`}
-            onClick={() => setProduct('SME')}
-          >SME</button>
-        </div>
-        <div className="kpi-ar-placeholder">
-          <p className="kpi-ar-message">KPI Analysis is available for CS only. Select CS above.</p>
-        </div>
+        {!lockProduct && (
+          <div className="kpi-ar-product-toggles">
+            <button
+              type="button"
+              className={`kpi-ar-product-btn ${product === 'CS' ? 'kpi-ar-product-btn--active' : ''}`}
+              onClick={() => setProduct('CS')}
+            >CS</button>
+            <button
+              type="button"
+              className={`kpi-ar-product-btn ${product === 'LBF' ? 'kpi-ar-product-btn--active' : ''}`}
+              onClick={() => setProduct('LBF')}
+            >LBF</button>
+            <button
+              type="button"
+              className={`kpi-ar-product-btn ${product === 'SME' ? 'kpi-ar-product-btn--active' : ''}`}
+              onClick={() => setProduct('SME')}
+            >SME</button>
+          </div>
+        )}
+        {targetsMissing ? (
+          <div className="kpi-ar-placeholder">
+            <p className="kpi-ar-message kpi-ar-note">
+              No active <strong>TOTAL</strong> KPI target version found on the backend yet. Upload a TOTAL KPI target file to continue.
+            </p>
+          </div>
+        ) : (
+          <div className="kpi-ar-main">
+            <section className="kpi-ar-section kpi-ar-section--summary">
+              <h2 className="kpi-ar-section-title">KPI Summary — {monthKeyToLabel(effectiveMonthKey)}</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>KPI</th><th>Target</th><th>Achieved</th><th>% Achieved</th><th>Weight (%)</th><th>Weight Scored (%)</th><th>% Weight Scored</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nonCsSummaryRows.map((r, idx) => (
+                      <tr key={`${r.kpi}-${idx}`} style={getAchievedRowStyle(r.pct)}>
+                        <td>{r.kpi}</td>
+                        <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
+                        <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(r.pct)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting((r.weight || 0) * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting((r.weightScored || 0) * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(r.pctWeightScored || 0)}</td>
+                      </tr>
+                    ))}
+                    {nonCsSummaryRows.length > 0 && (() => {
+                      const tw = nonCsSummaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
+                      const tws = nonCsSummaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
+                      const totalPctWs = tw > 0 ? (tws / tw) * 100 : 0;
+                      return (
+                        <tr className="kpi-ar-table-total">
+                          <td>Total</td>
+                          <td className="kpi-ar-num" />
+                          <td className="kpi-ar-num" />
+                          <td className="kpi-ar-num" />
+                          <td className="kpi-ar-num">{formatPercentAccounting(tw * 100)}</td>
+                          <td className="kpi-ar-num">{formatPercentAccounting(tws * 100)}</td>
+                          <td className="kpi-ar-num">{formatPercentAccounting(totalPctWs)}</td>
+                        </tr>
+                      );
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            {nonCsSummaryRows.map((r, idx) => (
+              <section key={`${r.kpi}-section-${idx}`} className="kpi-ar-section">
+                <h2 className="kpi-ar-section-title">{r.kpi}</h2>
+                <div className="kpi-ar-table-wrap">
+                  <table className="kpi-ar-table">
+                    <thead>
+                      <tr>
+                        <th>KPI</th><th>Target</th><th>Achieved</th><th>% Achieved</th><th>Weight (%)</th><th>Weight Scored (%)</th><th>% Weight Scored</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={getAchievedRowStyle(r.pct)}>
+                        <td>{r.kpi}</td>
+                        <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
+                        <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(r.pct)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting((r.weight || 0) * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting((r.weightScored || 0) * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(r.pctWeightScored || 0)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {(() => {
+                  const bd = product === 'SME' ? r.smeBreakdown : product === 'LBF' ? r.lbfBreakdown : null;
+                  if (!bd?.rows?.length) return null;
+                  return (
+                    <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                      <h3 className="kpi-ar-subsection-title">{bd.title}</h3>
+                      <table className="kpi-ar-table">
+                        <thead>
+                          <tr><th>Metric</th><th>Value</th></tr>
+                        </thead>
+                        <tbody>
+                          {bd.rows.map((br, bri) => (
+                            <tr key={`${r.sectionKey}-brk-${bri}`}>
+                              <td>{br.metric}</td>
+                              <td className="kpi-ar-num">{br.value}</td>
+                            </tr>
+                          ))}
+                          {r.pct != null && Number.isFinite(r.pct) ? (
+                            <tr className="kpi-ar-table-total">
+                              <td><strong>Overall — % Achieved (this KPI)</strong></td>
+                              <td className="kpi-ar-num"><strong>{formatPercentAccounting(r.pct)}</strong></td>
+                            </tr>
+                          ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+                {product === 'LBF' && r.sectionKey === 'portfolio_growth' && r.lbfPortfolioDetail ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">Portfolio calculation</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr><th>Metric</th><th>Value</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Current month portfolio</td>
+                          <td className="kpi-ar-num">{Number.isFinite(r.lbfPortfolioDetail.portfolioCur) ? formatTzs(r.lbfPortfolioDetail.portfolioCur) : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td>Previous month portfolio</td>
+                          <td className="kpi-ar-num">{Number.isFinite(r.lbfPortfolioDetail.portfolioPrev) ? formatTzs(r.lbfPortfolioDetail.portfolioPrev) : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td>Monthly growth %</td>
+                          <td className="kpi-ar-num">{Number.isFinite(r.lbfPortfolioDetail.monthlyGrowth) ? formatPercentAccounting(r.lbfPortfolioDetail.monthlyGrowth) : '—'}</td>
+                        </tr>
+                        <tr>
+                          <td>Annualized growth % (vs 10% target)</td>
+                          <td className="kpi-ar-num">{Number.isFinite(r.lbfPortfolioDetail.annualizedGrowth) ? formatPercentAccounting(r.lbfPortfolioDetail.annualizedGrowth) : '—'}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {product === 'LBF' && (r.sectionKey === 'branch_90' || r.sectionKey === 'branch_cluster_100') && sortedBranchesByPct.length ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">Branches — target vs disbursement (sorted by % achieved)</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr>
+                          <th>Branch</th><th>Target</th><th>Disbursement this Month</th><th>% Achieved</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedBranchesByPct.map((b) => (
+                          <tr key={`${r.sectionKey}-${b.branch}`} style={getAchievedRowStyle(b.pct)}>
+                            <td>{b.branch}</td>
+                            <td className="kpi-ar-num">{formatTzs(b.target)}</td>
+                            <td className="kpi-ar-num">{formatTzs(b.disbursement)}</td>
+                            <td className="kpi-ar-num">{Number.isFinite(b.pct) ? formatPercentAccounting(b.pct) : '—'}</td>
+                          </tr>
+                        ))}
+                        {branchDisbursementTotals && branchDisbursementTotals.totalTarget > 0 ? (
+                          <tr className="kpi-ar-table-total">
+                            <td><strong>Total / Average</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(branchDisbursementTotals.totalTarget)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(branchDisbursementTotals.totalDisbursement)}</strong></td>
+                            <td className="kpi-ar-num">
+                              <strong>{Number.isFinite(branchDisbursementTotals.pct) ? formatPercentAccounting(branchDisbursementTotals.pct) : '—'}</strong>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {product === 'LBF' && r.sectionKey === 'data_consent' && lbfCrmDailyRows.length ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">Data consent — all LBF CRM reports in month</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th><th>Total Leads</th><th>Rejected Leads</th><th>Not Provided Leads</th><th>Consented Leads</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lbfCrmDailyRows.map((row) => {
+                          const tl = row.totalLeads || 0;
+                          const share = (n) => (tl > 0
+                            ? `${formatTzs(n)} (${formatPercentAccounting((n / tl) * 100)})`
+                            : `${formatTzs(n)} (${formatPercentAccounting(0)})`);
+                          return (
+                            <tr key={row.date}>
+                              <td>{row.date}</td>
+                              <td className="kpi-ar-num">{formatTzs(tl)}</td>
+                              <td className="kpi-ar-num">{share(row.rejected)}</td>
+                              <td className="kpi-ar-num">{share(row.notProvided)}</td>
+                              <td className="kpi-ar-num">{`${formatTzs(row.consented)} (${formatPercentAccounting(tl > 0 ? (row.consented / tl) * 100 : 0)})`}</td>
+                            </tr>
+                          );
+                        })}
+                        {crmConsentTotals ? (
+                          <tr className="kpi-ar-table-total">
+                            <td><strong>Total / Average</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmConsentTotals.totalLeads)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.rejected)} (${formatPercentAccounting(crmConsentTotals.pctRejected)})`}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.notProvided)} (${formatPercentAccounting(crmConsentTotals.pctNotProvided)})`}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.consented)} (${formatPercentAccounting(crmConsentTotals.pctConsented)})`}</strong></td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {product === 'LBF' && r.sectionKey === 'crm_usage' && lbfCrmDailyRows.length ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">CRM usage — workforce per report</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th><th>Total workforce (TL + agents)</th><th>Logged in workforce</th><th>% Logged in</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lbfCrmDailyRows.map((row) => {
+                          const tw = row.totalWorkforce || 0;
+                          const li = row.loggedIn || 0;
+                          return (
+                            <tr key={`${row.date}-usage`}>
+                              <td>{row.date}</td>
+                              <td className="kpi-ar-num">{formatTzs(tw)}</td>
+                              <td className="kpi-ar-num">{formatTzs(li)}</td>
+                              <td className="kpi-ar-num">{formatPercentAccounting(tw > 0 ? (li / tw) * 100 : 0)}</td>
+                            </tr>
+                          );
+                        })}
+                        {crmUsageTotals ? (
+                          <tr className="kpi-ar-table-total">
+                            <td><strong>Total / Average</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmUsageTotals.totalWorkforce)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmUsageTotals.loggedIn)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatPercentAccounting(crmUsageTotals.pctLoggedIn)}</strong></td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {product === 'SME' && r.sectionKey === 'sme_consent_65' && lbfCrmDailyRows.length ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">Data consent — all SME CRM reports in month</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th><th>Total Leads</th><th>Rejected Leads</th><th>Not Provided Leads</th><th>Consented Leads</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lbfCrmDailyRows.map((row) => {
+                          const tl = row.totalLeads || 0;
+                          const share = (n) => (tl > 0
+                            ? `${formatTzs(n)} (${formatPercentAccounting((n / tl) * 100)})`
+                            : `${formatTzs(n)} (${formatPercentAccounting(0)})`);
+                          return (
+                            <tr key={row.date}>
+                              <td>{row.date}</td>
+                              <td className="kpi-ar-num">{formatTzs(tl)}</td>
+                              <td className="kpi-ar-num">{share(row.rejected)}</td>
+                              <td className="kpi-ar-num">{share(row.notProvided)}</td>
+                              <td className="kpi-ar-num">{`${formatTzs(row.consented)} (${formatPercentAccounting(tl > 0 ? (row.consented / tl) * 100 : 0)})`}</td>
+                            </tr>
+                          );
+                        })}
+                        {crmConsentTotals ? (
+                          <tr className="kpi-ar-table-total">
+                            <td><strong>Total / Average</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmConsentTotals.totalLeads)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.rejected)} (${formatPercentAccounting(crmConsentTotals.pctRejected)})`}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.notProvided)} (${formatPercentAccounting(crmConsentTotals.pctNotProvided)})`}</strong></td>
+                            <td className="kpi-ar-num"><strong>{`${formatTzs(crmConsentTotals.consented)} (${formatPercentAccounting(crmConsentTotals.pctConsented)})`}</strong></td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {product === 'SME' && r.sectionKey === 'sme_crm_95' && lbfCrmDailyRows.length ? (
+                  <div className="kpi-ar-table-wrap kpi-ar-subtable">
+                    <h3 className="kpi-ar-subsection-title">CRM usage — workforce per report</h3>
+                    <table className="kpi-ar-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th><th>Total workforce (TL + agents)</th><th>Logged in workforce</th><th>% Logged in</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lbfCrmDailyRows.map((row) => {
+                          const tw = row.totalWorkforce || 0;
+                          const li = row.loggedIn || 0;
+                          return (
+                            <tr key={`${row.date}-sme-usage`}>
+                              <td>{row.date}</td>
+                              <td className="kpi-ar-num">{formatTzs(tw)}</td>
+                              <td className="kpi-ar-num">{formatTzs(li)}</td>
+                              <td className="kpi-ar-num">{formatPercentAccounting(tw > 0 ? (li / tw) * 100 : 0)}</td>
+                            </tr>
+                          );
+                        })}
+                        {crmUsageTotals ? (
+                          <tr className="kpi-ar-table-total">
+                            <td><strong>Total / Average</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmUsageTotals.totalWorkforce)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatTzs(crmUsageTotals.loggedIn)}</strong></td>
+                            <td className="kpi-ar-num"><strong>{formatPercentAccounting(crmUsageTotals.pctLoggedIn)}</strong></td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+              </section>
+            ))}
+          </div>
+        )}
+        {kpiUploadError ? <p className="kpi-ar-message kpi-ar-error">{kpiUploadError}</p> : null}
+        {renderKpiEmailModal()}
       </div>
     );
   }
@@ -1872,7 +2424,7 @@ const KpiAnalysisReport = () => {
     );
   }
 
-  if (targetsError || !targets) {
+  if (targetsError) {
     return (
       <div className="kpi-ar-container">
         <div className="kpi-ar-header-bar">
@@ -1903,6 +2455,60 @@ const KpiAnalysisReport = () => {
               ))}
             </select>
           </label>
+          {csView === 'Total' && (
+            <label className="kpi-ar-month-label">
+              Total KPI Version
+              <select
+                className="kpi-ar-month-select"
+                value={totalVersionId || ''}
+                onChange={(e) => activateTotalKpiVersion(e.target.value)}
+                disabled={!totalVersions?.length}
+              >
+                {(!totalVersions || totalVersions.length === 0) && <option value="">No versions</option>}
+                {(totalVersions || []).map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.fileName}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="kpi-ar-btn"
+                onClick={removeTotalKpiVersion}
+                disabled={!totalVersionId}
+                title="Soft-delete this KPI target file version"
+              >
+                Remove
+              </button>
+            </label>
+          )}
+          {csView !== 'Total' && (
+            <label className="kpi-ar-month-label">
+              Cluster KPI Version
+              <select
+                className="kpi-ar-month-select"
+                value={clusterVersionId || ''}
+                onChange={(e) => activateClusterKpiVersion(e.target.value)}
+                disabled={!clusterVersions?.length}
+              >
+                {(!clusterVersions || clusterVersions.length === 0) && <option value="">No versions</option>}
+                {(clusterVersions || []).map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.fileName}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="kpi-ar-btn"
+                onClick={removeClusterKpiVersion}
+                disabled={!clusterVersionId}
+                title="Soft-delete this KPI target file version"
+              >
+                Remove
+              </button>
+            </label>
+          )}
           <button
             type="button"
             className="kpi-ar-btn kpi-ar-btn-email"
@@ -1911,21 +2517,32 @@ const KpiAnalysisReport = () => {
           >
             <span className="kpi-ar-btn-icon">✉</span> Send Email
           </button>
-          <a
-            href={product === 'CS'
-              ? (csView !== 'Total'
-                ? (uploadedClusterKpiFileUrl || CS_KPI_CLUSTER_TARGET_FILE_URL)
-                : (uploadedTotalKpiFileUrl || CS_KPI_TARGET_FILE_URL))
-              : CS_KPI_TARGET_FILE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
             className="kpi-ar-btn kpi-ar-btn-view"
+            disabled={csView !== 'Total' ? !clusterVersionId : !totalVersionId}
+            onClick={() => {
+              const id = csView !== 'Total' ? clusterVersionId : totalVersionId;
+              if (!id) return;
+              (async () => {
+                const blob = await kpiTargetsAPI.downloadBlob(id);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = csView !== 'Total' ? (clusterActiveFileName || 'kpi-target.xlsx') : (totalActiveFileName || 'kpi-target.xlsx');
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                // Best-effort cleanup
+                setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+              })().catch(() => {});
+            }}
             title={csView !== 'Total'
-              ? (uploadedClusterKpiFileName ? `Open uploaded cluster KPI target file (${uploadedClusterKpiFileName})` : 'Open cluster KPI target file')
-              : (uploadedTotalKpiFileName ? `Open uploaded total KPI target file (${uploadedTotalKpiFileName})` : 'Open uploaded KPI target file')}
+              ? (clusterActiveFileName ? `Open cluster KPI target file (${clusterActiveFileName})` : 'Open cluster KPI target file')
+              : (totalActiveFileName ? `Open total KPI target file (${totalActiveFileName})` : 'Open total KPI target file')}
           >
             <span className="kpi-ar-btn-icon">📋</span> View KPI
-          </a>
+          </button>
           <button
             type="button"
             className="kpi-ar-btn kpi-ar-btn-upload"
@@ -1951,6 +2568,9 @@ const KpiAnalysisReport = () => {
             type="button"
             className="kpi-ar-btn kpi-ar-btn-download"
             onClick={() => handleDownloadXlsx()}
+            disabled={csView !== 'Total'
+              ? (clusterTargetsMissing || !clusterVersionId)
+              : (targetsMissing || !totalVersionId)}
             title="Download 7-sheet Excel (6 KPIs + Summary)"
           >
             <span className="kpi-ar-btn-icon">📥</span> Download xlsx
@@ -1958,16 +2578,32 @@ const KpiAnalysisReport = () => {
         </div>
       </div>
       {kpiUploadError && <div className="kpi-ar-upload-error">{kpiUploadError}</div>}
+      {targetsMissing && (
+        <div className="kpi-ar-placeholder">
+          <p className="kpi-ar-message kpi-ar-note">
+            No active <strong>TOTAL</strong> KPI target version found on the backend yet. Upload a TOTAL KPI target file to continue.
+          </p>
+        </div>
+      )}
+      {csView !== 'Total' && clusterTargetsMissing && (
+        <div className="kpi-ar-placeholder">
+          <p className="kpi-ar-message kpi-ar-note">
+            No active <strong>CLUSTER</strong> KPI target version found on the backend yet. Upload a CLUSTER KPI target file to view cluster analysis.
+          </p>
+        </div>
+      )}
 
-      <div className="kpi-ar-product-toggles">
-        <button
-          type="button"
-          className="kpi-ar-product-btn kpi-ar-product-btn--active"
-          onClick={() => setProduct('CS')}
-        >CS</button>
-        <button type="button" className="kpi-ar-product-btn" onClick={() => setProduct('LBF')}>LBF</button>
-        <button type="button" className="kpi-ar-product-btn" onClick={() => setProduct('SME')}>SME</button>
-      </div>
+      {!lockProduct && (
+        <div className="kpi-ar-product-toggles">
+          <button
+            type="button"
+            className="kpi-ar-product-btn kpi-ar-product-btn--active"
+            onClick={() => setProduct('CS')}
+          >CS</button>
+          <button type="button" className="kpi-ar-product-btn" onClick={() => setProduct('LBF')}>LBF</button>
+          <button type="button" className="kpi-ar-product-btn" onClick={() => setProduct('SME')}>SME</button>
+        </div>
+      )}
 
       <div className={`kpi-ar-main ${product === 'CS' ? 'kpi-ar-main--with-sidebar' : ''}`}>
         {product === 'CS' && (
@@ -2008,10 +2644,10 @@ const KpiAnalysisReport = () => {
                     <td>{r.kpi}</td>
                     <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
                     <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
-                    <td className="kpi-ar-num">{r.pct != null ? r.pct.toFixed(2) + '%' : '—'}</td>
-                    <td className="kpi-ar-num">{(Number(r.weight) * 100).toFixed(2)}%</td>
-                    <td className="kpi-ar-num">{r.weightScored != null ? (Number(r.weightScored) * 100).toFixed(2) + '%' : '—'}</td>
-                    <td className="kpi-ar-num">{r.pctWeightScored != null ? r.pctWeightScored.toFixed(2) + '%' : '—'}</td>
+                    <td className="kpi-ar-num">{formatPercentAccounting(r.pct)}</td>
+                    <td className="kpi-ar-num">{formatPercentAccounting(Number(r.weight) * 100)}</td>
+                    <td className="kpi-ar-num">{r.weightScored != null ? formatPercentAccounting(Number(r.weightScored) * 100) : '—'}</td>
+                    <td className="kpi-ar-num">{r.pctWeightScored != null ? formatPercentAccounting(r.pctWeightScored) : '—'}</td>
                   </tr>
                 ))}
                 {dashboardSummaryRows.length > 0 && (() => {
@@ -2024,9 +2660,9 @@ const KpiAnalysisReport = () => {
                       <td className="kpi-ar-num" />
                       <td className="kpi-ar-num" />
                       <td className="kpi-ar-num" />
-                      <td className="kpi-ar-num">{(tw * 100).toFixed(2)}%</td>
-                      <td className="kpi-ar-num">{(tws * 100).toFixed(2)}%</td>
-                      <td className="kpi-ar-num">{totalPctWs.toFixed(2)}%</td>
+                      <td className="kpi-ar-num">{formatPercentAccounting(tw * 100)}</td>
+                      <td className="kpi-ar-num">{formatPercentAccounting(tws * 100)}</td>
+                      <td className="kpi-ar-num">{formatPercentAccounting(totalPctWs)}</td>
                     </tr>
                   );
                 })()}
@@ -2057,7 +2693,7 @@ const KpiAnalysisReport = () => {
                 </tr>
                 <tr>
                   <td>% Achieved</td>
-                  <td className="kpi-ar-num">{dashboardSummaryRows[0]?.pct != null ? dashboardSummaryRows[0].pct.toFixed(2) + '%' : '—'}</td>
+                  <td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[0]?.pct)}</td>
                 </tr>
               </tbody>
             </table>
@@ -2085,7 +2721,7 @@ const KpiAnalysisReport = () => {
                       <td>{b.branch}</td>
                       <td className="kpi-ar-num">{formatTzs(b.target)}</td>
                       <td className="kpi-ar-num">{formatTzs(b.disbursement)}</td>
-                      <td className="kpi-ar-num">{b.pct.toFixed(2)}%</td>
+                      <td className="kpi-ar-num">{Number.isFinite(b.pct) ? formatPercentAccounting(b.pct) : '—'}</td>
                     </tr>
                   ))}
                 {filteredBranchSummaryData && filteredBranchSummaryData.branches.length > 0 && (
@@ -2093,7 +2729,7 @@ const KpiAnalysisReport = () => {
                     <td>Total</td>
                     <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalTarget)}</td>
                     <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalDisbursement)}</td>
-                    <td className="kpi-ar-num">{filteredBranchSummaryData.totalTarget > 0 ? ((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100).toFixed(2) + '%' : '—'}</td>
+                    <td className="kpi-ar-num">{filteredBranchSummaryData.totalTarget > 0 ? formatPercentAccounting((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100) : '—'}</td>
                   </tr>
                 )}
                 {(!filteredBranchSummaryData || filteredBranchSummaryData.branches.length === 0) && (
@@ -2104,7 +2740,7 @@ const KpiAnalysisReport = () => {
           </div>
           {filteredBranchSummaryData && (
               <p className="kpi-ar-section-note">
-              Branches at ≥100%: {filteredBranchSummaryData.achieved100Count} — Below 100%: {filteredBranchSummaryData.notAchieved100Count} — % at 100%: {filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count > 0 ? ((filteredBranchSummaryData.achieved100Count / (filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count)) * 100).toFixed(2) : 0}%
+              Branches at ≥100%: {formatTzs(filteredBranchSummaryData.achieved100Count)} — Below 100%: {formatTzs(filteredBranchSummaryData.notAchieved100Count)} — % at 100%: {filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count > 0 ? formatPercentAccounting((filteredBranchSummaryData.achieved100Count / (filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count)) * 100) : formatPercentAccounting(0)}
             </p>
           )}
         </section>
@@ -2116,7 +2752,7 @@ const KpiAnalysisReport = () => {
             monthLabel={monthKeyToLabel(effectiveMonthKey)}
             effectiveMonthKey={effectiveMonthKey}
             clusterTarget={effectiveTargetsForKpi?.salesTarget ?? 0}
-            clusterTargetFileName={uploadedClusterKpiFileName}
+            clusterTargetFileName={clusterActiveFileName}
             countrySheetDisbursement={countrySheetClusterDisbursement}
             countrySheetClusterPortfolio={countrySheetClusterPortfolio}
             countrySheetClusterPortfolioPrevious={countrySheetClusterPortfolioPrevious}
@@ -2151,7 +2787,7 @@ const KpiAnalysisReport = () => {
               <tbody>
                 <tr><td>New Business Target (Mainland)</td><td className="kpi-ar-num">{formatTzs((targets.mainland || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
                 <tr><td>New Business Actual (CS)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['New Business'] ?? latestManagementReport?.cs?.['New business'])}</td></tr>
-                <tr><td>% of target</td><td className="kpi-ar-num">{dashboardSummaryRows[2]?.pct != null ? dashboardSummaryRows[2].pct.toFixed(2) + '%' : '—'}</td></tr>
+                <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[2]?.pct)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -2173,7 +2809,7 @@ const KpiAnalysisReport = () => {
               <tbody>
                 <tr><td>New Business Target (Zanzibar)</td><td className="kpi-ar-num">{formatTzs((targets.zanzibar || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
                 <tr><td>New Business Actual (Zanzibar)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.zanzibar?.['New Business'] ?? latestManagementReport?.zanzibar?.['New business'])}</td></tr>
-                <tr><td>% of target</td><td className="kpi-ar-num">{dashboardSummaryRows[3]?.pct != null ? dashboardSummaryRows[3].pct.toFixed(2) + '%' : '—'}</td></tr>
+                <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[3]?.pct)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -2215,8 +2851,8 @@ const KpiAnalysisReport = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr><td>Current PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? v.toFixed(2) + '%' : '—'; })()}</td></tr>
-                <tr><td>Previous month PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? v.toFixed(2) + '%' : '—'; })()}</td></tr>
+                <tr><td>Current PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
+                <tr><td>Previous month PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
                 <tr><td>Improvement (pp)</td><td className="kpi-ar-num">{dashboardSummaryRows[5]?.achievedDisplay ?? '—'}</td></tr>
               </tbody>
             </table>
@@ -2237,8 +2873,8 @@ const KpiAnalysisReport = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr><td>Active clients (current)</td><td className="kpi-ar-num">{latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'] ?? '—'}</td></tr>
-                <tr><td>Active clients (previous month)</td><td className="kpi-ar-num">{previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'] ?? '—'}</td></tr>
+                <tr><td>Active clients (current)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'])}</td></tr>
+                <tr><td>Active clients (previous month)</td><td className="kpi-ar-num">{formatTzs(previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'])}</td></tr>
                 <tr><td>Annualized growth (%)</td><td className="kpi-ar-num">{dashboardSummaryRows[6]?.achievedDisplay ?? '—'}</td></tr>
               </tbody>
             </table>
@@ -2309,174 +2945,7 @@ const KpiAnalysisReport = () => {
       </div>
       </div>
 
-      {/* Fullscreen Email modal */}
-      {showEmailModal && (
-        <div
-          className="kpi-ar-email-overlay"
-          onClick={() => { if (!sending) { setShowEmailModal(false); setSendProgress(null); } }}
-        >
-          <div className="kpi-ar-email-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="kpi-ar-email-modal-header">
-              <div className="kpi-ar-email-modal-title-wrap">
-                <h3 className="kpi-ar-email-modal-title">Send KPI Analysis Report by Email</h3>
-                <p className="kpi-ar-email-modal-view-hint">
-                  Sending for current view: <strong>{csView}</strong>
-                  {csView !== 'Total' && ' — attachment and content are for this cluster only.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="kpi-ar-email-modal-close"
-                onClick={() => { if (!sending) { setShowEmailModal(false); setShowPreview(false); setSendProgress(null); } }}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            {sendProgress && sendProgress.length > 0 && (
-              <div className="kpi-ar-email-progress">
-                <h4 className="kpi-ar-email-progress-title">
-                  {sending ? 'Sending email to all recipients…' : 'Send result'}
-                </h4>
-                <ul className="kpi-ar-email-progress-list">
-                  {sendProgress.map(({ email, status, error }) => (
-                    <li key={email} className={`kpi-ar-email-progress-item kpi-ar-email-progress-item--${status}`}>
-                      <span className="kpi-ar-email-progress-email">{email}</span>
-                      <span className="kpi-ar-email-progress-status">
-                        {status === 'sending' && <span className="kpi-ar-email-progress-spinner" aria-hidden>⏳</span>}
-                        {status === 'success' && <span className="kpi-ar-email-progress-ok" title="Sent">✓</span>}
-                        {status === 'failed' && <span className="kpi-ar-email-progress-fail" title={error || 'Failed'}>✗</span>}
-                      </span>
-                      {status === 'failed' && error && (
-                        <span className="kpi-ar-email-progress-error">{error}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="kpi-ar-email-modal-body">
-              <p className="kpi-ar-email-hint">Recipients (saved for next time):</p>
-              <div className="kpi-ar-email-recipients-input">
-                <input
-                  type="email"
-                  placeholder="Enter email address"
-                  value={newRecipient}
-                  onChange={(e) => setNewRecipient(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addRecipient()}
-                  className="kpi-ar-email-recipient-input"
-                />
-                <button type="button" className="kpi-ar-email-add-btn" onClick={addRecipient}>
-                  Add
-                </button>
-              </div>
-              <div className="kpi-ar-email-copy-actions">
-                <button
-                  type="button"
-                  className="kpi-ar-email-copy-btn"
-                  onClick={copyRecipientList}
-                  disabled={sending || recipients.length === 0}
-                  title="Copy all emails to clipboard"
-                >
-                  {copiedList ? '✓ Copied!' : 'Copy email list'}
-                </button>
-                <button
-                  type="button"
-                  className="kpi-ar-email-copy-btn"
-                  onClick={pasteEmails}
-                  disabled={sending}
-                  title="Paste emails from clipboard (one per line or comma/semicolon separated)"
-                >
-                  Paste
-                </button>
-                <button
-                  type="button"
-                  className="kpi-ar-email-copy-btn kpi-ar-email-copy-body-btn"
-                  onClick={copyMessageBody}
-                  disabled={sending}
-                  title="Copy message (plain text)"
-                >
-                  {copiedBody ? '✓ Copied!' : 'Copy message'}
-                </button>
-              </div>
-              <div className="kpi-ar-email-paste-box-wrap">
-                <textarea
-                  className="kpi-ar-email-paste-box"
-                  placeholder="Or paste emails here (one per line or comma/semicolon separated)"
-                  value={pasteBox}
-                  onChange={(e) => setPasteBox(e.target.value)}
-                  rows={2}
-                />
-                <button type="button" className="kpi-ar-email-copy-btn kpi-ar-email-add-pasted-btn" onClick={addPasteBoxEmails}>
-                  Add pasted
-                </button>
-              </div>
-              <ul className="kpi-ar-email-recipients-list">
-                {recipients.map((email) => (
-                  <li key={email} className="kpi-ar-email-recipient-item">
-                    <span className="kpi-ar-email-recipient-email">{email}</span>
-                    <button type="button" className="kpi-ar-email-remove-btn" onClick={() => removeRecipient(email)} title="Remove">
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {recipients.length === 0 && (
-                <p className="kpi-ar-email-empty">No recipients yet. Add one above.</p>
-              )}
-
-              <div className="kpi-ar-email-preview-section">
-                <button type="button" className="kpi-ar-email-preview-toggle" onClick={() => showPreview ? setShowPreview(false) : generatePreview()}>
-                  {showPreview ? '▼ Hide Email Preview' : '▶ Preview Email'}
-                </button>
-                {showPreview && (
-                  <div className="kpi-ar-email-preview-container">
-                    <div className="kpi-ar-email-preview-subject">
-                      <label>Subject:</label>
-                      <input
-                        type="text"
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        className="kpi-ar-email-subject-input"
-                      />
-                    </div>
-                    <div className="kpi-ar-email-preview-body">
-                      <label>Email Body:</label>
-                      <div className="kpi-ar-email-preview-html" dangerouslySetInnerHTML={{ __html: emailBody }} />
-                    </div>
-                    <p className="kpi-ar-email-preview-attachment">
-                      📎 {csView !== 'Total'
-                        ? <>Attachments: (1) {CLUSTER_TARGET_ATTACHMENT_NAME} (2) CS_Cluster_KPI_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}_{csView.replace(/\s+/g, '_')}.xlsx</>
-                        : <>Attachment: CS_KPI_REPORT_{effectiveMonthKey ? monthKeyToLabel(effectiveMonthKey).replace(/\s+/g, '_') : 'report'}.xlsx</>}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {sendError && <p className="kpi-ar-email-error">{sendError}</p>}
-            </div>
-            <div className="kpi-ar-email-modal-footer">
-              <button
-                type="button"
-                className="kpi-ar-email-cancel"
-                onClick={() => { if (!sending) { setShowEmailModal(false); setShowPreview(false); setSendProgress(null); } }}
-              >
-                {sendProgress && !sending ? 'Close' : 'Cancel'}
-              </button>
-              <button
-                type="button"
-                className="kpi-ar-email-send"
-                onClick={handleSendEmail}
-                disabled={sending || recipients.length === 0}
-              >
-                {sending ? 'Sending…' : 'Send Email'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {renderKpiEmailModal()}
     </div>
   );
 };

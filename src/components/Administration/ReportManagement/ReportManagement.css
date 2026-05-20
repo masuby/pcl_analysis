@@ -30,7 +30,7 @@
 
 .header-left h2 {
   color: #2a5298;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 600;
   margin: 0 0 0.5rem 0;
 }
@@ -261,7 +261,7 @@
 .empty-state h3 {
   color: #2a5298;
   margin: 0 0 0.75rem 0;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
 .empty-state p {
@@ -327,7 +327,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem;
+  padding: 1.25rem;
   margin-top: 1rem;
   background: white;
   border-radius: 12px;
@@ -501,7 +501,7 @@
   }
 
   .stat-value {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
 
   .view-toggle {
@@ -511,7 +511,7 @@
 
   .empty-state {
     height: 250px;
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   .empty-icon {
@@ -994,7 +994,7 @@
 
 .procedure-message h3 {
   color: #2a5298;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   margin: 0 0 0.5rem 0;
 }
 
@@ -1150,7 +1150,7 @@
   }
 
   .procedure-message {
-    padding: 1.5rem;
+    padding: 1.25rem;
   }
 
   .procedure-message-icon {

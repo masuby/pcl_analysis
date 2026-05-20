@@ -3,7 +3,7 @@
  * Management report: Portfolio column per cluster; current vs previous month, change annualized.
  */
 import React from 'react';
-import { formatTzs } from '../utils/csKpiTargets';
+import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 
 const TARGET_ANNUAL_PCT = 20;
@@ -60,11 +60,11 @@ export default function ClusterKpi05PortfolioGrowth({
             </tr>
             <tr>
               <td>Monthly growth %</td>
-              <td className="ckpi-num">{growthPct != null ? growthPct.toFixed(2) + '%' : '—'}</td>
+              <td className="ckpi-num">{growthPct != null ? formatPercentAccounting(growthPct) : '—'}</td>
             </tr>
             <tr>
               <td>Annualized growth %</td>
-              <td className="ckpi-num">{annualized != null ? annualized.toFixed(2) + '%' : '—'}</td>
+              <td className="ckpi-num">{annualized != null ? formatPercentAccounting(annualized) : '—'}</td>
             </tr>
             <tr>
               <td>Grade</td>

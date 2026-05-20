@@ -1846,3 +1846,95 @@
   }
 }
 
+/* Enterprise responsive pass */
+.search-input {
+  font-size: 0.85rem;
+}
+
+.excel-table-container,
+.excel-table-wrapper {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.excel-table {
+  font-size: 0.82rem;
+}
+
+.excel-table th:first-child,
+.excel-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.excel-table th:first-child {
+  z-index: 3;
+}
+
+.excel-table td:first-child {
+  background: inherit;
+}
+
+@media (max-width: 1024px) {
+  .viewer-header {
+    padding: 0.625rem 0.875rem;
+  }
+
+  .search-filter-container {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .sheet-actions,
+  .navigation {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .excel-table th:first-child,
+  .excel-table td:first-child {
+    min-width: 90px;
+  }
+}
+
+@media (max-width: 480px) {
+  .viewer-header,
+  .sheet-tabs,
+  .current-sheet-info,
+  .viewer-footer {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .excel-table {
+    font-size: 0.75rem;
+  }
+
+  .excel-table th,
+  .excel-table td {
+    min-width: 96px;
+  }
+
+  .header-cell {
+    letter-spacing: 0.3px;
+  }
+
+  .search-box {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .advanced-filter-toggle,
+  .sheet-nav,
+  .clear-filters-button,
+  .nav-button {
+    min-height: 34px;
+  }
+}
+
+.dark-mode .excel-table td:first-child {
+  background: inherit;
+}
+

@@ -42,7 +42,7 @@
 
 .dashboard-content {
   flex: 1;
-  padding: 1.5rem;
+  padding: 1rem;
   overflow-y: auto;
   position: relative;
   min-height: calc(100vh - 100px);
@@ -51,8 +51,19 @@
 .no-dashboard-message {
   text-align: center;
   color: #666;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   padding: 3rem;
+}
+
+@media (max-width: 768px) {
+  .dashboard-header {
+    padding: 0.5rem 0;
+  }
+
+  .dashboard-content {
+    padding: 0.75rem;
+    min-height: calc(100vh - 82px);
+  }
 }
 
 /* Dark mode support */
