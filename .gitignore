@@ -52,6 +52,10 @@ Desktop.ini
 *.temp
 *.log
 *.cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Firebase
 .firebase
@@ -86,10 +90,16 @@ node_modules
 *.rar
 *.7z
 *.tar
+*.tar.*
 *.gz
 *.bz2
 *.tgz
 *.dumb
+*.exe
 
 # Sensitive service-account exports
 src/pages/Dashboard/components/DepartmentalDashboard/components/SocialMediaAnalysis/sales-reps-status-*.json
+
+# Build binaries / local worktrees
+backend/pcl-api
+.claude/worktrees/
