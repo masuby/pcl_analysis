@@ -358,8 +358,8 @@ export const useHODScoreCardData = (mode = 'MONTHLY') => {
       callCenterData
     };
   }, [managementReports, crmCS.parsedData, crmLBF.parsedData, crmSME.parsedData,
-      mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData,
-      callCenterCS.parsedData, callCenterLBF.parsedData, callCenterSME.parsedData, mode]);
+    mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData,
+    callCenterCS.parsedData, callCenterLBF.parsedData, callCenterSME.parsedData, mode]);
 
   return allData;
 };

@@ -1,0 +1,84 @@
+/* ── ReportShell ─ landing card + PayPal-style cloud loading overlay ─── */
+
+/* Use the same "pen-btn" style as the rest of the DepartmentalDashboard
+   so every Generate Report button looks identical across sections. */
+
+.rs-landing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+}
+
+.rs-landing-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 32px 24px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  animation: rs-fade-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rs-fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+.rs-landing-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 18px;
+  filter: drop-shadow(0 4px 12px rgba(31, 56, 100, 0.18));
+}
+
+.rs-landing-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1f3864;
+  margin: 0 0 10px;
+  letter-spacing: -0.2px;
+}
+
+.rs-landing-desc {
+  font-size: 0.95rem;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0 0 28px;
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Make the shared .pen-btn a bit bigger on the landing card */
+.rs-cta {
+  padding: 12px 28px !important;
+  font-size: 0.95rem !important;
+  border-radius: 11px !important;
+}
+.rs-cta span { font-size: 1rem; }
+
+/* ── Child visibility during loading ──────────────────────────────────── */
+/* Keep child mounted (so its data fetches run) but invisible & non-interactive */
+.rs-child-hidden  { visibility: hidden; pointer-events: none; }
+.rs-child-visible { visibility: visible; animation: rs-fade-in 0.32s ease-out; }
+
+/* The actual cloud overlay + spinner now lives in <LoadingSpinner>
+   (src/components/Common/Loading/LoadingSpinner.{jsx,css}) so the same look
+   is shared with the rest of the project. */
+
+/* ── Dark theme ─────────────────────────────────────────────────────── */
+[data-theme='dark'] .rs-landing-title,
+.dark             .rs-landing-title { color: #f1f5f9; }
+[data-theme='dark'] .rs-landing-desc,
+.dark             .rs-landing-desc  { color: #cbd5e1; }
+
+[data-theme='dark'] .rs-overlay,
+.dark             .rs-overlay {
+  background: rgba(15, 23, 42, 0.72);
+}
+[data-theme='dark'] .rs-overlay-msg,
+.dark             .rs-overlay-msg   { color: #cbd5e1; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }

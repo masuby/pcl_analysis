@@ -1,4 +1,3 @@
-import React from 'react';
 import GeneralSalesTrendChart from './GeneralSalesTrendChart';
 import SalesAndPerformanceSummary from './SalesAndPerformanceSummary';
 import PerformanceComparison from './PerformanceComparison';

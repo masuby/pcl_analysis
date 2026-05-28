@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createUser } from '../../../../services/auth';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import './AddUserModal.css';
@@ -185,7 +185,7 @@ const AddUserModal = ({ onClose, onUserAdded, showToast }) => {
             </label>
             <div className="input-wrapper password-input-wrapper">
               <input
-                type={showPassword ? "text" : "password"}
+                type={showPassword ? 'text' : 'password'}
                 id="password"
                 name="password"
                 value={formData.password}
@@ -199,7 +199,7 @@ const AddUserModal = ({ onClose, onUserAdded, showToast }) => {
                 className="password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={loading}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 tabIndex={0}
               >
                 {showPassword ? '👁️' : '👁️‍🗨️'}

@@ -18,12 +18,10 @@ export const processClusterData = async (parsedReports) => {
   // Check if we have valid cached data
   const now = Date.now();
   if (clusterDataCache && (now - cacheTimestamp) < CACHE_TTL) {
-    console.log('[Cache] Using cached cluster data');
+
     return clusterDataCache;
   }
 
-  console.log('[API] Fetching cluster data from backend...');
-  
   // Fetch pre-parsed cluster data from API
   const result = await getClusterData();
   
@@ -161,8 +159,7 @@ export const processClusterData = async (parsedReports) => {
   // Cache the result
   clusterDataCache = clusterData;
   cacheTimestamp = now;
-  
-  console.log('[API] Cluster data processed successfully');
+
   return clusterData;
 };
 

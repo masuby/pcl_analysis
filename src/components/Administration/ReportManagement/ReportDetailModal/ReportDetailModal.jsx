@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { deleteReport, incrementReportDownloads, updateReport } from '../../../../services/reports';
 import { deleteReportFile, getReportFileUrl } from '../../../../services/supabase';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
@@ -233,25 +233,27 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
     }
   };
 
-  const handleToggleStatus = async () => {
+    const handleToggleStatus = async () => {
     try {
       setLoading(true);
       
-      const reportRef = doc(db, 'reports', report.id);
       const newStatus = !report.isActive;
       
-      await updateDoc(reportRef, {
-        isActive: newStatus,
-        updatedAt: new Date().toISOString()
+      const result = await updateReport(report.id, {
+        isActive: newStatus
       });
 
-      onReportUpdated({
-        ...report,
-        isActive: newStatus,
-        updatedAt: new Date().toISOString()
-      });
-      
-      showToast('success', `Report ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      if (result.success) {
+        onReportUpdated({
+          ...report,
+          isActive: newStatus,
+          updatedAt: new Date().toISOString()
+        });
+        
+        showToast('success', `Report ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      } else {
+        throw new Error(result.error || 'Failed to update report status');
+      }
     } catch (error) {
       console.error('Error toggling report status:', error);
       showToast('error', 'Failed to update report status');
@@ -290,75 +292,75 @@ const ReportDetailModal = ({ report, onClose, onReportUpdated, onReportDeleted, 
           <div className="rm-modal-content">
             {isEditing ? (
             /* Edit Form */
-            <div className="rm-edit-form">
+              <div className="rm-edit-form">
                 <div className="rm-form-section">
-                <h3>Edit Report Details</h3>
+                  <h3>Edit Report Details</h3>
                 
-                {/* Note: Title is not editable - it comes from filename */}
-                <div className="rm-non-editable-field">
+                  {/* Note: Title is not editable - it comes from filename */}
+                  <div className="rm-non-editable-field">
                     <label className="rm-form-label">Report Title</label>
                     <div className="rm-non-editable-value">
-                    {report.title}
-                    <div className="rm-field-note">Auto-generated from filename, cannot be changed</div>
+                      {report.title}
+                      <div className="rm-field-note">Auto-generated from filename, cannot be changed</div>
                     </div>
-                </div>
+                  </div>
 
-                <div className="rm-form-group">
+                  <div className="rm-form-group">
                     <label htmlFor="edit-department" className="rm-form-label">
                     Department
                     </label>
                     <select
-                    id="edit-department"
-                    name="department"
-                    value={editData.department}
-                    onChange={handleChange}
-                    className="rm-form-select"
+                      id="edit-department"
+                      name="department"
+                      value={editData.department}
+                      onChange={handleChange}
+                      className="rm-form-select"
                     >
-                    {departments.map(dept => (
+                      {departments.map(dept => (
                         <option key={dept.value} value={dept.value}>
-                        {dept.label}
+                          {dept.label}
                         </option>
-                    ))}
+                      ))}
                     </select>
-                </div>
+                  </div>
 
-                <div className="rm-form-group">
+                  <div className="rm-form-group">
                     <label htmlFor="edit-type" className="rm-form-label">
                     Report Type
                     </label>
                     <select
-                    id="edit-type"
-                    name="type"
-                    value={editData.type}
-                    onChange={handleChange}
-                    className="rm-form-select"
+                      id="edit-type"
+                      name="type"
+                      value={editData.type}
+                      onChange={handleChange}
+                      className="rm-form-select"
                     >
-                    {reportTypes.map(type => (
+                      {reportTypes.map(type => (
                         <option key={type.value} value={type.value}>
-                        {type.label}
+                          {type.label}
                         </option>
-                    ))}
+                      ))}
                     </select>
-                </div>
+                  </div>
 
-                {/* Keep date field for editing */}
-                <div className="rm-form-group">
+                  {/* Keep date field for editing */}
+                  <div className="rm-form-group">
                     <label htmlFor="edit-date" className="rm-form-label">
                     Report Date (dd/mm/yyyy)
                     </label>
                     <input
-                    type="text"
-                    id="edit-date"
-                    name="date"
-                    value={editData.date || ''}
-                    onChange={handleChange}
-                    className="rm-form-input"
-                    placeholder="dd/mm/yyyy"
-                    pattern="\d{2}/\d{2}/\d{4}"
+                      type="text"
+                      id="edit-date"
+                      name="date"
+                      value={editData.date || ''}
+                      onChange={handleChange}
+                      className="rm-form-input"
+                      placeholder="dd/mm/yyyy"
+                      pattern="\d{2}/\d{2}/\d{4}"
                     />
+                  </div>
                 </div>
-                </div>
-            </div>
+              </div>
             ) : (
               /* View Details */
               <div className="rm-report-details">

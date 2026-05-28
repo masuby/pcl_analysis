@@ -1,4 +1,3 @@
-import React from 'react';
 import './CustomButton.css';
 
 const CustomButton = ({ children, onClick, type = 'button', variant = 'primary', disabled = false }) => {

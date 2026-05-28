@@ -1,4 +1,3 @@
-import React from 'react';
 import './DepartmentFilter.css';
 
 const DepartmentFilter = ({ departments, selectedDepartment, onDepartmentChange, userDepartment }) => {

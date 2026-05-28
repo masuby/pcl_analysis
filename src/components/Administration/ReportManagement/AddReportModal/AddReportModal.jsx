@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { uploadReportFile } from '../../../../services/supabase';
 import { useReportRefresh } from '../../../../contexts/ReportRefreshContext';
 import { cacheInvalidate } from '../../../../services/cache';

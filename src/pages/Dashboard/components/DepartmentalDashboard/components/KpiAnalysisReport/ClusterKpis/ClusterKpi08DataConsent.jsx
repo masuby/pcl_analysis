@@ -2,7 +2,6 @@
  * Cluster KPI 8: 80% achieved of Data consent from each Region.
  * CS CRM reports: Lead_Report sheet; Product=CS, Zone for cluster; Consent_Status=ACCEPTED percentage.
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 

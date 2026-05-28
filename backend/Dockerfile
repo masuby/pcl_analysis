@@ -38,6 +38,9 @@ COPY --from=builder /app/pcl-api .
 # Copy migrations
 COPY --from=builder /app/migrations ./migrations
 
+# Copy service-account credentials for Google Sheets (Social Media Analysis)
+COPY --from=builder /app/credentials ./credentials
+
 # Create upload directory
 RUN mkdir -p /var/reports && chown -R pcl:pcl /var/reports
 

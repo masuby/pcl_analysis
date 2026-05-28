@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginUser, resetPassword } from '../../../services/auth';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -220,7 +220,7 @@ const Login = () => {
               </label>
               <div className="input-wrapper">
                 <input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -234,7 +234,7 @@ const Login = () => {
                   type="button"
                   className="password-toggle"
                   onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   disabled={loading}
                 >
                   {showPassword ? (
@@ -271,13 +271,13 @@ const Login = () => {
                 style={
                   attemptedSubmit && !isFormValid
                     ? {
-                        transform: `translate(${buttonPosition.x}px, ${buttonPosition.y}px)`,
-                        transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
-                      }
+                      transform: `translate(${buttonPosition.x}px, ${buttonPosition.y}px)`,
+                      transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }
                     : {
-                        transform: 'translate(0, 0)',
-                        transition: 'transform 0.3s ease-out'
-                      }
+                      transform: 'translate(0, 0)',
+                      transition: 'transform 0.3s ease-out'
+                    }
                 }
               >
                 {loading ? (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import './BranchAnalysis.css';
 
@@ -6,7 +6,7 @@ const BranchAnalysis = ({ data, selectedMonth }) => {
   const [selectedMetric, setSelectedMetric] = useState('Disbursements This Month');
 
   // Prepare branch comparison data
-  const branchData = React.useMemo(() => {
+  const branchData = useMemo(() => {
     const getLatestValue = (dataArray, metric) => {
       if (!dataArray || dataArray.length === 0) return 0;
       
@@ -34,7 +34,7 @@ const BranchAnalysis = ({ data, selectedMonth }) => {
   }, [data, selectedMetric]);
 
   // CS sub-branches breakdown
-  const csBranchesData = React.useMemo(() => {
+  const csBranchesData = useMemo(() => {
     const getLatestValue = (dataArray, metric) => {
       if (!dataArray || dataArray.length === 0) return 0;
       
@@ -54,7 +54,7 @@ const BranchAnalysis = ({ data, selectedMonth }) => {
   }, [data.csBranchesData, selectedMetric]);
 
   // LBF sub-branches breakdown
-  const lbfBranchesData = React.useMemo(() => {
+  const lbfBranchesData = useMemo(() => {
     const getLatestValue = (dataArray, metric) => {
       if (!dataArray || dataArray.length === 0) return 0;
       

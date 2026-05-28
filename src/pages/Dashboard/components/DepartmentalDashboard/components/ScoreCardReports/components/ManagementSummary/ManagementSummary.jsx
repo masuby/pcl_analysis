@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useMemo, useState, forwardRef } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useState, forwardRef } from 'react';
 import * as XLSX from 'xlsx';
 import './ManagementSummary.css';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';

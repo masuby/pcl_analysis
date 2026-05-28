@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useMTDData } from '../../../MTDdashboard/hooks/useMTDData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import {
@@ -89,7 +89,7 @@ const GapAnalysis = () => {
   const [uploadedFileSheets, setUploadedFileSheets] = useState(null);
   const [uploadedFileLoading, setUploadedFileLoading] = useState(false);
   const [uploadedFileError, setUploadedFileError] = useState('');
-  const uploadInputRef = React.useRef(null);
+  const uploadInputRef = useRef(null);
   const [branchSearchQuery, setBranchSearchQuery] = useState('');
   const [rsmSearchQuery, setRsmSearchQuery] = useState('');
 
@@ -1195,252 +1195,252 @@ const GapAnalysis = () => {
           </div>
         ) : (
           <>
-        <section className="gap-analysis-section">
-          <div className="gap-analysis-section-header">
-            <h2 className="gap-analysis-section-title">BRANCH (Team Leader)</h2>
-            <input
-              type="search"
-              className="gap-analysis-section-search"
-              placeholder="Search team leader or supervision..."
-              value={branchSearchQuery}
-              onChange={(e) => setBranchSearchQuery(e.target.value)}
-              aria-label="Filter team leaders"
-            />
-          </div>
-          <div className="gap-analysis-section-scroll">
-            {branchData.length === 0 ? (
-              <p className="gap-analysis-no-data">No team leader data for this report.</p>
-            ) : filteredBranchData.length === 0 ? (
-              <p className="gap-analysis-no-data">No team leader matches &quot;{branchSearchQuery}&quot;.</p>
-            ) : (
-              <div className="gap-analysis-branch-inner">
-                {filteredBranchData.map((item) => (
-                  <div key={item.key} className="gap-analysis-block">
-                    <h3 className="gap-analysis-block-title">{item.teamLeaderName}</h3>
-                    <p className="gap-analysis-block-sub">Supervision: {item.supervision}</p>
-                    <div className="gap-analysis-table-wrap">
-                      <table className="gap-analysis-table">
-                        <thead>
-                          <tr>
-                            {columns.map((col) => (
-                              <th key={col}>{col === 'rowLabel' ? 'Metric' : col}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {item.rows.map((row, rIdx) => {
-                            const isActualRow = row.rowLabel === getActualRowLabel();
-                            const displayRow = formatGapRowForDisplay(row);
-                            return (
-                              <tr key={rIdx}>
-                                {columns.map((col) => {
-                                  if (col === 'rowLabel') {
-                                    return (
-                                      <td key={col} className="gap-analysis-cell-metric">
-                                        {displayRow.rowLabel}
-                                      </td>
-                                    );
-                                  }
-                                  if (col === 'Comment') {
-                                    const comment = (displayRow.Comment || '').toUpperCase().trim();
-                                    const bg = commentColors[comment] || 'transparent';
-                                    return (
-                                      <td
-                                        key={col}
-                                        className="gap-analysis-cell-comment"
-                                        style={{ backgroundColor: bg, color: bg ? '#fff' : 'inherit', fontWeight: 600 }}
-                                      >
-                                        {displayRow.Comment}
-                                      </td>
-                                    );
-                                  }
-                                  if (col === 'Grade') {
-                                    const g = displayRow.Grade || '';
-                                    const bg = g ? (gradeColors[g] || 'transparent') : 'transparent';
-                                    return (
-                                      <td
-                                        key={col}
-                                        className="gap-analysis-cell-grade"
-                                        style={{ backgroundColor: bg, color: g ? '#fff' : 'inherit', fontWeight: 600 }}
-                                      >
-                                        {g}
-                                      </td>
-                                    );
-                                  }
-                                  if (isActualRow && col === 'Achieved' && editingKey === item.key) {
-                                    return (
-                                      <td key={col}>
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          className="gap-analysis-edit-input"
-                                          value={actualRepsOverrides[item.key] ?? ''}
-                                          onChange={(e) => setOverride(item.key, e.target.value)}
-                                          onBlur={() => persistOverrides(item.key, actualRepsOverrides[item.key])}
-                                          placeholder="Actual"
-                                        />
-                                      </td>
-                                    );
-                                  }
-                                  if (isActualRow && col === 'Achieved' && editingKey !== item.key) {
-                                    return (
-                                      <td key={col} className="gap-analysis-cell-num">
-                                        {displayRow.Achieved ?? ''}
-                                      </td>
-                                    );
-                                  }
-                                  return (
-                                    <td key={col} className="gap-analysis-cell-num">
-                                      {displayRow[col]}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="gap-analysis-block-actions">
-                      <button
-                        type="button"
-                        className="gap-analysis-edit-btn"
-                        onClick={() => setEditingKey(editingKey === item.key ? null : item.key)}
-                      >
-                        {editingKey === item.key ? 'Done editing' : 'Edit Actual Reps'}
-                      </button>
-                      <button
-                        type="button"
-                        className="gap-analysis-tl-email-btn"
-                        onClick={() => setShowTLEmailModal({ item })}
-                      >
-                        Email this Team Leader
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <div className="gap-analysis-branch-footer">
-                  <button
-                    type="button"
-                    className="gap-analysis-email-all-btn"
-                    onClick={() => setShowTLEmailModal({ all: true })}
-                  >
-                    Email all Team Leader only
-                  </button>
-                </div>
+            <section className="gap-analysis-section">
+              <div className="gap-analysis-section-header">
+                <h2 className="gap-analysis-section-title">BRANCH (Team Leader)</h2>
+                <input
+                  type="search"
+                  className="gap-analysis-section-search"
+                  placeholder="Search team leader or supervision..."
+                  value={branchSearchQuery}
+                  onChange={(e) => setBranchSearchQuery(e.target.value)}
+                  aria-label="Filter team leaders"
+                />
               </div>
-            )}
-          </div>
-        </section>
-
-        <div className="gap-analysis-divider" />
-
-        <section className="gap-analysis-section">
-          <div className="gap-analysis-section-header">
-            <h2 className="gap-analysis-section-title">RSM (Supervision)</h2>
-            <input
-              type="search"
-              className="gap-analysis-section-search"
-              placeholder="Search supervision..."
-              value={rsmSearchQuery}
-              onChange={(e) => setRsmSearchQuery(e.target.value)}
-              aria-label="Filter RSM / supervision"
-            />
-          </div>
-          <div className="gap-analysis-section-scroll">
-            {rsmData.length === 0 ? (
-              <p className="gap-analysis-no-data">No supervision data for this report.</p>
-            ) : filteredRsmData.length === 0 ? (
-              <p className="gap-analysis-no-data">No supervision matches &quot;{rsmSearchQuery}&quot;.</p>
-            ) : (
-              <div className="gap-analysis-rsm-inner">
-                {filteredRsmData.map((item) => (
-                  <div key={item.supervision} className="gap-analysis-block">
-                    <h3 className="gap-analysis-block-title">{item.supervision}</h3>
-                    <div className="gap-analysis-table-wrap">
-                      <table className="gap-analysis-table">
-                        <thead>
-                          <tr>
-                            {columns.map((col) => (
-                              <th key={col}>{col === 'rowLabel' ? 'Metric' : col}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {item.rows.map((row, rIdx) => {
-                            const displayRow = formatGapRowForDisplay(row);
-                            return (
-                              <tr key={rIdx}>
-                                {columns.map((col) => {
-                                  if (col === 'Grade') {
-                                    const g = displayRow.Grade || '';
-                                    const bg = g ? (gradeColors[g] || 'transparent') : 'transparent';
-                                    return (
-                                      <td
-                                        key={col}
-                                        className="gap-analysis-cell-grade"
-                                        style={{ backgroundColor: bg, color: g ? '#fff' : 'inherit', fontWeight: 600 }}
-                                      >
-                                        {g}
-                                      </td>
-                                    );
-                                  }
-                                  if (col === 'Comment') {
-                                    const comment = (displayRow.Comment || '').toUpperCase().trim();
-                                    const bg = commentColors[comment] || 'transparent';
-                                    return (
-                                      <td
-                                        key={col}
-                                        className="gap-analysis-cell-comment"
-                                        style={{ backgroundColor: bg, color: bg ? '#fff' : 'inherit', fontWeight: 600 }}
-                                      >
-                                        {displayRow.Comment}
-                                      </td>
-                                    );
-                                  }
-                                  return (
-                                    <td
-                                      key={col}
-                                      className={
-                                        col === 'rowLabel'
-                                          ? 'gap-analysis-cell-metric'
-                                          : 'gap-analysis-cell-num'
+              <div className="gap-analysis-section-scroll">
+                {branchData.length === 0 ? (
+                  <p className="gap-analysis-no-data">No team leader data for this report.</p>
+                ) : filteredBranchData.length === 0 ? (
+                  <p className="gap-analysis-no-data">No team leader matches &quot;{branchSearchQuery}&quot;.</p>
+                ) : (
+                  <div className="gap-analysis-branch-inner">
+                    {filteredBranchData.map((item) => (
+                      <div key={item.key} className="gap-analysis-block">
+                        <h3 className="gap-analysis-block-title">{item.teamLeaderName}</h3>
+                        <p className="gap-analysis-block-sub">Supervision: {item.supervision}</p>
+                        <div className="gap-analysis-table-wrap">
+                          <table className="gap-analysis-table">
+                            <thead>
+                              <tr>
+                                {columns.map((col) => (
+                                  <th key={col}>{col === 'rowLabel' ? 'Metric' : col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {item.rows.map((row, rIdx) => {
+                                const isActualRow = row.rowLabel === getActualRowLabel();
+                                const displayRow = formatGapRowForDisplay(row);
+                                return (
+                                  <tr key={rIdx}>
+                                    {columns.map((col) => {
+                                      if (col === 'rowLabel') {
+                                        return (
+                                          <td key={col} className="gap-analysis-cell-metric">
+                                            {displayRow.rowLabel}
+                                          </td>
+                                        );
                                       }
-                                    >
-                                      {displayRow[col === 'rowLabel' ? 'rowLabel' : col]}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="gap-analysis-block-actions">
+                                      if (col === 'Comment') {
+                                        const comment = (displayRow.Comment || '').toUpperCase().trim();
+                                        const bg = commentColors[comment] || 'transparent';
+                                        return (
+                                          <td
+                                            key={col}
+                                            className="gap-analysis-cell-comment"
+                                            style={{ backgroundColor: bg, color: bg ? '#fff' : 'inherit', fontWeight: 600 }}
+                                          >
+                                            {displayRow.Comment}
+                                          </td>
+                                        );
+                                      }
+                                      if (col === 'Grade') {
+                                        const g = displayRow.Grade || '';
+                                        const bg = g ? (gradeColors[g] || 'transparent') : 'transparent';
+                                        return (
+                                          <td
+                                            key={col}
+                                            className="gap-analysis-cell-grade"
+                                            style={{ backgroundColor: bg, color: g ? '#fff' : 'inherit', fontWeight: 600 }}
+                                          >
+                                            {g}
+                                          </td>
+                                        );
+                                      }
+                                      if (isActualRow && col === 'Achieved' && editingKey === item.key) {
+                                        return (
+                                          <td key={col}>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              className="gap-analysis-edit-input"
+                                              value={actualRepsOverrides[item.key] ?? ''}
+                                              onChange={(e) => setOverride(item.key, e.target.value)}
+                                              onBlur={() => persistOverrides(item.key, actualRepsOverrides[item.key])}
+                                              placeholder="Actual"
+                                            />
+                                          </td>
+                                        );
+                                      }
+                                      if (isActualRow && col === 'Achieved' && editingKey !== item.key) {
+                                        return (
+                                          <td key={col} className="gap-analysis-cell-num">
+                                            {displayRow.Achieved ?? ''}
+                                          </td>
+                                        );
+                                      }
+                                      return (
+                                        <td key={col} className="gap-analysis-cell-num">
+                                          {displayRow[col]}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="gap-analysis-block-actions">
+                          <button
+                            type="button"
+                            className="gap-analysis-edit-btn"
+                            onClick={() => setEditingKey(editingKey === item.key ? null : item.key)}
+                          >
+                            {editingKey === item.key ? 'Done editing' : 'Edit Actual Reps'}
+                          </button>
+                          <button
+                            type="button"
+                            className="gap-analysis-tl-email-btn"
+                            onClick={() => setShowTLEmailModal({ item })}
+                          >
+                        Email this Team Leader
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="gap-analysis-branch-footer">
                       <button
                         type="button"
-                        className="gap-analysis-tl-email-btn"
-                        onClick={() => setShowTLEmailModal({ rsm: item })}
+                        className="gap-analysis-email-all-btn"
+                        onClick={() => setShowTLEmailModal({ all: true })}
                       >
-                        Email this RSM
+                    Email all Team Leader only
                       </button>
                     </div>
                   </div>
-                ))}
-                <div className="gap-analysis-branch-footer">
-                  <button
-                    type="button"
-                    className="gap-analysis-email-all-btn"
-                    onClick={() => setShowTLEmailModal({ allRSM: true })}
-                  >
-                    Email all RSM
-                  </button>
-                </div>
+                )}
               </div>
-            )}
-          </div>
-        </section>
+            </section>
+
+            <div className="gap-analysis-divider" />
+
+            <section className="gap-analysis-section">
+              <div className="gap-analysis-section-header">
+                <h2 className="gap-analysis-section-title">RSM (Supervision)</h2>
+                <input
+                  type="search"
+                  className="gap-analysis-section-search"
+                  placeholder="Search supervision..."
+                  value={rsmSearchQuery}
+                  onChange={(e) => setRsmSearchQuery(e.target.value)}
+                  aria-label="Filter RSM / supervision"
+                />
+              </div>
+              <div className="gap-analysis-section-scroll">
+                {rsmData.length === 0 ? (
+                  <p className="gap-analysis-no-data">No supervision data for this report.</p>
+                ) : filteredRsmData.length === 0 ? (
+                  <p className="gap-analysis-no-data">No supervision matches &quot;{rsmSearchQuery}&quot;.</p>
+                ) : (
+                  <div className="gap-analysis-rsm-inner">
+                    {filteredRsmData.map((item) => (
+                      <div key={item.supervision} className="gap-analysis-block">
+                        <h3 className="gap-analysis-block-title">{item.supervision}</h3>
+                        <div className="gap-analysis-table-wrap">
+                          <table className="gap-analysis-table">
+                            <thead>
+                              <tr>
+                                {columns.map((col) => (
+                                  <th key={col}>{col === 'rowLabel' ? 'Metric' : col}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {item.rows.map((row, rIdx) => {
+                                const displayRow = formatGapRowForDisplay(row);
+                                return (
+                                  <tr key={rIdx}>
+                                    {columns.map((col) => {
+                                      if (col === 'Grade') {
+                                        const g = displayRow.Grade || '';
+                                        const bg = g ? (gradeColors[g] || 'transparent') : 'transparent';
+                                        return (
+                                          <td
+                                            key={col}
+                                            className="gap-analysis-cell-grade"
+                                            style={{ backgroundColor: bg, color: g ? '#fff' : 'inherit', fontWeight: 600 }}
+                                          >
+                                            {g}
+                                          </td>
+                                        );
+                                      }
+                                      if (col === 'Comment') {
+                                        const comment = (displayRow.Comment || '').toUpperCase().trim();
+                                        const bg = commentColors[comment] || 'transparent';
+                                        return (
+                                          <td
+                                            key={col}
+                                            className="gap-analysis-cell-comment"
+                                            style={{ backgroundColor: bg, color: bg ? '#fff' : 'inherit', fontWeight: 600 }}
+                                          >
+                                            {displayRow.Comment}
+                                          </td>
+                                        );
+                                      }
+                                      return (
+                                        <td
+                                          key={col}
+                                          className={
+                                            col === 'rowLabel'
+                                              ? 'gap-analysis-cell-metric'
+                                              : 'gap-analysis-cell-num'
+                                          }
+                                        >
+                                          {displayRow[col === 'rowLabel' ? 'rowLabel' : col]}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="gap-analysis-block-actions">
+                          <button
+                            type="button"
+                            className="gap-analysis-tl-email-btn"
+                            onClick={() => setShowTLEmailModal({ rsm: item })}
+                          >
+                        Email this RSM
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="gap-analysis-branch-footer">
+                      <button
+                        type="button"
+                        className="gap-analysis-email-all-btn"
+                        onClick={() => setShowTLEmailModal({ allRSM: true })}
+                      >
+                    Email all RSM
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           </>
         )}
       </div>
@@ -1587,7 +1587,7 @@ const GapAnalysis = () => {
                           </li>
                         ))}
                       </ul>
-      </div>
+                    </div>
                   ) : (
                     <p className="gap-analysis-modal-saved-hint">Add RSM emails in the template and upload. Then open this modal again and &quot;Send&quot;.</p>
                   )}

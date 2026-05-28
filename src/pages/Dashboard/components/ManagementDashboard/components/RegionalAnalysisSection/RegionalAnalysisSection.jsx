@@ -127,8 +127,7 @@ const RegionalAnalysisSection = ({ parsedReports = [] }) => {
         // Set regional data for current or first branch
         const branch = selectedBranch || firstSheet;
         if (branch && allRegionalDataCache && allRegionalDataCache[branch]) {
-          console.log('[Regional] Setting data for branch:', branch);
-          setRegionalData(allRegionalDataCache[branch]);
+setRegionalData(allRegionalDataCache[branch]);
         }
         setDataLoaded(true);
       } catch (error) {
@@ -144,8 +143,7 @@ const RegionalAnalysisSection = ({ parsedReports = [] }) => {
   // Update regional data when branch changes (from cached batch data)
   useEffect(() => {
     if (!selectedBranch || !allRegionalDataCache) {
-      console.log('[Regional] Waiting for data:', { selectedBranch, hasCache: !!allRegionalDataCache });
-      return;
+return;
     }
     
     // Get data for selected branch from cached batch data
@@ -267,8 +265,7 @@ const RegionalAnalysisSection = ({ parsedReports = [] }) => {
   // Get current data based on selection hierarchy
   const currentData = useMemo(() => {
     if (!regionalData || Object.keys(regionalData).length === 0) {
-      console.log('[Regional] No regional data available');
-      return [];
+return [];
     }
     
     console.log('[Regional] Computing currentData:', {
@@ -331,10 +328,7 @@ const RegionalAnalysisSection = ({ parsedReports = [] }) => {
         }
       });
     }
-    
-    console.log('[Regional] Data rows after filtering:', dataRows.length, dataRows[0] ? Object.keys(dataRows[0]) : 'no rows');
-    
-    // Convert to proper format with date objects and ensure numeric values are numbers
+// Convert to proper format with date objects and ensure numeric values are numbers
     return dataRows.map(row => {
       const processedRow = {
         ...row,
@@ -402,8 +396,7 @@ const RegionalAnalysisSection = ({ parsedReports = [] }) => {
   // Get columns from current data
   const columns = useMemo(() => {
     const cols = getNumericColumns(currentData);
-    console.log('[Regional] Computed columns:', cols.length, cols.slice(0, 5));
-    return cols;
+return cols;
   }, [currentData]);
 
   // Update column when columns change - default to Disbursements This Month

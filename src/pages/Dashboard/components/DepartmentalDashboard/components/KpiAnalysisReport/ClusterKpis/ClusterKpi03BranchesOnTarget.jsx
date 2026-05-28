@@ -3,7 +3,6 @@
  * Uses branches from Zone and cluster.xlsx in the respective cluster;
  * Target vs Disbursement this month from Management report (branch-level).
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import { getColorForPct } from './clusterKpiUtils';
 import './clusterKpiStyles.css';

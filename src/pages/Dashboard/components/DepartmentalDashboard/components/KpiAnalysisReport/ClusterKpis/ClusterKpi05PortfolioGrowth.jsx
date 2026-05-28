@@ -2,7 +2,6 @@
  * Cluster KPI 5: Growth portfolio and client base by 20% Annually.
  * Management report: Portfolio column per cluster; current vs previous month, change annualized.
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 

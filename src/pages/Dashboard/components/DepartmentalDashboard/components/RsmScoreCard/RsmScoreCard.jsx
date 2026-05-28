@@ -1,4 +1,3 @@
-import React from 'react';
 import './RsmScoreCard.css';
 
 const PLANNED_SECTIONS = [

@@ -2,7 +2,6 @@
  * Renders all 8 Cluster KPI detail sections when a cluster is selected.
  * Receives data from parent (KpiAnalysisReport) and passes to each KPI component.
  */
-import React from 'react';
 import {
   ClusterKpi01SalesTarget,
   ClusterKpi02RegionsNewBusiness,

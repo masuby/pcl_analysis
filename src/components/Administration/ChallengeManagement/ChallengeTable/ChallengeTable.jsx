@@ -1,4 +1,3 @@
-import React from 'react';
 import { getChallengeStatus } from '../../../../services/challenges';
 import { getChallengeAttachmentUrl } from '../../../../services/supabase';
 import './ChallengeTable.css';

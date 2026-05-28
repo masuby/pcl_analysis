@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { proceduresAPI } from '../../../../services/api';
 import ProcedureViewer from './ProcedureViewer';
 import './ProcedureEditor.css';

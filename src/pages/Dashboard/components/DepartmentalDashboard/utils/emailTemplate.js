@@ -54,10 +54,10 @@ export const buildScoreCardEmailHTML = (mode, dateRangeStr, hasAttachment) => {
                 <ul style="margin: 0; padding-left: 20px; color: #4a5568; font-size: 14px;">
                   <li style="margin-bottom: 8px;">Review the summary data in this email for a quick overview.</li>
                   <li style="margin-bottom: 8px;">${
-                    hasAttachment
-                      ? '<strong>Download the attached Excel report</strong> for detailed insights, full tables, charts, and deeper analysis.'
-                      : 'Access the full report in the HOD Score Card dashboard for detailed insights and deeper analysis.'
-                  }</li>
+  hasAttachment
+    ? '<strong>Download the attached Excel report</strong> for detailed insights, full tables, charts, and deeper analysis.'
+    : 'Access the full report in the HOD Score Card dashboard for detailed insights and deeper analysis.'
+}</li>
                   <li style="margin-bottom: 8px;">Share feedback or questions with your team lead or the reporting team.</li>
                   <li style="margin-bottom: 0;">Use this data to track progress, identify trends, and drive performance improvements.</li>
                 </ul>
@@ -112,10 +112,10 @@ export const buildScoreCardEmailHTML = (mode, dateRangeStr, hasAttachment) => {
               <div style="background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%); padding: 24px; border-radius: 8px; text-align: center;">
                 <p style="margin: 0 0 8px; color: rgba(255,255,255,0.9); font-size: 14px;">
                   ${
-                    hasAttachment
-                      ? '📎 The complete Excel report is attached to this email.'
-                      : 'Access the full report in the HOD Score Card dashboard.'
-                  }
+  hasAttachment
+    ? '📎 The complete Excel report is attached to this email.'
+    : 'Access the full report in the HOD Score Card dashboard.'
+}
                 </p>
                 <p style="margin: 0; color: #ffffff; font-size: 15px; font-weight: 600;">
                   Download the report for deeper insight and detailed analysis.

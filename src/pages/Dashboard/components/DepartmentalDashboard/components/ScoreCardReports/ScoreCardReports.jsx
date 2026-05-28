@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './ScoreCardReports.css';
 import ManagementSummary from './components/ManagementSummary/ManagementSummary';
 import SalesComplianceSummary from './components/SalesComplianceSummary/SalesComplianceSummary';

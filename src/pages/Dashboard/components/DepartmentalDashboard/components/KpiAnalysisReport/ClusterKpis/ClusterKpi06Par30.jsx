@@ -2,7 +2,6 @@
  * Cluster KPI 6: Maintain PAR 30 days under 5% for the cluster.
  * Management report: PAR >30 per cluster; check if under 5%, grade and analysis.
  */
-import React from 'react';
 import { formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 

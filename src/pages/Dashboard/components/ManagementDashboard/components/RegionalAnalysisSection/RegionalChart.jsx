@@ -58,14 +58,14 @@ const RegionalChart = ({
       ...item,
       xLabel: dataType === 'monthly' 
         ? itemDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short' 
-          })
+          year: 'numeric', 
+          month: 'short' 
+        })
         : itemDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          }),
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        }),
       dateLabel: itemDate.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long', 

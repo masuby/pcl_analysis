@@ -274,17 +274,17 @@ export const buildSheetFromTables = (tables, options = {}) => {
       if (rowHeightsMap[currentRow] == null) rowHeightsMap[currentRow] = isSeparatorRow ? 4 : (isTotalRow ? 18 : 16);
       currentRow += 1;
 
-    if (Array.isArray(table.mergeCells) && table.mergeCells.length > 0) {
-      table.mergeCells.forEach((m) => {
-        if (m == null) return;
-        const sr = dataStartRow + Math.max(0, Number(m.startRow) || 0);
-        const er = dataStartRow + Math.max(0, Number(m.endRow) || 0);
-        const c = Math.max(0, Number(m.col) || 0);
-        if (er > sr) {
-          safeAddMerge({ s: { r: sr, c }, e: { r: er, c } });
-        }
-      });
-    }
+      if (Array.isArray(table.mergeCells) && table.mergeCells.length > 0) {
+        table.mergeCells.forEach((m) => {
+          if (m == null) return;
+          const sr = dataStartRow + Math.max(0, Number(m.startRow) || 0);
+          const er = dataStartRow + Math.max(0, Number(m.endRow) || 0);
+          const c = Math.max(0, Number(m.col) || 0);
+          if (er > sr) {
+            safeAddMerge({ s: { r: sr, c }, e: { r: er, c } });
+          }
+        });
+      }
     });
 
     rowHeightsMap[currentRow] = 8; // compact professional spacing
@@ -451,12 +451,12 @@ export const appendTableToSheet = (ws, data, startRow, options = {}) => {
     };
   });
 
-      const totalRowIndices = options.totalRowIndices || [];
-      data.forEach((row, r) => {
-        const rowIndex = startRow + 1 + r;
-        const isTotal = totalRowIndices.includes(r);
-        headers.forEach((h, c) => {
-          const ref = XLSX.utils.encode_cell({ r: rowIndex, c });
+  const totalRowIndices = options.totalRowIndices || [];
+  data.forEach((row, r) => {
+    const rowIndex = startRow + 1 + r;
+    const isTotal = totalRowIndices.includes(r);
+    headers.forEach((h, c) => {
+      const ref = XLSX.utils.encode_cell({ r: rowIndex, c });
       let val = row[h];
       if (val !== null && val !== undefined && typeof val === 'number' && !Number.isInteger(val)) val = Math.round(val * 100) / 100;
       ws[ref] = { t: typeof val === 'number' ? 'n' : 's', v: val };

@@ -49,7 +49,7 @@ export const getDashboardData = async (filters = {}) => {
     const cacheParams = { ...filters };
     const cached = cacheGet('dashboard', cacheParams);
     if (cached) {
-      console.log('[Cache] Dashboard data loaded from', cached.source);
+
       return { success: true, data: cached.data.data || [], _cached: true };
     }
     
@@ -87,7 +87,7 @@ export const getDashboardStats = async () => {
     // Check cache first
     const cached = cacheGet('stats', { type: 'dashboard' });
     if (cached) {
-      console.log('[Cache] Dashboard stats loaded from', cached.source);
+
       return { success: true, data: cached.data.data, _cached: true };
     }
     

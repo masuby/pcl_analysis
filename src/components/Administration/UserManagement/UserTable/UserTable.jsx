@@ -1,4 +1,3 @@
-import React from 'react';
 import './UserTable.css';
 
 const UserTable = ({ users, onUserClick }) => {
@@ -51,70 +50,70 @@ const UserTable = ({ users, onUserClick }) => {
             {users.map((user) => {
               const userId = user.id || user.user_id || user.userId || user._id;
               return (
-              <tr 
-                key={userId} 
-                className="user-row"
-                onClick={() => onUserClick(user)}
-                tabIndex={0}
-                onKeyPress={(e) => e.key === 'Enter' && onUserClick(user)}
-              >
-                <td className="user-column">
-                  <div className="user-info">
-                    <div className="user-avatar">
-                      {user.displayName ? 
-                        user.displayName.charAt(0).toUpperCase() : 
-                        user.email.charAt(0).toUpperCase()
-                      }
-                    </div>
-                    <div className="user-details">
-                      <div className="user-name">
-                        {user.displayName || user.email.split('@')[0]}
+                <tr 
+                  key={userId} 
+                  className="user-row"
+                  onClick={() => onUserClick(user)}
+                  tabIndex={0}
+                  onKeyPress={(e) => e.key === 'Enter' && onUserClick(user)}
+                >
+                  <td className="user-column">
+                    <div className="user-info">
+                      <div className="user-avatar">
+                        {user.displayName ? 
+                          user.displayName.charAt(0).toUpperCase() : 
+                          user.email.charAt(0).toUpperCase()
+                        }
                       </div>
-                      <div className="user-email" title={user.email}>
-                        {user.email}
+                      <div className="user-details">
+                        <div className="user-name">
+                          {user.displayName || user.email.split('@')[0]}
+                        </div>
+                        <div className="user-email" title={user.email}>
+                          {user.email}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td className="role-column">
-                  <span 
-                    className="role-badge"
-                    style={{ backgroundColor: getRoleColor(user.role) }}
-                  >
-                    {user.role}
-                  </span>
-                </td>
-                <td className="department-column">
-                  <span 
-                    className="department-badge"
-                    style={{ backgroundColor: getDepartmentColor(user.department) }}
-                  >
-                    {user.department}
-                  </span>
-                </td>
-                <td className="status-column">
-                  <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
-                    {user.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="created-column">
-                  <span className="created-date">
-                    {formatDate(user.createdAt)}
-                  </span>
-                </td>
-                <td className="actions-column">
-                  <button 
-                    className="view-button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onUserClick(user);
-                    }}
-                    aria-label={`View details for ${user.email}`}
-                  >
+                  </td>
+                  <td className="role-column">
+                    <span 
+                      className="role-badge"
+                      style={{ backgroundColor: getRoleColor(user.role) }}
+                    >
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="department-column">
+                    <span 
+                      className="department-badge"
+                      style={{ backgroundColor: getDepartmentColor(user.department) }}
+                    >
+                      {user.department}
+                    </span>
+                  </td>
+                  <td className="status-column">
+                    <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
+                      {user.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="created-column">
+                    <span className="created-date">
+                      {formatDate(user.createdAt)}
+                    </span>
+                  </td>
+                  <td className="actions-column">
+                    <button 
+                      className="view-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUserClick(user);
+                      }}
+                      aria-label={`View details for ${user.email}`}
+                    >
                     👁️ View
-                  </button>
-                </td>
-              </tr>
+                    </button>
+                  </td>
+                </tr>
               );
             })}
           </tbody>

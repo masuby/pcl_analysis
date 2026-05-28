@@ -1,0 +1,219 @@
+/* ── CriteriaFileManager — shared across all Challenge reports ───────────── */
+
+.cfm-card {
+  margin: 16px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: #fafbff;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.cfm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.cfm-head-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.cfm-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.cfm-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 2px;
+}
+.cfm-subtitle {
+  font-size: 0.74rem;
+  color: #6b7280;
+}
+
+.cfm-loading {
+  font-size: 0.78rem;
+  color: #6b7280;
+  padding: 6px 0;
+}
+
+.cfm-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+.cfm-row--empty {
+  justify-content: space-between;
+}
+
+.cfm-file {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.cfm-ext {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: #6b7280;
+}
+.cfm-ext--pdf { background: #dc2626; }
+.cfm-ext--img { background: #0f766e; }
+.cfm-ext--doc { background: #4f46e5; }
+
+.cfm-file-info {
+  min-width: 0;
+}
+.cfm-file-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+.cfm-file-meta {
+  font-size: 0.72rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.cfm-empty {
+  flex: 1;
+  font-size: 0.82rem;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.cfm-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cfm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: #f3f4f6;
+  color: #374151;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.cfm-btn:hover:not(:disabled)  { opacity: 0.86; }
+.cfm-btn:active:not(:disabled) { transform: scale(0.97); }
+.cfm-btn:disabled               { opacity: 0.45; cursor: not-allowed; }
+
+.cfm-btn--preview  { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.cfm-btn--download { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; }
+.cfm-btn--upload   { background: #1e40af; color: #fff; }
+.cfm-btn--replace  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.cfm-btn--delete   { background: #fee2e2; color: #dc2626; border-color: #fecaca; padding: 7px 10px; }
+.cfm-btn--sm       { padding: 5px 10px; font-size: 0.72rem; }
+
+/* ── Preview modal ───────────────────────────────────────────────────────── */
+.cfm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.cfm-modal {
+  background: #fff;
+  border-radius: 10px;
+  width: min(1100px, 100%);
+  height: min(90vh, 100%);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+.cfm-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  gap: 10px;
+}
+.cfm-modal-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.cfm-modal-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cfm-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.cfm-modal-close:hover { color: #1a1a2e; }
+
+.cfm-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cfm-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+.cfm-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.cfm-preview-fallback {
+  color: #fff;
+  font-size: 0.88rem;
+  padding: 32px;
+  text-align: center;
+  line-height: 1.6;
+}

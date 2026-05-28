@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { updateUser, deleteUser, toggleUserStatus } from '../../../../services/users';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';
 import './UserDetailModal.css';

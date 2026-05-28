@@ -1,4 +1,3 @@
-import React from 'react';
 import './AnalysisModal.css';
 
 const AnalysisModal = ({ report, onClose, showToast }) => {

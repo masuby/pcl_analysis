@@ -51,10 +51,10 @@ export const buildKpiReportEmailHTML = (monthLabel, hasAttachment) => {
                 <ul style="margin: 0; padding-left: 20px; color: #4a5568; font-size: 14px;">
                   <li style="margin-bottom: 8px;">Review the KPI Summary and section tables for a quick overview.</li>
                   <li style="margin-bottom: 8px;">${
-                    hasAttachment
-                      ? '<strong>Download the attached Excel report</strong> for the full workbook: All in One sheet plus individual KPI sheets with detailed data.'
-                      : 'Access the full report in the KPI Analysis Report dashboard and use Download xlsx for the complete workbook.'
-                  }</li>
+  hasAttachment
+    ? '<strong>Download the attached Excel report</strong> for the full workbook: All in One sheet plus individual KPI sheets with detailed data.'
+    : 'Access the full report in the KPI Analysis Report dashboard and use Download xlsx for the complete workbook.'
+}</li>
                   <li style="margin-bottom: 8px;">Share feedback or questions with your team lead or the reporting team.</li>
                   <li style="margin-bottom: 0;">Use this data to track progress against nationwide performance standards and drive improvements.</li>
                 </ul>
@@ -102,10 +102,10 @@ export const buildKpiReportEmailHTML = (monthLabel, hasAttachment) => {
               <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2a5298 100%); padding: 24px; border-radius: 8px; text-align: center;">
                 <p style="margin: 0 0 8px; color: rgba(255,255,255,0.9); font-size: 14px;">
                   ${
-                    hasAttachment
-                      ? '📎 The complete Excel report (All in One + individual sheets) is attached to this email.'
-                      : 'Open the KPI Analysis Report dashboard and use Download xlsx for the full workbook.'
-                  }
+  hasAttachment
+    ? '📎 The complete Excel report (All in One + individual sheets) is attached to this email.'
+    : 'Open the KPI Analysis Report dashboard and use Download xlsx for the full workbook.'
+}
                 </p>
                 <p style="margin: 0; color: #ffffff; font-size: 15px; font-weight: 600;">
                   Download the report for detailed tables and analysis.
@@ -192,10 +192,10 @@ export const buildClusterKpiReportEmailHTML = (monthLabel, hasAttachment, cluste
                 <ul style="margin: 0; padding-left: 20px; color: #4a5568; font-size: 14px;">
                   <li style="margin-bottom: 8px;">Review the KPI Summary and the 8 cluster KPI section tables in the attachment.</li>
                   <li style="margin-bottom: 8px;">${
-                    hasAttachment
-                      ? 'This email has <strong>two attachments</strong>: (1) the <strong>Cluster KPI Target file</strong> (CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx) and (2) the <strong>Cluster KPI Analysis report</strong> (Excel workbook: All in One + 8 KPI sheets).'
-                      : 'Access the KPI Analysis Report dashboard, select ' + clusterName + ', and use Download xlsx for the cluster workbook.'
-                  }</li>
+  hasAttachment
+    ? 'This email has <strong>two attachments</strong>: (1) the <strong>Cluster KPI Target file</strong> (CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx) and (2) the <strong>Cluster KPI Analysis report</strong> (Excel workbook: All in One + 8 KPI sheets).'
+    : 'Access the KPI Analysis Report dashboard, select ' + clusterName + ', and use Download xlsx for the cluster workbook.'
+}</li>
                   <li style="margin-bottom: 8px;">Share feedback or questions with your team lead or the reporting team.</li>
                   <li style="margin-bottom: 0;">Use this data to track progress against this cluster's performance standards.</li>
                 </ul>
@@ -251,10 +251,10 @@ export const buildClusterKpiReportEmailHTML = (monthLabel, hasAttachment, cluste
               <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2a5298 100%); padding: 24px; border-radius: 8px; text-align: center;">
                 <p style="margin: 0 0 8px; color: rgba(255,255,255,0.9); font-size: 14px;">
                   ${
-                    hasAttachment
-                      ? '📎 Two files are attached: the Cluster KPI Target file and the Cluster KPI Analysis report (All in One + 8 KPI sheets).'
-                      : 'Open the KPI Analysis Report dashboard, select ' + clusterName + ', and use Download xlsx for the cluster workbook.'
-                  }
+  hasAttachment
+    ? '📎 Two files are attached: the Cluster KPI Target file and the Cluster KPI Analysis report (All in One + 8 KPI sheets).'
+    : 'Open the KPI Analysis Report dashboard, select ' + clusterName + ', and use Download xlsx for the cluster workbook.'
+}
                 </p>
                 <p style="margin: 0; color: #ffffff; font-size: 15px; font-weight: 600;">
                   Download the report for detailed tables and analysis.
@@ -331,10 +331,10 @@ export const buildNonCsKpiReportEmailHTML = (product, monthLabel, hasAttachment)
                 <ul style="margin: 0; padding-left: 20px; color: #4a5568; font-size: 14px;">
                   <li style="margin-bottom: 8px;">Review the KPI Summary table in the attached analysis workbook.</li>
                   <li style="margin-bottom: 8px;">${
-                    hasAttachment
-                      ? 'This email may include <strong>two attachments</strong>: (1) the <strong>KPI target file</strong> from the system, and (2) the <strong>KPI analysis Excel report</strong> generated for this month.'
-                      : 'Use <strong>Download xlsx</strong> in the KPI Analysis Report dashboard for the full workbook.'
-                  }</li>
+  hasAttachment
+    ? 'This email may include <strong>two attachments</strong>: (1) the <strong>KPI target file</strong> from the system, and (2) the <strong>KPI analysis Excel report</strong> generated for this month.'
+    : 'Use <strong>Download xlsx</strong> in the KPI Analysis Report dashboard for the full workbook.'
+}</li>
                   <li style="margin-bottom: 0;">For questions, reply to this email or contact your administrator.</li>
                 </ul>
               </div>

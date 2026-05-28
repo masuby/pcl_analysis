@@ -65,11 +65,11 @@ const numCache = (values, formatCode) => {
     })
     .join('');
   return (
-    `<c:numCache>` +
+    '<c:numCache>' +
     `<c:formatCode>${xmlEscape(formatCode)}</c:formatCode>` +
     `<c:ptCount val="${values.length}"/>` +
     items +
-    `</c:numCache>`
+    '</c:numCache>'
   );
 };
 
@@ -139,8 +139,8 @@ const buildChartXml = (spec, axIdBase) => {
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     `<c:chartSpace ${CHART_NS}>` +
-    `<c:roundedCorners val="0"/>` +
-    `<c:chart>` +
+    '<c:roundedCorners val="0"/>' +
+    '<c:chart>' +
     `<c:title>
         <c:tx>
           <c:rich>
@@ -170,9 +170,9 @@ const buildChartXml = (spec, axIdBase) => {
         <c:overlay val="0"/>
         <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
       </c:title>` +
-    `<c:autoTitleDeleted val="0"/>` +
-    `<c:plotArea>` +
-    `<c:layout/>` +
+    '<c:autoTitleDeleted val="0"/>' +
+    '<c:plotArea>' +
+    '<c:layout/>' +
     `<c:barChart>
         <c:barDir val="col"/>
         <c:grouping val="clustered"/>
@@ -242,8 +242,8 @@ const buildChartXml = (spec, axIdBase) => {
         <c:crosses val="autoZero"/>
         <c:crossBetween val="between"/>
       </c:valAx>` +
-    `<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>` +
-    `</c:plotArea>` +
+    '<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>' +
+    '</c:plotArea>' +
     `<c:legend>
       <c:legendPos val="b"/>
       <c:overlay val="0"/>
@@ -253,10 +253,10 @@ const buildChartXml = (spec, axIdBase) => {
         <a:p><a:pPr><a:defRPr sz="800" b="1" kern="1200"><a:solidFill><a:srgbClr val="0F172A"/></a:solidFill><a:latin typeface="Malgun Gothic"/><a:ea typeface="Malgun Gothic"/><a:cs typeface="Malgun Gothic"/></a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p>
       </c:txPr>
     </c:legend>` +
-    `<c:plotVisOnly val="1"/>` +
-    `<c:dispBlanksAs val="gap"/>` +
-    `</c:chart>` +
-    `</c:chartSpace>`
+    '<c:plotVisOnly val="1"/>' +
+    '<c:dispBlanksAs val="gap"/>' +
+    '</c:chart>' +
+    '</c:chartSpace>'
   );
 };
 
@@ -406,7 +406,7 @@ export const injectNativeCharts = async (buffer, specsBySheet) => {
     const charts = specMap.get(sheet.name);
     if (!charts || !charts.length) continue;
     if (!sheet.target) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`nativeChartsInjector: could not resolve target for sheet "${sheet.name}", skipping.`);
       continue;
     }
@@ -421,7 +421,7 @@ export const injectNativeCharts = async (buffer, specsBySheet) => {
     ];
     const resolvedSheet = await findFirstExisting(zip, candidateSheetPaths);
     if (!resolvedSheet) {
-      // eslint-disable-next-line no-console
+       
       console.warn(`nativeChartsInjector: sheet xml not found for "${sheet.name}" (tried ${candidateSheetPaths.join(', ')}), skipping.`);
       continue;
     }

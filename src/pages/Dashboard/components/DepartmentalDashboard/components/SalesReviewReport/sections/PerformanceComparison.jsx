@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * Renders one comparison bullet: "The total amount disbursed has increased by 2.44% (5.04 billion TZS vs 4.92 billion TZS)."

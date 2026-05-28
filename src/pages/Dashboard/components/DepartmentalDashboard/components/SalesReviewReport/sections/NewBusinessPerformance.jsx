@@ -1,4 +1,3 @@
-import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Label, Tooltip } from 'recharts';
 
 const PRIMARY_BLUE = '#2a5298';

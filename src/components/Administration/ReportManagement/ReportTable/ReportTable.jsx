@@ -1,4 +1,3 @@
-import React from 'react';
 import { getReportFileUrl } from '../../../../services/supabase';
 import './ReportTable.css';
 
@@ -90,9 +89,9 @@ const ReportTable = ({ reports, onReportClick }) => {
                   <div className="report-info">
                     <div className="file-icon">
                       {report.fileType === 'pdf' ? '📄' : 
-                       report.fileType === 'xlsx' || report.fileType === 'xls' ? '📊' : 
-                       report.fileType === 'csv' ? '📋' : 
-                       report.fileType === 'doc' || report.fileType === 'docx' ? '📝' : '📎'}
+                        report.fileType === 'xlsx' || report.fileType === 'xls' ? '📊' : 
+                          report.fileType === 'csv' ? '📋' : 
+                            report.fileType === 'doc' || report.fileType === 'docx' ? '📝' : '📎'}
                     </div>
                     <div className="report-details">
                       <div className="report-title">

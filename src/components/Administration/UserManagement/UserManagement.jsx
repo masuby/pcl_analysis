@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getAllUsers } from '../../../services/users';
 import SearchBar from './SearchBar/SearchBar';
 import UserTable from './UserTable/UserTable';

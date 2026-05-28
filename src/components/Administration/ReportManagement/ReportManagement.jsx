@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getAllReports, searchReports } from '../../../services/reports';
 import { proceduresAPI, adminAPI } from '../../../services/api';
 import { useReportRefresh } from '../../../contexts/ReportRefreshContext';
@@ -421,7 +421,7 @@ const ReportManagement = () => {
             <div className="procedure-selector-scroll-wrapper">
               <div className="procedure-selector-buttons">
                 {procedureTypes.map((type, index) => (
-                  <React.Fragment key={type}>
+                  <Fragment key={type}>
                     <button
                       ref={el => procedureButtonRefs.current[type] = el}
                       className={`procedure-selector-button ${selectedProcedureType === type ? 'active' : ''} ${
@@ -443,7 +443,7 @@ const ReportManagement = () => {
                     {index < procedureTypes.length - 1 && (
                       <div className="button-divider"></div>
                     )}
-                  </React.Fragment>
+                  </Fragment>
                 ))}
               </div>
             </div>
@@ -588,83 +588,83 @@ const ReportManagement = () => {
 
           {/* Reports Table */}
           <div className="report-table-container">
-        {loading ? (
-          <div className="loading-container">
-            <LoadingSpinner size="large" />
-            <p>Loading reports...</p>
-          </div>
-        ) : filteredReports.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">📂</div>
-            <h3>No reports found</h3>
-            <p>
-              {searchTerm 
-                ? 'No reports match your search. Try a different term.'
-                : 'No reports in the system yet. Upload your first report!'
-              }
-            </p>
-            {!searchTerm && (
-              <button 
-                className="empty-action-button"
-                onClick={handleAddReport}
-              >
+            {loading ? (
+              <div className="loading-container">
+                <LoadingSpinner size="large" />
+                <p>Loading reports...</p>
+              </div>
+            ) : filteredReports.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📂</div>
+                <h3>No reports found</h3>
+                <p>
+                  {searchTerm 
+                    ? 'No reports match your search. Try a different term.'
+                    : 'No reports in the system yet. Upload your first report!'
+                  }
+                </p>
+                {!searchTerm && (
+                  <button 
+                    className="empty-action-button"
+                    onClick={handleAddReport}
+                  >
                 Upload First Report
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            <ReportTable 
-              reports={paginatedReports}
-              onReportClick={handleReportClick}
-            />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <ReportTable 
+                  reports={paginatedReports}
+                  onReportClick={handleReportClick}
+                />
             
-            {/* Pagination Controls */}
-            {filteredReports.length > reportsPerPage && (
-              <div className="rm-report-pagination">
-                <button 
-                  className="rm-pagination-button"
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1}
-                  aria-label="Previous page"
-                >
-                  <span className="rm-pagination-arrow">←</span>
-                  <span className="rm-pagination-text">Previous</span>
-                </button>
+                {/* Pagination Controls */}
+                {filteredReports.length > reportsPerPage && (
+                  <div className="rm-report-pagination">
+                    <button 
+                      className="rm-pagination-button"
+                      onClick={handlePreviousPage}
+                      disabled={currentPage === 1}
+                      aria-label="Previous page"
+                    >
+                      <span className="rm-pagination-arrow">←</span>
+                      <span className="rm-pagination-text">Previous</span>
+                    </button>
                 
-                <div className="rm-pagination-info">
-                  <span className="rm-pagination-current">
+                    <div className="rm-pagination-info">
+                      <span className="rm-pagination-current">
                     Page {currentPage} of {totalPages}
-                  </span>
-                  <span className="rm-pagination-count">
+                      </span>
+                      <span className="rm-pagination-count">
                     Showing {((currentPage - 1) * reportsPerPage) + 1} - {Math.min(currentPage * reportsPerPage, filteredReports.length)} of {filteredReports.length} reports
-                  </span>
-                </div>
+                      </span>
+                    </div>
                 
-                <button 
-                  className="rm-pagination-button"
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  aria-label="Next page"
-                >
-                  <span className="rm-pagination-text">Next</span>
-                  <span className="rm-pagination-arrow">→</span>
-                </button>
-              </div>
-            )}
+                    <button 
+                      className="rm-pagination-button"
+                      onClick={handleNextPage}
+                      disabled={currentPage === totalPages}
+                      aria-label="Next page"
+                    >
+                      <span className="rm-pagination-text">Next</span>
+                      <span className="rm-pagination-arrow">→</span>
+                    </button>
+                  </div>
+                )}
             
-            {viewMode === 'recent' && !showAllReports && reports.length > 3 && (
-              <div className="view-more-section">
-                <button 
-                  className="view-more-button"
-                  onClick={() => setShowAllReports(true)}
-                >
+                {viewMode === 'recent' && !showAllReports && reports.length > 3 && (
+                  <div className="view-more-section">
+                    <button 
+                      className="view-more-button"
+                      onClick={() => setShowAllReports(true)}
+                    >
                   View All Reports ({reports.length})
-                </button>
-              </div>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
-          </>
-        )}
           </div>
         </>
       )}

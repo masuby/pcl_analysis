@@ -2,7 +2,6 @@
  * Cluster KPI 2: Ensure all regions hit their new Business target at 100%.
  * Data from Gap Analysis RSM: New Loans Target vs Achieved per region in cluster.
  */
-import React from 'react';
 import { getBranchesForCluster } from './constants';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';

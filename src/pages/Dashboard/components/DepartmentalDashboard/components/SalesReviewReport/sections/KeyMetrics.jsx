@@ -1,4 +1,3 @@
-import React from 'react';
 import './KeyMetrics.css';
 
 const KeyMetrics = ({ data, selectedMonth }) => {

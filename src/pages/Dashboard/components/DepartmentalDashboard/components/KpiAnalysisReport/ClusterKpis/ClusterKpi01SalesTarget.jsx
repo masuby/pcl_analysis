@@ -3,7 +3,6 @@
  * Uses Management report Country sheet: Disbursement in the respective month (last report)
  * vs Cluster target from CS_KPI_CLUSTER_TARGET_NEW_FILE_2026.xlsx.
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import { getEffectiveKpiTargetFileLabel } from './clusterKpiUtils';
 import './clusterKpiStyles.css';

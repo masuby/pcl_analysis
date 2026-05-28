@@ -3,7 +3,6 @@
  * CS CRM reports (month): agent_activity sheet; Product=CS, Zone for cluster regions (Zanzibar zone = Zanzibar cluster).
  * Status=COMPLETED, Target_Met=AT_LOCATION; % completed at location in cluster.
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 

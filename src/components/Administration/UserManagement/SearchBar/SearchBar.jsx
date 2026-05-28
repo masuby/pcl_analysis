@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import './SearchBar.css';
 
-const SearchBar = ({ onSearch, placeholder = "Search users..." }) => {
+const SearchBar = ({ onSearch, placeholder = 'Search users...' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFocused, setIsFocused] = useState(false);
 

@@ -55,7 +55,7 @@ const CountrywiseSummary = ({ allData }) => {
   // Helper function to get change text
   const getChangeText = (current, previous, label) => {
     if (!previous || previous === 0) {
-      return current > 0 ? `increased by 100%` : 'no change';
+      return current > 0 ? 'increased by 100%' : 'no change';
     }
     const change = calculatePercentageChange(current, previous);
     const direction = parseFloat(change) >= 0 ? 'increased' : 'decreased';

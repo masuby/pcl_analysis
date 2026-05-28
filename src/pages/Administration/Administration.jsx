@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import UserManagement from '../../components/Administration/UserManagement/UserManagement';
 import ReportManagement from '../../components/Administration/ReportManagement/ReportManagement';
 import ChallengeManagement from '../../components/Administration/ChallengeManagement/ChallengeManagement';

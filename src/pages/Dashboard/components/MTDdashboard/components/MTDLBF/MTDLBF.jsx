@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useMTDData } from '../../hooks/useMTDData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import MTDAnalysis from '../MTDAnalysis/MTDAnalysis';
@@ -81,15 +81,15 @@ const MTDLBF = () => {
           <span className="mtd-date-text">
             LBF MTD - {parsedData.reportDate instanceof Date
               ? parsedData.reportDate.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
               : new Date(parsedData.reportDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
           </span>
         </div>
       )}

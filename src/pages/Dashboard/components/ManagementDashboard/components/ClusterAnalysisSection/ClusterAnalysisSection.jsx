@@ -497,7 +497,7 @@ const ClusterAnalysisSection = ({ parsedReports = [] }) => {
 
   // Get title based on selection
   const getTitle = () => {
-    let title = `📊 Cluster Analysis`;
+    let title = '📊 Cluster Analysis';
     if (selectedType) {
       title += ` - ${selectedType}`;
       if (selectedCluster !== 'Total') {

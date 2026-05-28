@@ -48,8 +48,6 @@ const extractAllSheetData = (workbook, sheetName) => {
       return [];
     }
 
-    console.log(`[extractAllSheetData] Sheet '${sheetName}' has ${allData.length} rows`);
-
     // Find the maximum number of columns
     const maxCols = Math.max(...allData.map(row => row ? row.length : 0), 0);
     
@@ -113,7 +111,6 @@ const extractAllSheetData = (workbook, sheetName) => {
       }
     }
 
-    console.log(`[extractAllSheetData] Extracted ${result.length} rows from ${sheetName}`);
     return result;
   } catch (error) {
     console.error(`[extractAllSheetData] Error extracting data from ${sheetName}:`, error);
@@ -148,8 +145,6 @@ const extractSummarySheetData = (workbook, sheetName) => {
       return { agentSummary: [], teamLeaderSummary: [] };
     }
 
-    console.log(`[extractSummarySheetData] Sheet '${sheetName}' has ${allData.length} rows`);
-
     // Find maximum columns
     const maxCols = Math.max(...allData.map(row => row ? row.length : 0), 0);
     
@@ -167,7 +162,7 @@ const extractSummarySheetData = (workbook, sheetName) => {
           salesAgentRow = rowIdx;
           salesAgentCol = colIdx;
           foundSalesAgent = true;
-          console.log(`[extractSummarySheetData] Found "SALES AGENT" at row ${rowIdx}, col ${colIdx}`);
+
           break;
         }
       }
@@ -187,7 +182,7 @@ const extractSummarySheetData = (workbook, sheetName) => {
           teamLeaderRow = rowIdx;
           teamLeaderCol = colIdx;
           foundTeamLeader = true;
-          console.log(`[extractSummarySheetData] Found "TEAM LEADER" at row ${rowIdx}, col ${colIdx}`);
+
           break;
         }
       }
@@ -238,7 +233,7 @@ const extractSummarySheetData = (workbook, sheetName) => {
       }
 
       agentSummary = extractTableFromRange(allData, salesAgentRow, agentEndRow, salesAgentCol, agentEndCol, maxCols);
-      console.log(`[extractSummarySheetData] Agent summary: ${agentSummary.length} rows (rows ${salesAgentRow}-${agentEndRow}, cols ${salesAgentCol}-${agentEndCol})`);
+
     }
 
     // Extract team leader summary: from "TEAM LEADER" row until completely empty column and row
@@ -280,7 +275,7 @@ const extractSummarySheetData = (workbook, sheetName) => {
       }
 
       teamLeaderSummary = extractTableFromRange(allData, teamLeaderRow, tlEndRow, teamLeaderCol, tlEndCol, maxCols);
-      console.log(`[extractSummarySheetData] Team leader summary: ${teamLeaderSummary.length} rows (rows ${teamLeaderRow}-${tlEndRow}, cols ${teamLeaderCol}-${tlEndCol})`);
+
     }
 
     return { agentSummary, teamLeaderSummary };
@@ -379,7 +374,7 @@ export const useCRMData = (department, selectedDate = null) => {
   // Listen for refresh events
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log(`[CRMDashboard-${department}] Refresh triggered, clearing cache`);
+
       crmParsedCache.clear();
       cacheInvalidate('reports');
       setParsedData(null);
@@ -420,8 +415,8 @@ export const useCRMData = (department, selectedDate = null) => {
         
         // Check if file name contains CRM pattern (CS_CRM, LBF_CRM, SME_CRM)
         const crmPattern = department === 'CS' ? 'CS_CRM' : 
-                          department === 'LBF' ? 'LBF_CRM' : 
-                          department === 'SME' ? 'SME_CRM' : 'CRM';
+          department === 'LBF' ? 'LBF_CRM' : 
+            department === 'SME' ? 'SME_CRM' : 'CRM';
         
         if (fileName.includes(crmPattern)) {
           let fileUrl = report.fileUrl || report.file_url;
@@ -442,7 +437,7 @@ export const useCRMData = (department, selectedDate = null) => {
               fileName,
               fileUrl,
               date: report.date ? new Date(report.date) : 
-                    report.created_at ? new Date(report.created_at) : new Date()
+                report.created_at ? new Date(report.created_at) : new Date()
             });
           }
         }
@@ -498,7 +493,7 @@ export const useCRMData = (department, selectedDate = null) => {
       // Check cache first
       const cacheKey = `crm_${department}_${latestReport.id}`;
       if (crmParsedCache.has(cacheKey)) {
-        console.log(`[Cache] Using cached CRM data for ${latestReport.fileName}`);
+
         setParsedData(crmParsedCache.get(cacheKey));
         setLoading(false);
         return;
@@ -510,8 +505,6 @@ export const useCRMData = (department, selectedDate = null) => {
         return;
       }
 
-      console.log(`[CRM] Parsing Excel file: ${latestReport.fileName}`);
-      
       // Fetch and parse the Excel file
       const response = await fetch(latestReport.fileUrl);
       if (!response.ok) {

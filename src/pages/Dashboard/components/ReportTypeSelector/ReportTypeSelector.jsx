@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import './ReportTypeSelector.css';
 
 const ReportTypeSelector = ({ 
@@ -156,7 +156,7 @@ const ReportTypeSelector = ({
       <div className="selector-scroll-wrapper">
         <div className="selector-buttons">
           {reportTypes.map((type, index) => (
-            <React.Fragment key={type}>
+            <>
               <button
                 ref={el => buttonRefs.current[type] = el}
                 className={`selector-button ${selectedType === type ? 'active' : ''} ${
@@ -178,7 +178,7 @@ const ReportTypeSelector = ({
               {index < reportTypes.length - 1 && (
                 <div className="button-divider"></div>
               )}
-            </React.Fragment>
+            </>
           ))}
         </div>
       </div>

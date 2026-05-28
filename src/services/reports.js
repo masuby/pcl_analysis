@@ -45,9 +45,7 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
     if ((response.status === 401 || 
          (data.error && (data.error.includes('expired') || data.error.includes('invalid') || data.error.includes('Invalid')))) &&
         !isRetry) {
-      
-      console.log('Token expired, attempting refresh...');
-      
+
       // Try to refresh the token
       try {
         const refreshResponse = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -61,7 +59,7 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
         const refreshData = await refreshResponse.json();
         
         if (refreshData.success && refreshData.data?.token) {
-          console.log('Token refreshed successfully');
+
           setToken(refreshData.data.token);
           // Retry the original request with new token
           return apiRequest(endpoint, options, true);
@@ -71,7 +69,7 @@ const apiRequest = async (endpoint, options = {}, isRetry = false) => {
       }
       
       // Refresh failed, clear auth and redirect to login
-      console.log('Token refresh failed, logging out');
+
       removeToken();
       removeUserFromStorage();
       window.location.href = '/login';
@@ -122,7 +120,7 @@ export const getAllReports = async (options = {}) => {
     const cacheParams = { limit, department, type };
     const cached = cacheGet('reports', cacheParams);
     if (cached) {
-      console.log('[Cache] Reports loaded from', cached.source);
+
       return { success: true, data: cached.data.data || [], _cached: true };
     }
     
@@ -273,7 +271,7 @@ export const getClusterData = async (department = '') => {
     const cacheKey = `cluster_${department || 'all'}`;
     const cached = cacheGet('dashboard', { key: cacheKey });
     if (cached) {
-      console.log('[Cache] Cluster data loaded from', cached.source);
+
       return { success: true, data: cached.data, _cached: true };
     }
 
@@ -300,7 +298,7 @@ export const getReportsByDepartmentAndType = async (department, reportType) => {
     const cacheParams = { department, type: reportType };
     const cached = cacheGet('reports', cacheParams);
     if (cached) {
-      console.log('[Cache] Reports by dept/type loaded from', cached.source);
+
       return { success: true, data: cached.data.data || [], _cached: true };
     }
     
@@ -489,11 +487,10 @@ export const getBatchReportData = async () => {
     const cacheKey = 'batch_report_data';
     const cached = cacheGet('dashboard', { key: cacheKey });
     if (cached) {
-      console.log('[Cache] Batch report data loaded from', cached.source);
+
       return { success: true, data: cached.data, _cached: true };
     }
-    
-    console.log('[API] Fetching batch report data...');
+
     const response = await apiRequest('/api/reports/batch-data');
     
     if (response.success) {
@@ -517,7 +514,7 @@ export const getReportAnalysis = async (reportId) => {
       return { 
         success: true, 
         data: {
-          summary: "Analysis complete.",
+          summary: 'Analysis complete.',
           metrics: response.data,
           insights: []
         }
@@ -537,7 +534,7 @@ export const getAvailableSheets = async () => {
     const cacheKey = 'sheets_list';
     const cached = cacheGet('dashboard', { key: cacheKey });
     if (cached) {
-      console.log('[Cache] Sheets list loaded from', cached.source);
+
       return { success: true, data: cached.data, _cached: true };
     }
 
@@ -563,7 +560,7 @@ export const getRegionalData = async (sheetName = '') => {
     const cacheKey = `regional_${sheetName || 'all'}`;
     const cached = cacheGet('dashboard', { key: cacheKey });
     if (cached) {
-      console.log('[Cache] Regional data loaded from', cached.source);
+
       return { success: true, data: cached.data, _cached: true };
     }
 
@@ -594,11 +591,10 @@ export const getRegionalDataBatch = async () => {
     // Check in-memory cache first (localStorage is too small for this data)
     const now = Date.now();
     if (regionalBatchMemoryCache && (now - regionalBatchCacheTime) < REGIONAL_CACHE_TTL) {
-      console.log('[Cache] Regional batch data loaded from memory cache');
+
       return { success: true, data: regionalBatchMemoryCache, _cached: true };
     }
 
-    console.log('[API] Fetching ALL regional data in single batch call...');
     const response = await apiRequest('/api/reports/regional-batch');
     
     if (response.success) {

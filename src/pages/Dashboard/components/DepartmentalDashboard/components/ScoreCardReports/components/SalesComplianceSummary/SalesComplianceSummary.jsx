@@ -1,4 +1,4 @@
-import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
+import { useMemo, useImperativeHandle, forwardRef } from 'react';
 import './SalesComplianceSummary.css';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { useCRMData } from '../../../../../CRMdashboard/hooks/useCRMData';
@@ -609,7 +609,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
     
     return rows;
   }, [managementReports, crmCS.parsedData, crmLBF.parsedData, crmSME.parsedData,
-      callCenterCS.parsedData, callCenterLBF.parsedData, callCenterSME.parsedData, mode]);
+    callCenterCS.parsedData, callCenterLBF.parsedData, callCenterSME.parsedData, mode]);
 
   const summaryData = mode === 'WEEKLY' ? buildWeeklySummaryData : buildMonthlySummaryData;
 
@@ -618,8 +618,8 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
             mtdCS.loading || mtdLBF.loading || mtdSME.loading ||
             callCenterCS.loading || callCenterLBF.loading || callCenterSME.loading);
   }, [crmCS.loading, crmLBF.loading, crmSME.loading,
-      mtdCS.loading, mtdLBF.loading, mtdSME.loading,
-      callCenterCS.loading, callCenterLBF.loading, callCenterSME.loading]);
+    mtdCS.loading, mtdLBF.loading, mtdSME.loading,
+    callCenterCS.loading, callCenterLBF.loading, callCenterSME.loading]);
 
   const handleExport = async () => {
     const section = getExportSheets()[0];

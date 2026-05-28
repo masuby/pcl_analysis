@@ -1,7 +1,6 @@
 /**
  * Shared helpers for Cluster KPI components (row colours, calculation labels).
  */
-import React from 'react';
 
 /** 6-tier colour for % (matches Summary table KPI): violet best → red poorest. */
 export function getColorForPct(pct) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCallCenterData } from '../../hooks/useCallCenterData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import CallCenterAnalysis from '../CallCenterAnalysis/CallCenterAnalysis';
@@ -84,15 +84,15 @@ const LBFCallCenter = () => {
           <span className="report-date-text">
             📅 {parsedData.reportDate instanceof Date
               ? parsedData.reportDate.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
               : new Date(parsedData.reportDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
           </span>
         </div>
       )}

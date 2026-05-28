@@ -31,7 +31,7 @@ export const parseExcelFile = async (report, targetSheet = 'Country', options = 
       throw new Error('No file URL or path available');
     }
 
-    console.log(`[Excel Parser] File URL obtained`);
+    console.log('[Excel Parser] File URL obtained');
     
     // Fetch the file with timeout
     const controller = new AbortController();
@@ -80,7 +80,7 @@ const parseExcelData = (arrayBuffer, fileName, targetSheet, debug = true) => {
       throw new Error('Workbook has no sheets');
     }
     
-    console.log(`[Excel Parser] Workbook parsed, available sheets:`, workbook.SheetNames);
+    console.log('[Excel Parser] Workbook parsed, available sheets:', workbook.SheetNames);
     
     // Check if target sheet exists
     if (!workbook.SheetNames.includes(targetSheet)) {
@@ -106,7 +106,7 @@ const parseExcelData = (arrayBuffer, fileName, targetSheet, debug = true) => {
       console.log(`[Excel Parser] Total rows in sheet: ${jsonData.length}`);
       
       if (jsonData.length > 0 && jsonData[0].length > 0) {
-        console.log(`[Excel Parser] Column headers:`, jsonData[0]);
+        console.log('[Excel Parser] Column headers:', jsonData[0]);
       }
     }
     

@@ -1,4 +1,3 @@
-import React from 'react';
 import { proceduresAPI } from '../../../../services/api';
 import './ProcedureViewer.css';
 

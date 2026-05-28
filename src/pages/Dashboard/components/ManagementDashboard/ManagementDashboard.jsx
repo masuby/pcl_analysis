@@ -127,18 +127,18 @@ const ManagementDashboard = () => {
           </h2>
           <div className="analysis-view-actions">
             <div className="analysis-view-selector">
-            <label className="view-selector-label">View:</label>
-            <select 
-              value={analysisView} 
-              onChange={e => setAnalysisView(e.target.value)}
-              className="view-selector-dropdown"
-            >
-              {viewOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              <label className="view-selector-label">View:</label>
+              <select 
+                value={analysisView} 
+                onChange={e => setAnalysisView(e.target.value)}
+                className="view-selector-dropdown"
+              >
+                {viewOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

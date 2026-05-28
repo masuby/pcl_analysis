@@ -483,6 +483,200 @@ export const marketingAPI = {
   },
 };
 
+// ========== Local Trip Report API ==========
+
+export const localTripAPI = {
+  /** Fetch all currently active files (one per kind). */
+  async getFiles() {
+    const data = await apiRequest('/api/local-trip/files');
+    return data?.data ?? [];
+  },
+
+  /**
+   * Upload a file for the given kind (LOCAL_TRIP | SALES | USERS | ACTIVITIES).
+   * Replaces the existing active file for that kind.
+   * @param {File}   file – the raw .xlsx file
+   * @param {string} kind – one of the four allowed kinds
+   */
+  async uploadFile(file, kind) {
+    const token = localStorage.getItem('pcl_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+
+    const response = await fetch(`${API_URL}/api/local-trip/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { throw new Error(`Server error (${response.status})`); }
+    if (!response.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  /**
+   * Download a file by ID as an ArrayBuffer so it can be parsed client-side.
+   * @param {string} fileId – UUID of the file record
+   * @returns {Promise<ArrayBuffer>}
+   */
+  async downloadFileBuffer(fileId) {
+    const token = localStorage.getItem('pcl_token');
+    const response = await fetch(`${API_URL}/api/local-trip/files/${fileId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch file (${response.status})`);
+    return response.arrayBuffer();
+  },
+
+  /** Soft-delete a file by ID. */
+  async deleteFile(fileId) {
+    return apiRequest(`/api/local-trip/files/${fileId}`, { method: 'DELETE' });
+  },
+
+  /** Direct download URL (for anchor href). */
+  downloadUrl(fileId) {
+    return `${API_URL}/api/local-trip/files/${fileId}/download`;
+  },
+};
+
+// ========== Consent Incentive Report API ==========
+
+export const consentIncentiveAPI = {
+  /** Fetch the currently active Lead file (if any). */
+  async getFiles() {
+    const data = await apiRequest('/api/consent-incentive/files');
+    return data?.data ?? [];
+  },
+
+  /**
+   * Upload the Lead file.
+   * @param {File}   file – the raw .xlsx file
+   * @param {string} kind – must be "LEAD"
+   */
+  async uploadFile(file, kind) {
+    const token = localStorage.getItem('pcl_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', kind);
+
+    const response = await fetch(`${API_URL}/api/consent-incentive/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+
+    const text = await response.text();
+    let data;
+    try { data = text ? JSON.parse(text) : {}; }
+    catch { throw new Error(`Server error (${response.status})`); }
+    if (!response.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  /**
+   * Download the Lead file as an ArrayBuffer for client-side parsing.
+   * @param {string} fileId – UUID of the file record
+   * @returns {Promise<ArrayBuffer>}
+   */
+  async downloadFileBuffer(fileId) {
+    const token = localStorage.getItem('pcl_token');
+    const response = await fetch(`${API_URL}/api/consent-incentive/files/${fileId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch file (${response.status})`);
+    return response.arrayBuffer();
+  },
+
+  /** Soft-delete a file by ID. */
+  async deleteFile(fileId) {
+    return apiRequest(`/api/consent-incentive/files/${fileId}`, { method: 'DELETE' });
+  },
+
+  /** Direct download URL (for anchor href). */
+  downloadUrl(fileId) {
+    return `${API_URL}/api/consent-incentive/files/${fileId}/download`;
+  },
+
+  /**
+   * Fetch all CS CRM report metadata, sorted by report date descending.
+   * Used for cross-CRM field-activity verification (Step 5 of the procedure).
+   * @returns {Promise<Array<{ id, title, fileName, date, createdAt, fileSize }>>}
+   */
+  async getAllCRMReports() {
+    const data = await apiRequest('/api/reports/department/CS/type/CRM');
+    const reports = data?.data ?? [];
+    return [...reports].sort((a, b) => {
+      const da = new Date(a.date || a.createdAt || 0);
+      const db = new Date(b.date || b.createdAt || 0);
+      return db - da;
+    });
+  },
+
+  /**
+   * Download any CS CRM report buffer by report ID (used for cross-CRM iteration).
+   * @param {string} reportId
+   * @returns {Promise<ArrayBuffer>}
+   */
+  async downloadCRMReportBuffer(reportId) {
+    const token = localStorage.getItem('pcl_token');
+    const response = await fetch(`${API_URL}/api/reports/${reportId}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch CRM report ${reportId} (${response.status})`);
+    return response.arrayBuffer();
+  },
+
+  /**
+   * Look up the latest CS CRM report metadata (without downloading the file).
+   * Useful for the UI to display which report would be used.
+   * @returns {Promise<{ id, title, fileName, date, createdAt, fileSize }>}
+   */
+  async getLatestCRMMeta() {
+    const data = await apiRequest('/api/reports/department/CS/type/CRM');
+    const reports = data?.data ?? [];
+    if (!reports.length) throw new Error('No CS CRM reports found in the database. Upload a CRM report first.');
+    const sorted = [...reports].sort((a, b) => {
+      const da = new Date(a.date || a.createdAt || 0);
+      const db = new Date(b.date || b.createdAt || 0);
+      return db - da;
+    });
+    return sorted[0];
+  },
+
+  /**
+   * Fetch the latest CS CRM report as an ArrayBuffer for client-side parsing.
+   * @returns {Promise<{ buffer: ArrayBuffer, meta: Object }>}
+   */
+  async getLatestCRMBuffer() {
+    const meta  = await this.getLatestCRMMeta();
+    const token = localStorage.getItem('pcl_token');
+    const response = await fetch(`${API_URL}/api/reports/${meta.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch CRM report (${response.status})`);
+    const buffer = await response.arrayBuffer();
+    return { buffer, meta };
+  },
+};
+
+// ========== Social Media Analysis API ==========
+
+export const socialMediaAPI = {
+  /**
+   * Fetch the unified MAY 2026 SHEET data from BOTH the LBF/SME and CS
+   * Google Sheets via the backend (which uses the shared service account).
+   *
+   * Returns: { success, period, lbf: [[...header], ...rows], cs: [[...header], ...rows] }
+   */
+  async getData() {
+    return apiRequest('/api/social-media/data');
+  },
+};
+
 // ========== Gap Analysis API ==========
 // Actual Reps: HOD fetches/saves; TL submits via token (no auth)
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { calculateMetrics, getCallNotesDistribution, getStatusDistribution, getTopAgents, formatPercentage, formatNumber } from '../../utils/callCenterUtils';
 import './CallCenterAnalysis.css';

@@ -17,7 +17,7 @@ export const parseExcelFile = async (report) => {
       fileUrl = await getReportFileUrl(report.filePath);
     } else if (report.fileUrl) {
       fileUrl = report.fileUrl;
-      console.log(fileUrl)
+      console.log(fileUrl);
     } else {
       throw new Error('No file URL or path available');
     }

@@ -139,7 +139,7 @@ export const useCSReports = (department = 'CS') => {
   const isValidUrl = (urlString) => {
     try {
       const url = new URL(urlString);
-      return url.protocol === "http:" || url.protocol === "https:";
+      return url.protocol === 'http:' || url.protocol === 'https:';
     } catch (err) {
       return false;
     }

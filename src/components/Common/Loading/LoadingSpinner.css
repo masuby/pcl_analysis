@@ -1,153 +1,149 @@
-/* Our LoadingSpinner component - override all conflicting styles */
-.loading-spinner.battery-loading-spinner,
-.loading-spinner.battery-loading-spinner.size-small,
-.loading-spinner.battery-loading-spinner.size-medium,
-.loading-spinner.battery-loading-spinner.size-large {
-  position: fixed !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  text-align: center !important;
-  min-height: auto !important;
-  width: auto !important;
-  height: auto !important;
-  border: none !important;
-  border-radius: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  z-index: 9999 !important;
-  background: transparent !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
-  font-size: inherit !important;
-}
+/* ─── LoadingSpinner — project-wide dual-ring loader ─────────────────── */
 
-/* Loading bars container */
-.loading-bars-container {
+.ls-inline {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 1rem;
-}
-
-/* Loading text */
-.loading-text {
-  color: #2a5298;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
-  white-space: nowrap;
-}
-
-/* Loading bars wrapper */
-.loading-bars {
-  display: flex;
-  flex-direction: row;
-  gap: 0.4rem;
   align-items: center;
   justify-content: center;
+  padding: 24px 20px;
+  width: 100%;
 }
 
-/* Individual loading bar */
-.loading-bar {
-  width: 8px;
-  height: 40px;
-  background-color: #e1e5e9;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-  animation: barPulse 1.4s ease-in-out infinite;
+/* Full-viewport cloud overlay (PayPal-style)  ─ same look as ReportShell */
+.ls-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  background: rgba(248, 250, 252, 0.78);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  animation: ls-fade-in 0.25s ease-out;
+}
+@keyframes ls-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-/* Bar animations with staggered delays */
-.loading-bar.bar-1 {
-  animation-delay: 0s;
+.ls-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  animation: ls-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif;
+}
+@keyframes ls-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);  }
 }
 
-.loading-bar.bar-2 {
-  animation-delay: 0.1s;
+/* ── Dual-ring spinner ────────────────────────────────────────────────── */
+.ls-spinner-wrap {
+  position: relative;
+}
+.ls-spinner-ring {
+  position: absolute;
+  inset: 0;
+  border: 3.5px solid rgba(30, 64, 175, 0.14);
+  border-top-color: #1e40af;
+  border-right-color: #2563eb;
+  border-radius: 50%;
+  animation: ls-spin 0.9s linear infinite;
+  filter: drop-shadow(0 4px 14px rgba(30, 64, 175, 0.18));
+}
+.ls-spinner-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: linear-gradient(135deg, #2563eb 0%, #1f3864 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14),
+              0 4px 12px rgba(30, 64, 175, 0.28);
+  animation: ls-dot-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ls-spin      { to { transform: rotate(360deg); } }
+@keyframes ls-dot-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.92; }
+  50%      { transform: scale(1.4); opacity: 1;   }
 }
 
-.loading-bar.bar-3 {
-  animation-delay: 0.2s;
+/* ── Size variants ────────────────────────────────────────────────────── */
+.ls-content--small .ls-spinner-wrap {
+  width: 28px; height: 28px;
+}
+.ls-content--small .ls-spinner-ring { border-width: 2.5px; }
+.ls-content--small .ls-spinner-dot {
+  width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+.ls-content--small .ls-message { font-size: 0.78rem; }
+
+.ls-content--medium .ls-spinner-wrap {
+  width: 48px; height: 48px;
+}
+.ls-content--medium .ls-spinner-dot {
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+}
+.ls-content--medium .ls-message { font-size: 0.86rem; }
+
+.ls-content--large .ls-spinner-wrap {
+  width: 64px; height: 64px;
+}
+.ls-content--large .ls-spinner-ring { border-width: 4px; }
+.ls-content--large .ls-spinner-dot {
+  width: 10px; height: 10px;
+  margin: -5px 0 0 -5px;
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.14),
+              0 4px 14px rgba(30, 64, 175, 0.30);
+}
+.ls-content--large .ls-message { font-size: 0.92rem; }
+
+/* ── Message text ─────────────────────────────────────────────────────── */
+.ls-message {
+  margin: 0;
+  font-weight: 500;
+  color: #475569;
+  letter-spacing: 0.01em;
+  text-align: center;
+  min-height: 1.2em;
+  animation: ls-msg-in 0.32s ease-out;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+}
+@keyframes ls-msg-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.loading-bar.bar-4 {
-  animation-delay: 0.3s;
+/* ── Dark theme ───────────────────────────────────────────────────────── */
+[data-theme='dark'] .ls-overlay,
+.dark             .ls-overlay,
+.dark-mode        .ls-overlay {
+  background: rgba(15, 23, 42, 0.72);
+}
+[data-theme='dark'] .ls-message,
+.dark             .ls-message,
+.dark-mode        .ls-message {
+  color: #cbd5e1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+[data-theme='dark'] .ls-spinner-ring,
+.dark             .ls-spinner-ring {
+  border-color: rgba(96, 165, 250, 0.18);
+  border-top-color: #60a5fa;
+  border-right-color: #93c5fd;
 }
 
-.loading-bar.bar-5 {
-  animation-delay: 0.4s;
-}
-
-/* Animation for bars - changes color from white/gray to blue and expands */
-@keyframes barPulse {
-  0%, 100% {
-    background-color: #e1e5e9;
-    transform: scaleY(1);
-  }
-  50% {
-    background-color: #2a5298;
-    transform: scaleY(1.3);
-  }
-}
-
-/* Size variations */
-.loading-spinner.battery-loading-spinner.size-small .loading-bar {
-  width: 6px;
-  height: 30px;
-}
-
-.loading-spinner.battery-loading-spinner.size-small .loading-text {
-  font-size: 0.9rem;
-}
-
-.loading-spinner.battery-loading-spinner.size-medium .loading-bar {
-  width: 8px;
-  height: 40px;
-}
-
-.loading-spinner.battery-loading-spinner.size-medium .loading-text {
-  font-size: 1.1rem;
-}
-
-.loading-spinner.battery-loading-spinner.size-large .loading-bar {
-  width: 10px;
-  height: 50px;
-}
-
-.loading-spinner.battery-loading-spinner.size-large .loading-text {
-  font-size: 1.3rem;
-}
-
-/* Dark Mode Support */
-.dark-mode .loading-text {
-  color: #63b3ed;
-}
-
-.dark-mode .loading-bar {
-  background-color: #4a5568;
-}
-
-.dark-mode .loading-bar {
-  animation: barPulseDark 1.4s ease-in-out infinite;
-}
-
-@keyframes barPulseDark {
-  0%, 100% {
-    background-color: #4a5568;
-    transform: scaleY(1);
-  }
-  50% {
-    background-color: #63b3ed;
-    transform: scaleY(1.3);
-  }
-}
-
-/* Ensure no conflicting animations */
-.loading-spinner.battery-loading-spinner * {
-  animation-fill-mode: both !important;
-}
+/* ── Legacy class compatibility ───────────────────────────────────────── */
+/* The old JSX used wrapper classes (.loading-spinner / .battery-loading-spinner /
+   .spinner-small / .spinner-medium / .spinner-large) and inner bar elements.
+   The new component no longer renders those, but if any stylesheet elsewhere
+   targets them we hide what's left so nothing leaks through. */
+.loading-bars-container,
+.loading-bars,
+.loading-bar,
+.bar-1, .bar-2, .bar-3, .bar-4, .bar-5,
+.loading-text { display: none; }

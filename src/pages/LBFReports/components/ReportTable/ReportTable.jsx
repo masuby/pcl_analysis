@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ExcelViewer from '../ExcelViewer/ExcelViewer';
 import './ReportTable.css';
 
@@ -108,7 +108,7 @@ const ReportTable = ({ reports, onDownload, onViewAnalysis, selectedDate, select
     );
   }
 
- return (
+  return (
     <div className="report-table-wrapper">
       <div className="reports-container">
         {/* Reports List Sidebar */}

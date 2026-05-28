@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { downloadReportFile, getReportFileUrl } from '../../../../services/supabase';
 import { getReportDownloadUrl } from '../../../../services/reports';
@@ -258,8 +258,8 @@ const ExcelViewer = ({ reportId, fileUrl, fileName, fileType, filePath }) => {
           isChart,
           isDashboard,
           type: isPivot ? 'pivot' : 
-                isChart ? 'chart' : 
-                isDashboard ? 'dashboard' : 'data'
+            isChart ? 'chart' : 
+              isDashboard ? 'dashboard' : 'data'
         };
       });
 
@@ -733,17 +733,17 @@ const ExcelViewer = ({ reportId, fileUrl, fileName, fileType, filePath }) => {
       )}
 
       {currentSheet && (
-          <div className="sheet-actions">
+        <div className="sheet-actions">
 
-            {(searchQuery || Object.keys(searchFilters).length > 0) && (
-              <button
-                className="clear-filters-button"
-                onClick={clearAllFilters}
-                title="Clear all filters"
-              >
+          {(searchQuery || Object.keys(searchFilters).length > 0) && (
+            <button
+              className="clear-filters-button"
+              onClick={clearAllFilters}
+              title="Clear all filters"
+            >
                 Clear Filters
-              </button>
-            )}
+            </button>
+          )}
 
         </div>
       )}

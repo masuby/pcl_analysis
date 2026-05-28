@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { updateChallenge, deleteChallenge } from '../../../../services/challenges';
 import { deleteChallengeFile, getChallengeAttachmentUrl, getChallengeImageUrl } from '../../../../services/supabase';
 import { getChallengeStatus } from '../../../../services/challenges';

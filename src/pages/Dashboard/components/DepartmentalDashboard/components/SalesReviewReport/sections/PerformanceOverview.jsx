@@ -1,10 +1,9 @@
-import React from 'react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './PerformanceOverview.css';
 
 const PerformanceOverview = ({ data, selectedMonth }) => {
   // Prepare chart data from countrywise data
-  const chartData = React.useMemo(() => {
+  const chartData = useMemo(() => {
     if (!data.countrywiseData || data.countrywiseData.length === 0) return [];
 
     const sorted = [...data.countrywiseData].sort((a, b) => {

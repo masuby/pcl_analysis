@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useSummaryData } from './hooks/useSummaryData';
 import LoadingSpinner from '../../../../components/Common/Loading/LoadingSpinner';
 import './SummaryDashboard.css';
@@ -161,10 +161,10 @@ const AreaChart = ({ data, height = 120 }) => {
               key={i}
               cx={p.x}
               cy={p.y}
-              r={hoveredIndex === i ? "4" : "2.5"}
-              fill={hoveredIndex === i ? "#1e3c72" : "#2a5298"}
+              r={hoveredIndex === i ? '4' : '2.5'}
+              fill={hoveredIndex === i ? '#1e3c72' : '#2a5298'}
               stroke="white"
-              strokeWidth={hoveredIndex === i ? "2" : "1"}
+              strokeWidth={hoveredIndex === i ? '2' : '1'}
               style={{ transition: 'all 0.2s ease' }}
             />
           ))}

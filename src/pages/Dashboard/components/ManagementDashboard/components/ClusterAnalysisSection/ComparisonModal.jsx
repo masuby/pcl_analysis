@@ -1,4 +1,3 @@
-import React from 'react';
 import './ClusterAnalysisSection.css';
 
 const ComparisonModal = ({ isOpen, onClose, comparisonData, selectedColumn, levelName }) => {

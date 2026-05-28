@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import './SalesReviewReport.css';
 import { useManagementData } from '../../../ManagementDashboard/hooks/useManagementData';
@@ -1143,19 +1143,19 @@ const SalesReviewReport = ({ userData }) => {
               {/* Recipients list */}
               {recipients.length > 0 && (
                 <ul className="sales-review-recipient-list">
-                    {recipients.map((email) => (
-                      <li key={email} className="sales-review-recipient-item">
-                        <span className="sales-review-recipient-email">{email}</span>
-                        <button
-                          className="sales-review-recipient-remove"
-                          onClick={() => removeRecipient(email)}
-                          disabled={sending}
-                        >
+                  {recipients.map((email) => (
+                    <li key={email} className="sales-review-recipient-item">
+                      <span className="sales-review-recipient-email">{email}</span>
+                      <button
+                        className="sales-review-recipient-remove"
+                        onClick={() => removeRecipient(email)}
+                        disabled={sending}
+                      >
                           ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
 
               {/* Email Preview Section */}

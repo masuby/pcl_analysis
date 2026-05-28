@@ -419,9 +419,9 @@ export const buildMarketingEmailHTML = ({ yearData, compareData }) => {
         </thead>
         <tbody>
           ${monthLabels.map((label, i) => {
-            const grand = (segCS[i]||0) + (segLBF[i]||0) + (segSME[i]||0);
-            return monthRow({ label, cs: segCS[i]||0, lbf: segLBF[i]||0, sme: segSME[i]||0, grand, tgt: target[i]||0, ach: achievement[i]||0, idx: i });
-          }).join('')}
+    const grand = (segCS[i]||0) + (segLBF[i]||0) + (segSME[i]||0);
+    return monthRow({ label, cs: segCS[i]||0, lbf: segLBF[i]||0, sme: segSME[i]||0, grand, tgt: target[i]||0, ach: achievement[i]||0, idx: i });
+  }).join('')}
           <tr style="background:#1e3c72;">
             <td style="padding:9px 12px;font-weight:800;color:#fff;border:1px solid #2a5298;font-size:12px;">TOTAL</td>
             <td style="padding:9px 12px;text-align:right;font-weight:800;color:#90cdf4;border:1px solid #2a5298;font-size:12px;">${fmt(totalCS)}</td>

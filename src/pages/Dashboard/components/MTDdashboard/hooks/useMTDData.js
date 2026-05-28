@@ -28,9 +28,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     });
     
     const sheetNames = workbook.SheetNames;
-    console.log('[MTD] Sheet names:', sheetNames);
-    console.log('[MTD] Department:', department);
-    
+
     // Find the MTD sheet (first sheet) and Sales Listing sheet
     let mtdSheetName = sheetNames[0];
     let listingSheetName = null;
@@ -48,9 +46,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     if (!listingSheetName && sheetNames.length >= 2) {
       listingSheetName = sheetNames[sheetNames.length - 1];
     }
-    
-    console.log('[MTD] Using sheets:', { mtdSheetName, listingSheetName });
-    
+
     // ============================================
     // STEP 1: Read Listing sheet FIRST to get supervisions
     // ============================================
@@ -78,8 +74,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
       }
       
       const listingHeaders = listingRaw[listingHeaderIndex] || [];
-      console.log('[MTD] Listing headers:', listingHeaders);
-      
+
       // Find supervision and team columns
       const supervisionColIdx = listingHeaders.findIndex(h => 
         h && String(h).toUpperCase().includes('SUPERVISION')
@@ -91,9 +86,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
       const branchColIdx = listingHeaders.findIndex(h => 
         h && String(h).toUpperCase() === 'BRANCH'
       );
-      
-      console.log('[MTD] Column indices:', { supervisionColIdx, teamColIdx, branchColIdx });
-      
+
       // Extract listing data
       for (let i = listingHeaderIndex + 1; i < listingRaw.length; i++) {
         const row = listingRaw[i];
@@ -124,9 +117,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
         const tlCol = listingHeaders[tlColIdx];
         teamLeadersFromListing = [...new Set(listingData.map(r => r[tlCol]).filter(Boolean))];
       }
-      
-      console.log('[MTD] Supervisions from listing:', supervisions.length, supervisions.slice(0, 5));
-      console.log('[MTD] Team leaders from listing:', teamLeadersFromListing.length, teamLeadersFromListing.slice(0, 5));
+
     }
     
     // ============================================
@@ -148,8 +139,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     }
     
     const headers = mtdRaw[headerRowIndex] || [];
-    console.log('[MTD] MTD Headers at row', headerRowIndex, ':', headers.slice(0, 10));
-    
+
     // Determine the branch/name column index
     // For CS: header has "BRANCH/ TEAM LEADER" at some index
     // For LBF: first column (index 0) contains the names, but header might be empty there
@@ -180,9 +170,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
         branchColIndex = 0;
       }
     }
-    
-    console.log('[MTD] Using branch column index:', branchColIndex);
-    
+
     const branchCol = headers[branchColIndex] || `Column_${branchColIndex}`;
     
     // Extract data rows and capture Grand Total row (for Gap Analysis overall total)
@@ -206,15 +194,13 @@ const processExcelFile = async (fileUrl, fileName, department) => {
 
         if (isGrandTotal) {
           grandTotalRow = rowObj;
-          console.log('[MTD] Found Grand Total row');
+
         } else if (cellStr) {
           mtdData.push(rowObj);
         }
       }
     }
 
-    console.log('[MTD] Extracted', mtdData.length, 'rows from MTD sheet');
-    
     // ============================================
     // STEP 3: Group MTD data by supervision
     // ============================================
@@ -237,7 +223,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
           supervisionData: row,
           teamLeaders: []
         };
-        console.log('[MTD] Found supervision:', currentSupervision);
+
       } else if (currentSupervision && branchValue) {
         // This is a team leader under the current supervision
         groupedData[currentSupervision].teamLeaders.push({
@@ -250,7 +236,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     
     // If no grouping found, use flat structure
     if (Object.keys(groupedData).length === 0 && mtdData.length > 0) {
-      console.log('[MTD] No supervision grouping found, using flat structure');
+
       groupedData['All'] = {
         supervision: 'All',
         supervisionData: {},
@@ -261,9 +247,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
         }))
       };
     }
-    
-    console.log('[MTD] Grouped into', Object.keys(groupedData).length, 'supervisions');
-    
+
     // ============================================
     // STEP 4: Match sales reps to team leaders
     // ============================================
@@ -300,11 +284,9 @@ const processExcelFile = async (fileUrl, fileName, department) => {
         }
       });
       if (bestCol) teamMatchCol = bestCol;
-      console.log('[MTD] SME team match column (detected):', teamMatchCol, 'matches:', bestCount);
+
     }
-    
-    console.log('[MTD] Using team match column:', teamMatchCol);
-    
+
     if (teamMatchCol && listingData.length > 0) {
       for (const supervision of Object.values(groupedData)) {
         for (const tl of supervision.teamLeaders) {
@@ -327,7 +309,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
           });
           
           if (tl.salesReps.length > 0) {
-            console.log(`[MTD] TL "${tl.name}" has ${tl.salesReps.length} sales reps`);
+
           }
         }
       }
@@ -342,8 +324,7 @@ const processExcelFile = async (fileUrl, fileName, department) => {
         totalReps += tl.salesReps.length;
       }
     }
-    console.log(`[MTD] FINAL: ${Object.keys(groupedData).length} supervisions, ${totalTLs} TLs, ${totalReps} sales reps`);
-    
+
     // Find column mappings for UI
     const salesRepCol = listingHeadersArr.find(k => k.toUpperCase() === 'SALES REP') ||
                         listingHeadersArr.find(k => k.toUpperCase() === 'SALES REP. NAME');
@@ -447,7 +428,7 @@ export const useMTDData = (department, selectedDate = null) => {
               fileName,
               fileUrl,
               date: report.date ? new Date(report.date) : 
-                    report.created_at ? new Date(report.created_at) : new Date()
+                report.created_at ? new Date(report.created_at) : new Date()
             });
           }
         }
@@ -459,7 +440,6 @@ export const useMTDData = (department, selectedDate = null) => {
         return dateB - dateA;
       });
 
-      console.log(`[MTD] Found ${reportsData.length} ${department} MTD reports`);
       setReports(reportsData);
     } catch (err) {
       console.error('Error fetching MTD reports:', err);
@@ -473,7 +453,7 @@ export const useMTDData = (department, selectedDate = null) => {
   // Listen for refresh events
   useEffect(() => {
     if (refreshTrigger > 0 && initialLoadDone.current) {
-      console.log(`[MTDDashboard-${department}] Refresh triggered, clearing cache`);
+
       mtdParsedCache.clear();
       cacheInvalidate('reports');
       setParsedData(null);
@@ -534,7 +514,7 @@ export const useMTDData = (department, selectedDate = null) => {
         const oneCacheKey = `mtd_${department}_${report.id}`;
         if (mtdParsedCache.has(oneCacheKey)) return mtdParsedCache.get(oneCacheKey);
         if (!report.fileUrl) return null;
-        console.log(`[MTD] Parsing Excel file: ${report.fileName}`);
+
         const data = await processExcelFile(report.fileUrl, report.fileName, department);
         const parsed = { ...data, reportDate: report.date, reportId: report.id };
         mtdParsedCache.set(oneCacheKey, parsed);
@@ -551,7 +531,7 @@ export const useMTDData = (department, selectedDate = null) => {
         }
         parsed = await parseOneReport(targetReport);
       } else {
-        console.log(`[Cache] Using cached MTD data for ${targetReport.fileName}`);
+
       }
       setParsedData(parsed || null);
 

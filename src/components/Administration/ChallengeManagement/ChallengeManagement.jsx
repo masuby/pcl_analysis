@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getAllChallenges, searchChallenges } from '../../../services/challenges';
 import { getChallengeStatus } from '../../../services/challenges';
 import ChallengeTable from './ChallengeTable/ChallengeTable';

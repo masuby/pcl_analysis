@@ -68,6 +68,7 @@ backend/data/
 
 # Backups (sensitive data)
 backend/backup/
+backend/credentials/
 node_modules
 
 # Document and spreadsheet files (never push sensitive data)
@@ -89,3 +90,6 @@ node_modules
 *.bz2
 *.tgz
 *.dumb
+
+# Sensitive service-account exports
+src/pages/Dashboard/components/DepartmentalDashboard/components/SocialMediaAnalysis/sales-reps-status-*.json

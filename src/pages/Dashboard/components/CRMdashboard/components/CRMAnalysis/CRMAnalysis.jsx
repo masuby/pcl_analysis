@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { extractMetrics, getFormattedValue, formatNumber } from '../../utils/crmUtils';
 import './CRMAnalysis.css';
@@ -118,8 +118,8 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p><span className="percentage-value">{getValue('percentage_accepted_lead')}</span> (<span className="number-value">{getValue('accepted_lead')}</span>) of leads generated were consented, 
-            <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
-            <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
+              <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
+              <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
           </div>
           
           <div className="stat-box">
@@ -185,7 +185,7 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('agent_assigned_activities')}</span> agents assigned activities for the day, 
-            <span className="number-value"> {getValue('agent_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_agent_completed_at_location')}</span>) 
+              <span className="number-value"> {getValue('agent_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_agent_completed_at_location')}</span>) 
             agents completed at least one activity at the assigned location.</p>
           </div>
           
@@ -246,7 +246,7 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('team_leaders_assigned_activities')}</span> TLs assigned activities for the day, 
-            <span className="number-value"> {getValue('team_leaders_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
+              <span className="number-value"> {getValue('team_leaders_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
             TLs completed at least one activity at the assigned location.</p>
           </div>
           
@@ -312,8 +312,8 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p><span className="percentage-value">{getValue('percentage_consented_lead')}</span> (<span className="number-value">{getValue('number_consented_lead')}</span>) of leads generated were consented, 
-            <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
-            <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
+              <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
+              <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
           </div>
           
           <div className="stat-box">
@@ -379,7 +379,7 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('agent_assigned_activities')}</span> agents assigned activities for the day, 
-            <span className="number-value"> {getValue('agents_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
+              <span className="number-value"> {getValue('agents_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
             agents completed at least one activity at the assigned location.</p>
           </div>
           
@@ -437,7 +437,7 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('team_leaders_assigned_activities')}</span> TLs assigned activities for the day, 
-            <span className="number-value"> {getValue('tl_completed_activities_at_location')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_at_location')}</span>) 
+              <span className="number-value"> {getValue('tl_completed_activities_at_location')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_at_location')}</span>) 
             TLs completed at least one activity at the assigned location.</p>
           </div>
           
@@ -501,8 +501,8 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p><span className="percentage-value">{getValue('percentage_accepted_lead', '0%')}</span> were accepted, 
-            <span className="percentage-value"> {getValue('percentage_not_provided_lead', '0%')}</span> (<span className="number-value">{getValue('not_provided_leads', '0')}</span>) were not provided with consent and 
-            <span className="percentage-value"> {getValue('percentage_rejected_leads', '0%')}</span> were rejected.</p>
+              <span className="percentage-value"> {getValue('percentage_not_provided_lead', '0%')}</span> (<span className="number-value">{getValue('not_provided_leads', '0')}</span>) were not provided with consent and 
+              <span className="percentage-value"> {getValue('percentage_rejected_leads', '0%')}</span> were rejected.</p>
           </div>
           
           <div className="stat-box">
@@ -568,7 +568,7 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('agent_assigned_activities', '0')}</span> agents assigned activities for the day, 
-            <span className="number-value"> {getValue('agent_completed_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location', '0%')}</span>) 
+              <span className="number-value"> {getValue('agent_completed_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location', '0%')}</span>) 
             agents completed at least one activity at the assigned location.</p>
           </div>
           
@@ -626,17 +626,17 @@ const CRMAnalysis = ({ parsedData, department }) => {
           
           <div className="stat-box">
             <p>Out of <span className="number-value">{getValue('tl_assigned_activities', '0')}</span> TLs assigned activities, 
-            <span className="number-value"> {getValue('tl_completed_activities_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_activities_at_location', '0%')}</span>) 
+              <span className="number-value"> {getValue('tl_completed_activities_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_activities_at_location', '0%')}</span>) 
             completed at least one activity at the assigned location.</p>
           </div>
           
           <div className="stat-box">
             <p><span className="number-value">{getValue('tl_location_planned', '0')}</span> locations were planned for the day, 
-            <span className="number-value"> {getValue('tl_location_reached', '0')}</span> (<span className="percentage-value">{(() => {
-              const reached = parseFloat(getValue('tl_location_reached', '0')) || 0;
-              const planned = parseFloat(getValue('tl_location_planned', '0')) || 0;
-              return planned > 0 ? `${((reached / planned) * 100).toFixed(0)}%` : '0%';
-            })()}</span>) were reached.</p>
+              <span className="number-value"> {getValue('tl_location_reached', '0')}</span> (<span className="percentage-value">{(() => {
+                const reached = parseFloat(getValue('tl_location_reached', '0')) || 0;
+                const planned = parseFloat(getValue('tl_location_planned', '0')) || 0;
+                return planned > 0 ? `${((reached / planned) * 100).toFixed(0)}%` : '0%';
+              })()}</span>) were reached.</p>
           </div>
           
           <div className="highlight">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import './KpiAnalysisReport.css';
 import { formatTzs, formatPercentAccounting, getWeightForKpiKey, loadCsKpiTargets, loadCsKpiClusterTargets, loadGenericKpiTargets } from './utils/csKpiTargets';
 
@@ -2621,328 +2621,328 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
             ))}
           </aside>
         )}
-      <div className="kpi-ar-content">
-        {/* 1. KPI Summary (matches Excel: same columns and row colors as Total KPI) */}
-        <section className="kpi-ar-section kpi-ar-section--summary">
-          <h2 className="kpi-ar-section-title">KPI Summary — {monthKeyToLabel(effectiveMonthKey)}{csView !== 'Total' ? ` (${csView})` : ''}</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>KPI</th>
-                  <th>Target</th>
-                  <th>Achieved</th>
-                  <th>% Achieved</th>
-                  <th>Weight (%)</th>
-                  <th>Weight Scored (%)</th>
-                  <th>% Weight Scored</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardSummaryRows.map((r, i) => (
-                  <tr key={i} style={{ backgroundColor: getColorForPct(r.pctWeightScored ?? 0) }}>
-                    <td>{r.kpi}</td>
-                    <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
-                    <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
-                    <td className="kpi-ar-num">{formatPercentAccounting(r.pct)}</td>
-                    <td className="kpi-ar-num">{formatPercentAccounting(Number(r.weight) * 100)}</td>
-                    <td className="kpi-ar-num">{r.weightScored != null ? formatPercentAccounting(Number(r.weightScored) * 100) : '—'}</td>
-                    <td className="kpi-ar-num">{r.pctWeightScored != null ? formatPercentAccounting(r.pctWeightScored) : '—'}</td>
+        <div className="kpi-ar-content">
+          {/* 1. KPI Summary (matches Excel: same columns and row colors as Total KPI) */}
+          <section className="kpi-ar-section kpi-ar-section--summary">
+            <h2 className="kpi-ar-section-title">KPI Summary — {monthKeyToLabel(effectiveMonthKey)}{csView !== 'Total' ? ` (${csView})` : ''}</h2>
+            <div className="kpi-ar-table-wrap">
+              <table className="kpi-ar-table">
+                <thead>
+                  <tr>
+                    <th>KPI</th>
+                    <th>Target</th>
+                    <th>Achieved</th>
+                    <th>% Achieved</th>
+                    <th>Weight (%)</th>
+                    <th>Weight Scored (%)</th>
+                    <th>% Weight Scored</th>
                   </tr>
-                ))}
-                {dashboardSummaryRows.length > 0 && (() => {
-                  const tw = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
-                  const tws = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
-                  const totalPctWs = tw > 0 ? (tws / tw) * 100 : 0;
-                  return (
-                    <tr className="kpi-ar-table-total">
-                      <td>Total</td>
-                      <td className="kpi-ar-num" />
-                      <td className="kpi-ar-num" />
-                      <td className="kpi-ar-num" />
-                      <td className="kpi-ar-num">{formatPercentAccounting(tw * 100)}</td>
-                      <td className="kpi-ar-num">{formatPercentAccounting(tws * 100)}</td>
-                      <td className="kpi-ar-num">{formatPercentAccounting(totalPctWs)}</td>
-                    </tr>
-                  );
-                })()}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* 2. Sales Target Achievement */}
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Sales Target Achievement — ${csView}` : 'Sales Target Achievement'}</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{csView !== 'Total' ? `Sales Target (${csView})` : 'Sales Target (Mainland + Zanzibar + Call Center)'}</td>
-                  <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.target === 'number' ? formatTzs(dashboardSummaryRows[0].target) : (dashboardSummaryRows[0]?.target ?? '—')}</td>
-                </tr>
-                <tr>
-                  <td>{csView !== 'Total' ? `Sales Achieved (${csView} — Management report Disbursement this month)` : 'Sales Achieved (CS MTD)'}</td>
-                  <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.achievedDisplay === 'number' ? formatTzs(dashboardSummaryRows[0].achievedDisplay) : (dashboardSummaryRows[0]?.achievedDisplay ?? '—')}</td>
-                </tr>
-                <tr>
-                  <td>% Achieved</td>
-                  <td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[0]?.pct)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* 3. Branch Sales Achievement (branches only; in cluster view = 90% at 100% target) */}
-        <section className="kpi-ar-section kpi-ar-section-branch-sales">
-          <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Branch Sales Achievement — ${csView} (90% at 100% target)` : 'Branch Sales Achievement (85% at 100% target)'}</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Branch</th>
-                  <th>Target</th>
-                  <th>Disbursement this Month</th>
-                  <th>%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...(filteredBranchSummaryData?.branches ?? [])]
-                  .sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
-                  .map((b, i) => (
-                    <tr key={i}>
-                      <td>{b.branch}</td>
-                      <td className="kpi-ar-num">{formatTzs(b.target)}</td>
-                      <td className="kpi-ar-num">{formatTzs(b.disbursement)}</td>
-                      <td className="kpi-ar-num">{Number.isFinite(b.pct) ? formatPercentAccounting(b.pct) : '—'}</td>
+                </thead>
+                <tbody>
+                  {dashboardSummaryRows.map((r, i) => (
+                    <tr key={i} style={{ backgroundColor: getColorForPct(r.pctWeightScored ?? 0) }}>
+                      <td>{r.kpi}</td>
+                      <td className="kpi-ar-num">{typeof r.target === 'number' ? formatTzs(r.target) : r.target}</td>
+                      <td className="kpi-ar-num">{typeof r.achievedDisplay === 'number' ? formatTzs(r.achievedDisplay) : r.achievedDisplay}</td>
+                      <td className="kpi-ar-num">{formatPercentAccounting(r.pct)}</td>
+                      <td className="kpi-ar-num">{formatPercentAccounting(Number(r.weight) * 100)}</td>
+                      <td className="kpi-ar-num">{r.weightScored != null ? formatPercentAccounting(Number(r.weightScored) * 100) : '—'}</td>
+                      <td className="kpi-ar-num">{r.pctWeightScored != null ? formatPercentAccounting(r.pctWeightScored) : '—'}</td>
                     </tr>
                   ))}
-                {filteredBranchSummaryData && filteredBranchSummaryData.branches.length > 0 && (
-                  <tr className="kpi-ar-table-total">
-                    <td>Total</td>
-                    <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalTarget)}</td>
-                    <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalDisbursement)}</td>
-                    <td className="kpi-ar-num">{filteredBranchSummaryData.totalTarget > 0 ? formatPercentAccounting((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100) : '—'}</td>
+                  {dashboardSummaryRows.length > 0 && (() => {
+                    const tw = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weight) || 0), 0);
+                    const tws = dashboardSummaryRows.reduce((s, r) => s + (Number(r.weightScored) || 0), 0);
+                    const totalPctWs = tw > 0 ? (tws / tw) * 100 : 0;
+                    return (
+                      <tr className="kpi-ar-table-total">
+                        <td>Total</td>
+                        <td className="kpi-ar-num" />
+                        <td className="kpi-ar-num" />
+                        <td className="kpi-ar-num" />
+                        <td className="kpi-ar-num">{formatPercentAccounting(tw * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(tws * 100)}</td>
+                        <td className="kpi-ar-num">{formatPercentAccounting(totalPctWs)}</td>
+                      </tr>
+                    );
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* 2. Sales Target Achievement */}
+          <section className="kpi-ar-section">
+            <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Sales Target Achievement — ${csView}` : 'Sales Target Achievement'}</h2>
+            <div className="kpi-ar-table-wrap">
+              <table className="kpi-ar-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Value</th>
                   </tr>
-                )}
-                {(!filteredBranchSummaryData || filteredBranchSummaryData.branches.length === 0) && (
-                  <tr><td colSpan={4} className="kpi-ar-num">No branch data for selected month</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {filteredBranchSummaryData && (
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{csView !== 'Total' ? `Sales Target (${csView})` : 'Sales Target (Mainland + Zanzibar + Call Center)'}</td>
+                    <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.target === 'number' ? formatTzs(dashboardSummaryRows[0].target) : (dashboardSummaryRows[0]?.target ?? '—')}</td>
+                  </tr>
+                  <tr>
+                    <td>{csView !== 'Total' ? `Sales Achieved (${csView} — Management report Disbursement this month)` : 'Sales Achieved (CS MTD)'}</td>
+                    <td className="kpi-ar-num">{typeof dashboardSummaryRows[0]?.achievedDisplay === 'number' ? formatTzs(dashboardSummaryRows[0].achievedDisplay) : (dashboardSummaryRows[0]?.achievedDisplay ?? '—')}</td>
+                  </tr>
+                  <tr>
+                    <td>% Achieved</td>
+                    <td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[0]?.pct)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* 3. Branch Sales Achievement (branches only; in cluster view = 90% at 100% target) */}
+          <section className="kpi-ar-section kpi-ar-section-branch-sales">
+            <h2 className="kpi-ar-section-title">{csView !== 'Total' ? `Branch Sales Achievement — ${csView} (90% at 100% target)` : 'Branch Sales Achievement (85% at 100% target)'}</h2>
+            <div className="kpi-ar-table-wrap">
+              <table className="kpi-ar-table">
+                <thead>
+                  <tr>
+                    <th>Branch</th>
+                    <th>Target</th>
+                    <th>Disbursement this Month</th>
+                    <th>%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...(filteredBranchSummaryData?.branches ?? [])]
+                    .sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0))
+                    .map((b, i) => (
+                      <tr key={i}>
+                        <td>{b.branch}</td>
+                        <td className="kpi-ar-num">{formatTzs(b.target)}</td>
+                        <td className="kpi-ar-num">{formatTzs(b.disbursement)}</td>
+                        <td className="kpi-ar-num">{Number.isFinite(b.pct) ? formatPercentAccounting(b.pct) : '—'}</td>
+                      </tr>
+                    ))}
+                  {filteredBranchSummaryData && filteredBranchSummaryData.branches.length > 0 && (
+                    <tr className="kpi-ar-table-total">
+                      <td>Total</td>
+                      <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalTarget)}</td>
+                      <td className="kpi-ar-num">{formatTzs(filteredBranchSummaryData.totalDisbursement)}</td>
+                      <td className="kpi-ar-num">{filteredBranchSummaryData.totalTarget > 0 ? formatPercentAccounting((filteredBranchSummaryData.totalDisbursement / filteredBranchSummaryData.totalTarget) * 100) : '—'}</td>
+                    </tr>
+                  )}
+                  {(!filteredBranchSummaryData || filteredBranchSummaryData.branches.length === 0) && (
+                    <tr><td colSpan={4} className="kpi-ar-num">No branch data for selected month</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {filteredBranchSummaryData && (
               <p className="kpi-ar-section-note">
               Branches at ≥100%: {formatTzs(filteredBranchSummaryData.achieved100Count)} — Below 100%: {formatTzs(filteredBranchSummaryData.notAchieved100Count)} — % at 100%: {filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count > 0 ? formatPercentAccounting((filteredBranchSummaryData.achieved100Count / (filteredBranchSummaryData.achieved100Count + filteredBranchSummaryData.notAchieved100Count)) * 100) : formatPercentAccounting(0)}
-            </p>
+              </p>
+            )}
+          </section>
+
+          {/* Cluster KPI detail sections (each KPI in its own file) — shown when a cluster is selected */}
+          {csView !== 'Total' && (
+            <ClusterKpiView
+              cluster={csView}
+              monthLabel={monthKeyToLabel(effectiveMonthKey)}
+              effectiveMonthKey={effectiveMonthKey}
+              clusterTarget={effectiveTargetsForKpi?.salesTarget ?? 0}
+              clusterTargetFileName={clusterActiveFileName}
+              countrySheetDisbursement={countrySheetClusterDisbursement}
+              countrySheetClusterPortfolio={countrySheetClusterPortfolio}
+              countrySheetClusterPortfolioPrevious={countrySheetClusterPortfolioPrevious}
+              countrySheetClusterPar30={countrySheetClusterPar30}
+              mtdGroupedData={mtdParsedData?.groupedData ?? null}
+              branchesByCluster={branchesByCluster}
+              filteredBranchSummaryData={filteredBranchSummaryData}
+              latestManagementReport={latestManagementReport}
+              previousMonthManagementReport={previousMonthManagementReport}
+              clusterTargets={clusterTargets}
+              loading={!latestManagementReport && !!effectiveMonthKey}
+              regionsNewBizTable={clusterKpiTables?.regionsNewBiz ?? []}
+              recruitmentTable={clusterKpiTables?.recruitment ?? []}
+              crmClusterAggregated={crmClusterAggregated}
+              onLocationTable={onLocationTable}
+              consentTable={consentTable}
+            />
           )}
-        </section>
 
-        {/* Cluster KPI detail sections (each KPI in its own file) — shown when a cluster is selected */}
-        {csView !== 'Total' && (
-          <ClusterKpiView
-            cluster={csView}
-            monthLabel={monthKeyToLabel(effectiveMonthKey)}
-            effectiveMonthKey={effectiveMonthKey}
-            clusterTarget={effectiveTargetsForKpi?.salesTarget ?? 0}
-            clusterTargetFileName={clusterActiveFileName}
-            countrySheetDisbursement={countrySheetClusterDisbursement}
-            countrySheetClusterPortfolio={countrySheetClusterPortfolio}
-            countrySheetClusterPortfolioPrevious={countrySheetClusterPortfolioPrevious}
-            countrySheetClusterPar30={countrySheetClusterPar30}
-            mtdGroupedData={mtdParsedData?.groupedData ?? null}
-            branchesByCluster={branchesByCluster}
-            filteredBranchSummaryData={filteredBranchSummaryData}
-            latestManagementReport={latestManagementReport}
-            previousMonthManagementReport={previousMonthManagementReport}
-            clusterTargets={clusterTargets}
-            loading={!latestManagementReport && !!effectiveMonthKey}
-            regionsNewBizTable={clusterKpiTables?.regionsNewBiz ?? []}
-            recruitmentTable={clusterKpiTables?.recruitment ?? []}
-            crmClusterAggregated={crmClusterAggregated}
-            onLocationTable={onLocationTable}
-            consentTable={consentTable}
-          />
-        )}
+          {/* 4. Mainland 65% new business — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Attaining 65% new business (Mainland)</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>New Business Target (Mainland)</td><td className="kpi-ar-num">{formatTzs((targets.mainland || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
+                    <tr><td>New Business Actual (CS)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['New Business'] ?? latestManagementReport?.cs?.['New business'])}</td></tr>
+                    <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[2]?.pct)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 4. Mainland 65% new business — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Attaining 65% new business (Mainland)</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>New Business Target (Mainland)</td><td className="kpi-ar-num">{formatTzs((targets.mainland || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
-                <tr><td>New Business Actual (CS)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['New Business'] ?? latestManagementReport?.cs?.['New business'])}</td></tr>
-                <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[2]?.pct)}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 5. Zanzibar 70% new business — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Attaining 70% Zanzibar new business</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>New Business Target (Zanzibar)</td><td className="kpi-ar-num">{formatTzs((targets.zanzibar || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
+                    <tr><td>New Business Actual (Zanzibar)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.zanzibar?.['New Business'] ?? latestManagementReport?.zanzibar?.['New business'])}</td></tr>
+                    <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[3]?.pct)}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 5. Zanzibar 70% new business — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Attaining 70% Zanzibar new business</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>New Business Target (Zanzibar)</td><td className="kpi-ar-num">{formatTzs((targets.zanzibar || {})[effectiveMonthKey]?.newBusiness)}</td></tr>
-                <tr><td>New Business Actual (Zanzibar)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.zanzibar?.['New Business'] ?? latestManagementReport?.zanzibar?.['New business'])}</td></tr>
-                <tr><td>% of target</td><td className="kpi-ar-num">{formatPercentAccounting(dashboardSummaryRows[3]?.pct)}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 6. Portfolio growth — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Portfolio growth 10% annually (~1% per month)</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Current month portfolio (CS)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'])}</td></tr>
+                    <tr><td>Previous month portfolio</td><td className="kpi-ar-num">{formatTzs(previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'])}</td></tr>
+                    <tr><td>Growth %</td><td className="kpi-ar-num">{dashboardSummaryRows[4]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 6. Portfolio growth — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Portfolio growth 10% annually (~1% per month)</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Current month portfolio (CS)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'])}</td></tr>
-                <tr><td>Previous month portfolio</td><td className="kpi-ar-num">{formatTzs(previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'])}</td></tr>
-                <tr><td>Growth %</td><td className="kpi-ar-num">{dashboardSummaryRows[4]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 7. PAR 30 below 5% — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Maintain PAR 30 below 5% (0.5% monthly improvement)</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Current PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
+                    <tr><td>Previous month PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
+                    <tr><td>Improvement (pp)</td><td className="kpi-ar-num">{dashboardSummaryRows[5]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 7. PAR 30 below 5% — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Maintain PAR 30 below 5% (0.5% monthly improvement)</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Current PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
-                <tr><td>Previous month PAR &gt;30 (%)</td><td className="kpi-ar-num">{(() => { const v = normalizeParToPercentage(previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30']); return Number.isFinite(v) ? formatPercentAccounting(v) : '—'; })()}</td></tr>
-                <tr><td>Improvement (pp)</td><td className="kpi-ar-num">{dashboardSummaryRows[5]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 8. Growth of active client base 20% annually — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Growth of active client base 20% annually</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Active clients (current)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'])}</td></tr>
+                    <tr><td>Active clients (previous month)</td><td className="kpi-ar-num">{formatTzs(previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'])}</td></tr>
+                    <tr><td>Annualized growth (%)</td><td className="kpi-ar-num">{dashboardSummaryRows[6]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 8. Growth of active client base 20% annually — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Growth of active client base 20% annually</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Active clients (current)</td><td className="kpi-ar-num">{formatTzs(latestManagementReport?.cs?.['Active clients'] ?? latestManagementReport?.cs?.['Active Clients'])}</td></tr>
-                <tr><td>Active clients (previous month)</td><td className="kpi-ar-num">{formatTzs(previousMonthManagementReport?.cs?.['Active clients'] ?? previousMonthManagementReport?.cs?.['Active Clients'])}</td></tr>
-                <tr><td>Annualized growth (%)</td><td className="kpi-ar-num">{dashboardSummaryRows[6]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 9. Regions and Clusters hit target — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">Ensure all Regions and Clusters hit their target</h2>
+              <p className="kpi-ar-section-note">Supervisions from CS MTD; Clusters from management report (Cluster 1, Cluster 2, Cluster 3, ZANZIBAR).</p>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Regions &amp; Clusters % hit target</td><td className="kpi-ar-num">{dashboardSummaryRows[7]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 9. Regions and Clusters hit target — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">Ensure all Regions and Clusters hit their target</h2>
-          <p className="kpi-ar-section-note">Supervisions from CS MTD; Clusters from management report (Cluster 1, Cluster 2, Cluster 3, ZANZIBAR).</p>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Regions &amp; Clusters % hit target</td><td className="kpi-ar-num">{dashboardSummaryRows[7]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
+          {/* 10. 90% proper usage of CRM — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">90% proper usage of CRM by all Sales force teams</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>% Logged in (Team Leaders + Loan Officers)</td><td className="kpi-ar-num">{dashboardSummaryRows[8]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
-        {/* 10. 90% proper usage of CRM — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">90% proper usage of CRM by all Sales force teams</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>% Logged in (Team Leaders + Loan Officers)</td><td className="kpi-ar-num">{dashboardSummaryRows[8]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
-
-        {/* 11. 65% achieved of Data consent — Total view only */}
-        {csView === 'Total' && (
-        <section className="kpi-ar-section">
-          <h2 className="kpi-ar-section-title">65% achieved of Data consent from each Cluster</h2>
-          <div className="kpi-ar-table-wrap">
-            <table className="kpi-ar-table">
-              <thead>
-                <tr>
-                  <th>Metric</th>
-                  <th>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Average consent % (from CRM leads)</td><td className="kpi-ar-num">{dashboardSummaryRows[9]?.achievedDisplay ?? '—'}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-        )}
-      </div>
+          {/* 11. 65% achieved of Data consent — Total view only */}
+          {csView === 'Total' && (
+            <section className="kpi-ar-section">
+              <h2 className="kpi-ar-section-title">65% achieved of Data consent from each Cluster</h2>
+              <div className="kpi-ar-table-wrap">
+                <table className="kpi-ar-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Average consent % (from CRM leads)</td><td className="kpi-ar-num">{dashboardSummaryRows[9]?.achievedDisplay ?? '—'}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
       </div>
 
       {renderKpiEmailModal()}

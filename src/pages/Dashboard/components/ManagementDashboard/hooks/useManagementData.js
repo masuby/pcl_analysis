@@ -71,7 +71,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
   // Listen for refresh events (e.g. report metadata edited in Report Management)
   useEffect(() => {
     if (refreshTrigger > 0) {
-      console.log('[ManagementDashboard] Refresh triggered, clearing cache and refetching');
+
       parsedDataCache.clear();
       batchDataCache = null;
       cacheInvalidate('reports');
@@ -147,7 +147,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       let batchData = batchDataCache;
       
       if (!batchData) {
-        console.log('[API] Fetching ALL report data in single batch call...');
+
         const batchResult = await getBatchReportData();
         
         if (!batchResult.success) {
@@ -159,9 +159,9 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         
         batchData = batchResult.data || {};
         batchDataCache = batchData;
-        console.log(`[Batch] Loaded data for ${Object.keys(batchData).length} reports in single call`);
+
       } else {
-        console.log('[Cache] Using cached batch data');
+
       }
       
       // Transform batch data to expected format for each report. Include ALL reports so they are visible;

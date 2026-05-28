@@ -55,7 +55,7 @@ export const useCallCenterData = (department, selectedDate = null) => {
               fileName,
               fileUrl,
               date: report.date ? new Date(report.date) : 
-                    report.created_at ? new Date(report.created_at) : new Date()
+                report.created_at ? new Date(report.created_at) : new Date()
             });
           }
         }
@@ -81,7 +81,7 @@ export const useCallCenterData = (department, selectedDate = null) => {
   // Listen for refresh events
   useEffect(() => {
     if (refreshTrigger > 0 && initialLoadDone.current) {
-      console.log(`[CallCenterDashboard-${department}] Refresh triggered, clearing cache`);
+
       callCenterParsedCache.clear();
       cacheInvalidate('reports');
       setParsedData(null);
@@ -138,7 +138,7 @@ export const useCallCenterData = (department, selectedDate = null) => {
       // Check cache first
       const cacheKey = `callcenter_${department}_${latestReport.id}`;
       if (callCenterParsedCache.has(cacheKey)) {
-        console.log(`[Cache] Using cached Call Center data for ${latestReport.fileName}`);
+
         setParsedData(callCenterParsedCache.get(cacheKey));
         setLoading(false);
         return;
@@ -149,8 +149,6 @@ export const useCallCenterData = (department, selectedDate = null) => {
         setParsedData(null);
         return;
       }
-
-      console.log(`[CallCenter] Parsing Excel file: ${latestReport.fileName}`);
 
       // Fetch and parse the Excel file
       const response = await fetch(latestReport.fileUrl);

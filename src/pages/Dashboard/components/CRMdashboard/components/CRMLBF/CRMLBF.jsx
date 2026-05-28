@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useCRMData } from '../../hooks/useCRMData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import CRMAnalysis from '../CRMAnalysis/CRMAnalysis';
@@ -84,15 +84,15 @@ const CRMLBF = () => {
           <span className="report-date-text">
             {parsedData.reportDate instanceof Date
               ? parsedData.reportDate.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })
               : new Date(parsedData.reportDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
           </span>
         </div>
       )}

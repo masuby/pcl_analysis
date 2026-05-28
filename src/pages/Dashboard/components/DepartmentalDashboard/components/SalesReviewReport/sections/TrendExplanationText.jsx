@@ -1,4 +1,3 @@
-import React from 'react';
 import { segmentTrendExplanation } from '../utils/trendDataUtils';
 
 /**

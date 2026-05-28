@@ -344,15 +344,15 @@ export function addSectionSlides(pptx, section, sectionData, logoBase64, monthLa
     const rawVals = monthlyTrendData.map((d) => d.disbursements);
     const { scaled, formatCode, maxScaled } = getChartScale([rawVals]);
     const chartData = [{ name: 'Disbursements', labels: monthlyTrendData.map((d) => d.label), values: scaled(rawVals) }];
-      try {
-        slideTrend.addChart(pptx.ChartType.bar, chartData, {
-          x: 0.5, y: 1.15, w: 9, h: 2.5, barDir: 'col', chartColors: [ACCENT_BLUE], showLegend: false, showTitle: false,
-          valAxisLabelFontSize: 10, catAxisLabelFontSize: 10, showValue: true, showLabel: false, showCatName: false,
-          dataLabelPosition: 'outEnd', dataLabelFontSize: 9, dataLabelFontBold: false, dataLabelFontFace: FONT_BODY,
-          dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode, valAxisLabelFormatCode: formatCode,
-          valAxisMaxVal: maxScaled, showDataTable: false,
-          showCatAxisGridLines: false, showValAxisGridLines: false
-        });
+    try {
+      slideTrend.addChart(pptx.ChartType.bar, chartData, {
+        x: 0.5, y: 1.15, w: 9, h: 2.5, barDir: 'col', chartColors: [ACCENT_BLUE], showLegend: false, showTitle: false,
+        valAxisLabelFontSize: 10, catAxisLabelFontSize: 10, showValue: true, showLabel: false, showCatName: false,
+        dataLabelPosition: 'outEnd', dataLabelFontSize: 9, dataLabelFontBold: false, dataLabelFontFace: FONT_BODY,
+        dataLabelColor: PRIMARY_BLUE_DARK, dataLabelFormatCode: formatCode, valAxisLabelFormatCode: formatCode,
+        valAxisMaxVal: maxScaled, showDataTable: false,
+        showCatAxisGridLines: false, showValAxisGridLines: false
+      });
     } catch (e) {
       slideTrend.addText('Chart: no data', { x: 0.6, y: 1.5, w: 8.3, h: 0.5, fontSize: 11, color: GRAY, fontFace: FONT_FACE });
     }

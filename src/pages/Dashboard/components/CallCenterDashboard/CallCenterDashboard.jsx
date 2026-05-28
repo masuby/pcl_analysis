@@ -1,4 +1,3 @@
-import React from 'react';
 import LBFCallCenter from './components/LBFCallCenter/LBFCallCenter';
 import CSCallCenter from './components/CSCallCenter/CSCallCenter';
 import SMECallCenter from './components/SMECallCenter/SMECallCenter';

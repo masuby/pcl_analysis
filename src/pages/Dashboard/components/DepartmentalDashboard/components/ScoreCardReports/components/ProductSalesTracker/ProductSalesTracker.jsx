@@ -1,4 +1,4 @@
-import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
+import { useMemo, useImperativeHandle, forwardRef, useRef, Fragment } from 'react';
 import './ProductSalesTracker.css';
 import { useMTDData } from '../../../../../MTDdashboard/hooks/useMTDData';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
@@ -665,7 +665,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData, targetMonth }, ref) =>
                     </thead>
                     <tbody>
                       {row.teamLeaderRows.map((tl, i) => (
-                        <React.Fragment key={i}>
+                        <Fragment key={i}>
                           <tr>
                             <td className="mtd-rank-cell">{i + 1}</td>
                             <td className="mtd-td-name">{tl.name}</td>
@@ -684,7 +684,7 @@ const ProductSalesTracker = forwardRef(({ mode, userData, targetMonth }, ref) =>
                               <td></td>
                             </tr>
                           ))}
-                        </React.Fragment>
+                        </Fragment>
                       ))}
                       <tr className="mtd-whole-total-row">
                         <td colSpan="2" className="mtd-whole-total-cell">Whole Total</td>

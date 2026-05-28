@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import ReportTypeSelector from './components/ReportTypeSelector/ReportTypeSelector';
 import SummaryDashboard from './components/SummaryDashboard/SummaryDashboard';

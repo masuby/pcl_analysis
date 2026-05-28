@@ -51,6 +51,8 @@ func main() {
 	handlers.InitReportHandlers(&cfg.Storage)
 	handlers.InitProcedureHandlers(&cfg.Storage)
 	handlers.InitMarketingHandlers()
+	handlers.InitLocalTripHandlers()
+	handlers.InitConsentIncentiveHandlers()
 
 	// Create Gin router
 	router := gin.New()
@@ -155,6 +157,27 @@ func main() {
 				settlements.GET("/:fileId/download", handlers.DownloadSettlementFile)
 				settlements.DELETE("/:fileId", handlers.DeleteSettlementFile)
 			}
+
+			// Local Trip Report routes
+			localTrip := protected.Group("/local-trip")
+			{
+				localTrip.POST("/upload", handlers.UploadLocalTripFile)
+				localTrip.GET("/files", handlers.GetLocalTripFiles)
+				localTrip.GET("/files/:fileId/download", handlers.DownloadLocalTripFile)
+				localTrip.DELETE("/files/:fileId", handlers.DeleteLocalTripFile)
+			}
+
+			// Consent Incentive Report routes
+			consentIncentive := protected.Group("/consent-incentive")
+			{
+				consentIncentive.POST("/upload", handlers.UploadConsentIncentiveFile)
+				consentIncentive.GET("/files", handlers.GetConsentIncentiveFiles)
+				consentIncentive.GET("/files/:fileId/download", handlers.DownloadConsentIncentiveFile)
+				consentIncentive.DELETE("/files/:fileId", handlers.DeleteConsentIncentiveFile)
+			}
+
+			// Social Media Analysis — reads call-centre Google Sheets via service account
+			protected.GET("/social-media/data", handlers.GetSocialMediaData)
 
 			// KPI Targets routes (admin-only)
 			kpiTargets := protected.Group("/kpi-targets")

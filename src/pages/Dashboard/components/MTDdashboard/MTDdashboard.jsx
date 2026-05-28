@@ -1,4 +1,3 @@
-import React from 'react';
 import MTDCS from './components/MTDCS/MTDCS';
 import MTDLBF from './components/MTDLBF/MTDLBF';
 import MTDSME from './components/MTDSME/MTDSME';

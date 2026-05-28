@@ -2,7 +2,6 @@
  * Cluster KPI 4: Achieve 85% recruitment of sales agents.
  * Uses Gap Analysis: Achieved Sales Reps vs Target per region in cluster; show all region data, sum to cluster, then analysis.
  */
-import React from 'react';
 import { formatTzs, formatPercentAccounting } from '../utils/csKpiTargets';
 import './clusterKpiStyles.css';
 

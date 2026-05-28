@@ -56,14 +56,14 @@ const CSZANZIBARChart = ({
       ...item,
       xLabel: dataType === 'monthly' 
         ? itemDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short' 
-          })
+          year: 'numeric', 
+          month: 'short' 
+        })
         : itemDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          }),
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        }),
       dateLabel: itemDate.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long', 
@@ -114,7 +114,7 @@ const CSZANZIBARChart = ({
               value={to.toISOString().slice(0, 10)} 
               onChange={e => setTo(new Date(e.target.value))} 
             />
-          <button className="apply-btn" onClick={applyFilters}>Apply</button>
+            <button className="apply-btn" onClick={applyFilters}>Apply</button>
           </div>
           <button className="reset-btn" onClick={reset}>Reset</button>
         </div>

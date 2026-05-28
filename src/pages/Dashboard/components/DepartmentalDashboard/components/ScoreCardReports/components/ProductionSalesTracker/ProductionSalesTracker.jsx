@@ -1,4 +1,4 @@
-import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
+import { useMemo, useImperativeHandle, forwardRef } from 'react';
 import './ProductionSalesTracker.css';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
@@ -124,10 +124,10 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
     });
     const previousReport = previousMonthReports.length > 0
       ? previousMonthReports.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
-          const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
-          return dateB - dateA;
-        })[0]
+        const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+        const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+        return dateB - dateA;
+      })[0]
       : null;
     
     const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
@@ -191,10 +191,10 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
     const currentYearReport = currentYearReports.length > 0 ? currentYearReports[0] : null;
     const lastYearReport = lastYearReports.length > 0
       ? lastYearReports.sort((a, b) => {
-          const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
-          const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
-          return dateB - dateA;
-        })[0]
+        const dateA = a.date ? new Date(a.date) : new Date(a.createdAt);
+        const dateB = b.date ? new Date(b.date) : new Date(b.createdAt);
+        return dateB - dateA;
+      })[0]
       : null;
     
     const products = ['CS', 'LBF', 'SME', 'AgriFinance'];

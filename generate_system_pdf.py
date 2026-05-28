@@ -171,7 +171,6 @@ def build_pdf():
     pdf.set_font("Helvetica", "", 12)
     pdf.set_text_color(200, 210, 230)
     pdf.cell(0, 7, "Comprehensive System Documentation", align="C", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, "& Service Proposal", align="C", new_x="LMARGIN", new_y="NEXT")
 
     pdf.ln(20)
     pdf.set_font("Helvetica", "", 9)
@@ -190,7 +189,7 @@ def build_pdf():
     pdf.cell(0, 4, "February 2026  |  Confidential", align="C")
 
     # ═══════════════════════════════════════════════════════════════
-    # PAGE 2 — INTRODUCTION + SYSTEM OVERVIEW + SERVICE AGREEMENT
+    # PAGE 2 — INTRODUCTION + SYSTEM OVERVIEW
     # ═══════════════════════════════════════════════════════════════
     pdf.add_page()
 
@@ -222,8 +221,8 @@ def build_pdf():
         ("CRM", "Customer Relationship Management analytics (leads, consent, agent activity)"),
         ("CALL CENTER", "Call volumes, success rates, top agents, inbound/outbound split"),
         ("MTD", "Month-to-date operational reporting at supervision and team leader level"),
-        ("DEPARTMENTAL", "Advanced reports: Score Card, Sales Review, Gap Analysis, KPI Analysis"),
-        ("CHALLENGE", "Staff motivational challenges and contests"),
+                ("DEPARTMENTAL", "Score Card, Sales Review, Gap Analysis, KPI Analysis, Social Media, Settlements, Temporary Reports, Marketing Analysis, RSM Score Card"),
+        ("CHALLENGE", "Staff motivational challenges and contests \u2014 fully operational with live tracking"),
     ]
     w = [36, 146]
     pdf.table_header(["Dashboard View", "Description"], w)
@@ -231,21 +230,17 @@ def build_pdf():
         pdf.table_row([v, d], w, fill=(i % 2 == 0))
     pdf.ln(3)
 
-    # service agreement box
-    pdf.set_fill_color(*ACCENT_TEAL)
-    pdf.rect(pdf.l_margin, pdf.get_y(), 182, 0.8, "F")
-    pdf.ln(3)
-    pdf.section_title("3. Service Agreement & Continuous Improvement")
+    pdf.section_title("3. Continuous Improvement & Support")
     pdf.body_text(
         "This system was developed by Daniel Clement Masubi for Platinum Credit Limited (PCL). "
-        "To ensure the platform remains effective and continuously improving, a monthly service "
-        "agreement is proposed:"
+        "To ensure the platform remains effective and continuously improving, ongoing support "
+        "and enhancements are provided to keep the system aligned with business needs."
     )
-
-    pdf.kv_row("Monthly Service Fee", "USD 250 per month, per subsidiary", fill=True)
-    pdf.kv_row("Payment Type", "Monthly service payment")
-    pdf.kv_row("Coverage", "Continuous improvement, bug fixes, new features, integrations, support", fill=True)
-    pdf.kv_row("Why It Matters", "The system evolves with the business \u2014 new reports, data sources, KPIs")
+    pdf.body_text(
+        "Coverage includes continuous improvement, bug fixes, new features, integrations, and "
+        "technical support. The system evolves with the business \u2014 incorporating new reports, "
+        "data sources, and KPIs as the company\u2019s reporting requirements grow."
+    )
     pdf.ln(2)
 
     # ═══════════════════════════════════════════════════════════════
@@ -255,9 +250,9 @@ def build_pdf():
 
     pdf.section_title("4. Departmental Dashboard \u2014 Core Features")
     pdf.body_text(
-        "The Departmental Dashboard is the most powerful section, containing six tabs (four fully "
-        "implemented, two coming soon). These features automate what previously required hours of "
-        "manual Excel and PowerPoint work."
+        "The Departmental Dashboard is the most powerful section, featuring nine fully operational "
+        "tabs. These features automate what previously required hours of manual Excel and "
+        "PowerPoint work."
     )
 
     # Score Card
@@ -343,8 +338,49 @@ def build_pdf():
 
     pdf.body_text(
         "Cluster email attaches two files: the Cluster KPI Target file and the Cluster KPI Analysis "
-        "workbook. Total email attaches the single KPI report workbook."
+                "workbook. Total email attaches the single KPI report workbook."
     )
+
+    # Social Media Analysis
+    pdf.sub_title("4.5  Social Media Analysis")
+    pdf.body_text(
+        "Analyzes social media engagement and performance metrics across platforms. Tracks "
+        "lead generation from social channels, post performance, audience growth, and "
+        "conversion metrics. Provides actionable insights for marketing strategy optimization."
+    )
+
+    # Settlements Analysis
+    pdf.sub_title("4.6  Settlements Analysis")
+    pdf.body_text(
+        "Monitors and analyzes settlement performance across departments and branches. "
+        "Tracks settlement rates, aging, reconciliation status, and outstanding items. "
+        "Provides branch-level and department-level settlement overviews with trend analysis."
+    )
+
+    # Temporary Reports
+    pdf.sub_title("4.7  Temporary Reports")
+    pdf.body_text(
+        "A flexible reporting module for ad-hoc analysis needs. Supports quick generation "
+        "of custom reports on demand, allowing users to pull specific data slices without "
+        "waiting for formal report cycles. Ideal for time-sensitive business queries."
+    )
+
+    # Marketing Analysis
+    pdf.sub_title("4.8  Marketing Analysis")
+    pdf.body_text(
+        "Provides comprehensive marketing performance analytics including campaign ROI, "
+        "lead conversion funnels, channel effectiveness comparisons, and budget utilization "
+        "tracking. Helps optimize marketing spend and identify high-performing initiatives."
+    )
+
+    # RSM Score Card
+    pdf.sub_title("4.9  RSM Score Card")
+    pdf.body_text(
+        "Extends score card functionality to the Regional Sales Manager level. Tracks RSM "
+        "performance across management, sales, compliance, and team development metrics. "
+        "Provides regional performance comparisons and identifies coaching opportunities."
+    )
+    pdf.ln(2)
 
     # ═══════════════════════════════════════════════════════════════
     # PAGE 4 — EMAIL, EXPORTS, DATA FLOW, ROLES
@@ -364,6 +400,10 @@ def build_pdf():
         ("Gap Analysis", "Excel (.xlsx)", "Full or per-TL/RSM slices"),
         ("KPI (Total)", "Excel (.xlsx)", "KPI report workbook"),
         ("KPI (Cluster)", "Excel (.xlsx)", "Target file + KPI workbook (2 files)"),
+        ("Social Media", "Excel (.xlsx)", "Engagement and conversion data"),
+        ("Settlements", "Excel (.xlsx)", "Settlement analysis workbook"),
+        ("Marketing", "Excel (.xlsx)", "Campaign and ROI report"),
+        ("RSM Score Card", "Excel (.xlsx)", "RSM performance workbook"),
     ]
     for i, (r, f, a) in enumerate(emails):
         pdf.table_row([r, f, a], email_w, fill=(i % 2 == 0))
@@ -488,11 +528,11 @@ def build_pdf():
     pdf.set_text_color(210, 220, 240)
     pdf.multi_cell(166, 4.3, safe(
         "The PCL Analysis System is a purpose-built analytical platform developed by Daniel Clement "
-        "Masubi (Senior Data Analyst & Sales Support) for PCL. The proposed monthly service of "
-        "USD 250 per month, per subsidiary ensures continuous improvement, new features, integrations, "
-        "and support while keeping the platform aligned with business needs. Combined with structured "
-        "on-site alignment and training for each subsidiary, this solution delivers greater accuracy, "
-        "faster turnaround, and deeper insights across the organization."
+        "Masubi (Senior Data Analyst & Sales Support) for PCL. The system is designed for continuous "
+        "improvement, with new features, integrations, and support to keep the platform aligned with "
+        "business needs. Combined with structured on-site alignment and training for each subsidiary, "
+        "this solution delivers greater accuracy, faster turnaround, and deeper insights across the "
+        "organization."
     ))
     pdf.ln(6)
 

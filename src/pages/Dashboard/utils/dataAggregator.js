@@ -351,7 +351,7 @@ export const generateInsights = (data, stats, column) => {
   }
   
   if (stats.stdDev > stats.average * 0.5) {
-    insights.push(`High variability in data indicates inconsistent performance`);
+    insights.push('High variability in data indicates inconsistent performance');
   }
   
   if (data.length > 10) {

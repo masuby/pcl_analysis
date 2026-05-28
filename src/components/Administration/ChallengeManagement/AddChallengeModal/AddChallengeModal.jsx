@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { createChallenge } from '../../../../services/challenges';
 import { uploadChallengeImage, uploadChallengeAttachment, getChallengeImageUrl, getChallengeAttachmentUrl } from '../../../../services/supabase';
 import LoadingSpinner from '../../../Common/Loading/LoadingSpinner';

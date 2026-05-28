@@ -1,9 +1,8 @@
-import React from 'react';
 import './TrendAnalysis.css';
 
 const TrendAnalysis = ({ data, selectedMonth }) => {
   // Calculate trends and insights
-  const insights = React.useMemo(() => {
+  const insights = useMemo(() => {
     if (!data.countrywiseData || data.countrywiseData.length < 2) {
       return null;
     }

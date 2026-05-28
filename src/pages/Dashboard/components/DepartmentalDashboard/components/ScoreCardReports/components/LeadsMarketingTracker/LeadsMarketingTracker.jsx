@@ -1,4 +1,4 @@
-import React, { useMemo, useImperativeHandle, forwardRef } from 'react';
+import { useMemo, useImperativeHandle, forwardRef } from 'react';
 import './LeadsMarketingTracker.css';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { useCRMData } from '../../../../../CRMdashboard/hooks/useCRMData';
