@@ -157,6 +157,16 @@ export const useSummaryData = () => {
         }));
       result.SME = processDepartmentData(smeData, 'SME');
 
+      // Process AgriFinance data (single branch from Country sheet "Agrifinance" row)
+      const agrifinanceData = managementReports
+        .filter(report => report.agrifinance && Object.keys(report.agrifinance).length > 0)
+        .map(report => ({
+          fileName: report.fileName || 'Unknown',
+          date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
+          ...report.agrifinance
+        }));
+      result.Agrifinance = processDepartmentData(agrifinanceData, 'Agrifinance');
+
       summaryCache.set('management_summary', result);
       setManagementData(result);
     } catch (err) {

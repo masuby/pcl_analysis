@@ -56,11 +56,12 @@ FONT = 'Lato'
 # Templates
 # ─────────────────────────────────────────────────────────────────────────────
 LBF_COLS = ['Product', 'Platform', 'name', 'check_no', 'date',
-            'assigned_to', 'phone_no', 'status', 'comment', 'is_converted?']
+            'assigned_to', 'phone_no', 'status', 'comment', 'is_converted?',
+            'loan_amount', 'client_type']
 
 CS_COLS  = ['Product', 'Platform', 'name', 'check_no', 'date',
             'assigned_to', 'phone_no', 'feedback', 'status', 'comment',
-            'is_converted?']
+            'is_converted?', 'loan_amount', 'client_type']
 
 LBF_STATUS = [
     'Not picking', 'Not interested', 'Request callback', 'Not reachable',
@@ -75,6 +76,7 @@ CS_STATUS = [
     'Duplicated number', 'Probation', 'Busy', 'Redirected', 'Other',
 ]
 YES_NO = ['No', 'Yes']
+CLIENT_TYPE = ['New', 'Repeat']
 
 # Status colour palette (hex without #) — bg + fg
 STATUS_COLORS = {
@@ -378,7 +380,8 @@ def hex_to_rgb(h):
 
 def style_sheet(svc, file_id, sheet_id, columns, status_options,
                 status_col_idx, conv_col_idx, date_col_idx,
-                row_count, col_widths):
+                row_count, col_widths,
+                loan_amount_col_idx=None, client_type_col_idx=None):
     """Apply header style, frozen header row, date format, dropdowns,
     per-status colour, etc."""
     n_cols = len(columns)
@@ -521,6 +524,70 @@ def style_sheet(svc, file_id, sheet_id, columns, status_options,
             },
         }
     })
+
+    # 8b) loan_amount — number format with thousand separators, right-aligned
+    if loan_amount_col_idx is not None:
+        reqs.append({
+            'repeatCell': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'endRowIndex': row_count,
+                          'startColumnIndex': loan_amount_col_idx,
+                          'endColumnIndex': loan_amount_col_idx + 1},
+                'cell': {'userEnteredFormat': {
+                    'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0'},
+                    'horizontalAlignment': 'RIGHT',
+                    'textFormat': {'fontFamily': FONT, 'fontSize': 10},
+                }},
+                'fields': ('userEnteredFormat(numberFormat,'
+                           'horizontalAlignment,textFormat)'),
+            }
+        })
+
+    # 8c) client_type — dropdown New / Repeat with per-value colour
+    if client_type_col_idx is not None:
+        reqs.append({
+            'setDataValidation': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'endRowIndex': row_count,
+                          'startColumnIndex': client_type_col_idx,
+                          'endColumnIndex': client_type_col_idx + 1},
+                'rule': {
+                    'condition': {'type': 'ONE_OF_LIST',
+                                  'values': [{'userEnteredValue': v}
+                                             for v in CLIENT_TYPE]},
+                    'showCustomUi': True, 'strict': False,
+                    'inputMessage': 'Pick New or Repeat (only for converted sales).',
+                },
+            }
+        })
+        # Colour-code client_type values
+        client_type_colors = {
+            'New':    ('DBEAFE', '1E40AF'),   # blue
+            'Repeat': ('FEF3C7', '92400E'),   # amber
+        }
+        for value, (bg, fg) in client_type_colors.items():
+            reqs.append({
+                'addConditionalFormatRule': {
+                    'rule': {
+                        'ranges': [{'sheetId': sheet_id, 'startRowIndex': 1,
+                                    'endRowIndex': row_count,
+                                    'startColumnIndex': client_type_col_idx,
+                                    'endColumnIndex': client_type_col_idx + 1}],
+                        'booleanRule': {
+                            'condition': {'type': 'TEXT_EQ',
+                                          'values': [{'userEnteredValue': value}]},
+                            'format': {
+                                'backgroundColor': hex_to_rgb(bg),
+                                'textFormat': {
+                                    'bold': True,
+                                    'foregroundColor': hex_to_rgb(fg),
+                                },
+                            },
+                        },
+                    },
+                    'index': 0,
+                }
+            })
 
     # 9) Per-status conditional formatting on the status column
     for value in status_options:
@@ -667,6 +734,8 @@ def migrate_lbf_sme(svc):
             status,
             comment,
             'No',
+            '',                                   # loan_amount — blank by default
+            '',                                   # client_type — blank by default
         ])
 
     # Sort by date ASC (earliest first); rows without a date sink to the bottom
@@ -683,12 +752,13 @@ def migrate_lbf_sme(svc):
     write_values(svc, LBF_SME_ID, NEW_SHEET_TITLE, out)
     # Column widths for LBF order:
     #   Product, Platform, name, check_no, date, assigned_to, phone_no,
-    #   status, comment, is_converted?
-    widths = [90, 130, 200, 90, 110, 140, 140, 180, 260, 120]
+    #   status, comment, is_converted?, loan_amount, client_type
+    widths = [90, 130, 200, 90, 110, 140, 140, 180, 260, 120, 130, 110]
     style_sheet(svc, LBF_SME_ID, sheet_id,
                 columns=LBF_COLS, status_options=LBF_STATUS,
                 status_col_idx=7, conv_col_idx=9, date_col_idx=4,
-                row_count=row_count, col_widths=widths)
+                row_count=row_count, col_widths=widths,
+                loan_amount_col_idx=10, client_type_col_idx=11)
     print('  ✓ done')
 
 
@@ -749,6 +819,8 @@ def migrate_cs(svc):
             std,
             '',                       # comment — blank for CS migration
             'Yes' if conv.lower() == 'yes' else 'No',
+            '',                       # loan_amount — blank by default
+            '',                       # client_type — blank by default
         ])
 
     # Sort by date ASC (earliest first); rows without a date sink to the bottom
@@ -767,24 +839,303 @@ def migrate_cs(svc):
     write_values(svc, CS_ID, NEW_SHEET_TITLE, out)
     # Column widths for CS order:
     #   Product, Platform, name, check_no, date, assigned_to, phone_no,
-    #   feedback, status, comment, is_converted?
-    widths = [90, 130, 200, 110, 110, 140, 140, 260, 180, 260, 120]
+    #   feedback, status, comment, is_converted?, loan_amount, client_type
+    widths = [90, 130, 200, 110, 110, 140, 140, 260, 180, 260, 120, 130, 110]
     style_sheet(svc, CS_ID, sheet_id,
                 columns=CS_COLS, status_options=CS_STATUS,
                 status_col_idx=8, conv_col_idx=10, date_col_idx=4,
-                row_count=row_count, col_widths=widths)
+                row_count=row_count, col_widths=widths,
+                loan_amount_col_idx=11, client_type_col_idx=12)
     print('  ✓ done')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
-if __name__ == '__main__':
+# ─────────────────────────────────────────────────────────────────────────────
+# SAFE APPEND-COLUMNS mode (no data deletion)
+# ─────────────────────────────────────────────────────────────────────────────
+def append_new_columns(svc, file_id, sheet_title, label):
+    """Safely append loan_amount + client_type columns to an existing
+    MAY 2026 SHEET tab WITHOUT deleting any rows or other columns.
+
+    Steps:
+      1. Read the existing header row to find the current column count
+      2. If loan_amount / client_type already exist → skip (idempotent)
+      3. Append the two headers to the right of the last column
+      4. Apply number-format on loan_amount, dropdown + conditional
+         formatting on client_type
+    """
+    print(f'\n── APPEND mode → {label} ───────────────────────────────────')
+    sheet_id = get_sheet_id(svc, file_id, sheet_title)
+    if sheet_id is None:
+        print(f'  ⚠ sheet "{sheet_title}" not found in workbook — skipping')
+        return
+
+    # Read header row + row count
+    meta = svc.spreadsheets().get(
+        spreadsheetId=file_id,
+        ranges=[_qrange(sheet_title, 'A1:ZZ1')],
+        includeGridData=False,
+    ).execute()
+    grid = next(s for s in meta['sheets']
+                if s['properties']['sheetId'] == sheet_id)
+    row_count = grid['properties']['gridProperties'].get('rowCount', 2000)
+    col_count = grid['properties']['gridProperties'].get('columnCount', 26)
+
+    header_row = svc.spreadsheets().values().get(
+        spreadsheetId=file_id, range=_qrange(sheet_title, '1:1')
+    ).execute().get('values', [[]])[0]
+    header = [str(h).strip().lower() for h in header_row]
+    print(f'  current header ({len(header_row)} cols): {header_row}')
+
+    has_loan  = 'loan_amount' in header
+    has_ctype = 'client_type' in header
+    if has_loan and has_ctype:
+        print('  ✓ both columns already exist — nothing to do (idempotent)')
+        return
+
+    # Find the next empty column index (0-based)
+    next_col = len(header_row)
+    add_cols = []
+    if not has_loan:
+        add_cols.append(('loan_amount', next_col)); next_col += 1
+    if not has_ctype:
+        add_cols.append(('client_type', next_col)); next_col += 1
+
+    # Make sure the sheet has enough columns; expand the grid if needed
+    needed_cols = next_col
+    if needed_cols > col_count:
+        print(f'  + expanding grid: {col_count} → {needed_cols} columns')
+        svc.spreadsheets().batchUpdate(
+            spreadsheetId=file_id,
+            body={'requests': [{
+                'updateSheetProperties': {
+                    'properties': {
+                        'sheetId': sheet_id,
+                        'gridProperties': {
+                            'rowCount':    row_count,
+                            'columnCount': needed_cols,
+                        },
+                    },
+                    'fields': 'gridProperties(rowCount,columnCount)',
+                }
+            }]},
+        ).execute()
+
+    # Write the new header values
+    for name, ci in add_cols:
+        cell_addr = f'{col_letter(ci)}1'
+        print(f'  + writing header "{name}" at {cell_addr}')
+        svc.spreadsheets().values().update(
+            spreadsheetId=file_id,
+            range=_qrange(sheet_title, cell_addr),
+            valueInputOption='RAW',
+            body={'values': [[name]]},
+        ).execute()
+
+    # Apply formatting + validation to the new columns
+    reqs = []
+
+    # Header style (match the existing dark-blue band)
+    for name, ci in add_cols:
+        reqs.append({
+            'repeatCell': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 0,
+                          'endRowIndex': 1,
+                          'startColumnIndex': ci, 'endColumnIndex': ci + 1},
+                'cell': {'userEnteredFormat': {
+                    'backgroundColor': hex_to_rgb('1F3864'),
+                    'horizontalAlignment': 'CENTER',
+                    'verticalAlignment':   'MIDDLE',
+                    'textFormat': {
+                        'foregroundColor': hex_to_rgb('FFFFFF'),
+                        'fontFamily': FONT, 'fontSize': 11, 'bold': True,
+                    },
+                }},
+                'fields': ('userEnteredFormat(backgroundColor,'
+                           'horizontalAlignment,verticalAlignment,textFormat)'),
+            }
+        })
+
+    # Column widths
+    for name, ci in add_cols:
+        width = 130 if name == 'loan_amount' else 110
+        reqs.append({
+            'updateDimensionProperties': {
+                'range': {'sheetId': sheet_id, 'dimension': 'COLUMNS',
+                          'startIndex': ci, 'endIndex': ci + 1},
+                'properties': {'pixelSize': width},
+                'fields': 'pixelSize',
+            }
+        })
+
+    # loan_amount: CLEAR any inherited dropdown first, then number format
+    for name, ci in add_cols:
+        if name != 'loan_amount':
+            continue
+        # Strip any data-validation rule that may have been inherited from
+        # the adjacent is_converted? column (Google Sheets sometimes extends
+        # validation across columns when the original range was wider).
+        reqs.append({
+            'setDataValidation': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'endRowIndex': row_count,
+                          'startColumnIndex': ci, 'endColumnIndex': ci + 1},
+                # No 'rule' key → clears all validation on this range.
+            }
+        })
+        reqs.append({
+            'repeatCell': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'endRowIndex': row_count,
+                          'startColumnIndex': ci, 'endColumnIndex': ci + 1},
+                'cell': {'userEnteredFormat': {
+                    'numberFormat': {'type': 'NUMBER', 'pattern': '#,##0'},
+                    'horizontalAlignment': 'RIGHT',
+                    'textFormat': {'fontFamily': FONT, 'fontSize': 10},
+                }},
+                'fields': ('userEnteredFormat(numberFormat,'
+                           'horizontalAlignment,textFormat)'),
+            }
+        })
+
+    # client_type: dropdown + colour-coded conditional formatting
+    for name, ci in add_cols:
+        if name != 'client_type':
+            continue
+        reqs.append({
+            'setDataValidation': {
+                'range': {'sheetId': sheet_id, 'startRowIndex': 1,
+                          'endRowIndex': row_count,
+                          'startColumnIndex': ci, 'endColumnIndex': ci + 1},
+                'rule': {
+                    'condition': {'type': 'ONE_OF_LIST',
+                                  'values': [{'userEnteredValue': v}
+                                             for v in CLIENT_TYPE]},
+                    'showCustomUi': True, 'strict': False,
+                    'inputMessage': 'Pick New or Repeat (only for converted sales).',
+                },
+            }
+        })
+        ctype_colors = {
+            'New':    ('DBEAFE', '1E40AF'),
+            'Repeat': ('FEF3C7', '92400E'),
+        }
+        for value, (bg, fg) in ctype_colors.items():
+            reqs.append({
+                'addConditionalFormatRule': {
+                    'rule': {
+                        'ranges': [{'sheetId': sheet_id, 'startRowIndex': 1,
+                                    'endRowIndex': row_count,
+                                    'startColumnIndex': ci,
+                                    'endColumnIndex': ci + 1}],
+                        'booleanRule': {
+                            'condition': {'type': 'TEXT_EQ',
+                                          'values': [{'userEnteredValue': value}]},
+                            'format': {
+                                'backgroundColor': hex_to_rgb(bg),
+                                'textFormat': {
+                                    'bold': True,
+                                    'foregroundColor': hex_to_rgb(fg),
+                                },
+                            },
+                        },
+                    },
+                    'index': 0,
+                }
+            })
+
+    if reqs:
+        svc.spreadsheets().batchUpdate(
+            spreadsheetId=file_id, body={'requests': reqs}
+        ).execute()
+    print(f'  ✓ appended {len(add_cols)} column(s) to "{sheet_title}"')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Interactive menu
+# ─────────────────────────────────────────────────────────────────────────────
+def _prompt(question, options):
+    """Show numbered options, return the chosen value. Keeps asking
+    until a valid number is typed."""
+    print('\n' + question)
+    for k, (label, _) in options.items():
+        print(f'  [{k}] {label}')
+    while True:
+        choice = input('> ').strip().lower()
+        if choice in options:
+            return options[choice][1]
+        print('  (invalid choice, try again)')
+
+
+def run_interactive():
+    print('═' * 70)
+    print('  PCL Analysis — MAY 2026 SHEET maintenance tool')
+    print('═' * 70)
+
+    mode = _prompt(
+        'What do you want to do?',
+        {
+            '1': ('APPEND new columns (loan_amount, client_type) — SAFE, '
+                  'keeps all existing data',                              'append'),
+            '2': ('REBUILD MAY 2026 SHEET from source tabs — ⚠ DELETES '
+                  'all data currently in the tab',                         'rebuild'),
+            'q': ('Quit',                                                  'quit'),
+        },
+    )
+
+    if mode == 'quit':
+        print('  exiting — no changes made')
+        return
+
+    target = _prompt(
+        'Which workbook(s)?',
+        {
+            '1': ('LBF/SME workbook only', 'lbf'),
+            '2': ('CS workbook only',      'cs'),
+            '3': ('Both workbooks',        'both'),
+            'q': ('Quit',                  'quit'),
+        },
+    )
+
+    if target == 'quit':
+        print('  exiting — no changes made')
+        return
+
+    # Final confirmation for the destructive mode
+    if mode == 'rebuild':
+        print('\n⚠ ⚠ ⚠  DANGER  ⚠ ⚠ ⚠')
+        print(f'  This will DELETE the "{NEW_SHEET_TITLE}" tab in the chosen workbook(s)')
+        print('  and rebuild it from the source tabs. Any data typed directly into')
+        print(f'  "{NEW_SHEET_TITLE}" (not in the source tab) will be LOST.')
+        confirm = input('  Type the word REBUILD to proceed: ').strip()
+        if confirm != 'REBUILD':
+            print('  cancelled — no changes made')
+            return
+
     svc = make_service()
+
+    do_lbf = target in ('lbf', 'both')
+    do_cs  = target in ('cs',  'both')
+
     try:
-        migrate_lbf_sme(svc)
-        migrate_cs(svc)
+        if mode == 'append':
+            if do_lbf:
+                append_new_columns(svc, LBF_SME_ID, NEW_SHEET_TITLE, 'LBF/SME workbook')
+            if do_cs:
+                append_new_columns(svc, CS_ID, NEW_SHEET_TITLE, 'CS workbook')
+        elif mode == 'rebuild':
+            if do_lbf:
+                migrate_lbf_sme(svc)
+            if do_cs:
+                migrate_cs(svc)
     except HttpError as e:
         print('\n❌ HTTP error from Google API:', e, file=sys.stderr)
         raise
-    print('\n✓ all done — open both sheets and check "MAY 2026 SHEET"')
+
+    print('\n✓ all done')
+
+
+if __name__ == '__main__':
+    run_interactive()

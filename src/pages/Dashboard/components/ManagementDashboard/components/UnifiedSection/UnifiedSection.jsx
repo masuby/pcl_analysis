@@ -15,22 +15,24 @@ import SMEAnalysis from '../SMESection/SMEAnalysis';
 import CSZANZIBARChart from '../CSZANZIBARSection/CSZANZIBARChart';
 import CSZANZIBARAnalysis from '../CSZANZIBARSection/CSZANZIBARAnalysis';
 
-const UnifiedSection = ({ 
+const UnifiedSection = ({
   countrywiseData = [],
   csData = [],
   csBranchesData = {},
   lbfData = [],
   lbfBranchesData = {},
   smeData = [],
-  zanzibarData = []
+  zanzibarData = [],
+  agrifinanceData = []
 }) => {
   // Section type options
   const sectionOptions = [
-    { value: 'countrywise', label: 'Countrywise', data: countrywiseData, icon: '🌍' },
-    { value: 'cs', label: 'CS', data: csData, icon: '👥', hasBranches: true, branchesData: csBranchesData },
-    { value: 'lbf', label: 'LBF', data: lbfData, icon: '🏦', hasBranches: true, branchesData: lbfBranchesData },
-    { value: 'sme', label: 'SME', data: smeData, icon: '💼' },
-    { value: 'zanzibar', label: 'Zanzibar', data: zanzibarData, icon: '🏝️' }
+    { value: 'countrywise',  label: 'Countrywise',  data: countrywiseData,  icon: '🌍' },
+    { value: 'cs',           label: 'CS',           data: csData,           icon: '👥', hasBranches: true, branchesData: csBranchesData },
+    { value: 'lbf',          label: 'LBF',          data: lbfData,          icon: '🏦', hasBranches: true, branchesData: lbfBranchesData },
+    { value: 'sme',          label: 'SME',          data: smeData,          icon: '💼' },
+    { value: 'agrifinance',  label: 'AgriFinance',  data: agrifinanceData,  icon: '🌾' },
+    { value: 'zanzibar',     label: 'Zanzibar',     data: zanzibarData,     icon: '🏝️' }
   ].filter(option => option.data && option.data.length > 0);
 
   // Default to first available section
@@ -165,6 +167,8 @@ const UnifiedSection = ({
       return `${icon} LBF (${selectedBranch}) Analysis`;
     } else if (selectedSection === 'sme') {
       return `${icon} SME Analysis`;
+    } else if (selectedSection === 'agrifinance') {
+      return `${icon} AgriFinance (Country Total) Analysis`;
     } else if (selectedSection === 'zanzibar') {
       return `${icon} CS ZANZIBAR (ZANZIBAR branch) Analysis`;
     }
@@ -243,6 +247,9 @@ const UnifiedSection = ({
         return <LBFChart {...chartProps} />;
       case 'sme':
         return <SMEChart {...chartProps} />;
+      case 'agrifinance':
+        // AgriFinance reuses the SME chart shape (single branch, no sub-branches)
+        return <SMEChart {...chartProps} sectionLabel="AgriFinance" />;
       case 'zanzibar':
         return <CSZANZIBARChart {...chartProps} />;
       default:
@@ -266,6 +273,8 @@ const UnifiedSection = ({
       case 'lbf':
         return <LBFAnalysis {...analysisProps} />;
       case 'sme':
+        return <SMEAnalysis {...analysisProps} />;
+      case 'agrifinance':
         return <SMEAnalysis {...analysisProps} />;
       case 'zanzibar':
         return <CSZANZIBARAnalysis {...analysisProps} />;

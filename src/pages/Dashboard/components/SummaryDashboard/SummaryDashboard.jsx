@@ -331,7 +331,7 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
   
   // Department states for each section
   // For admin/ALL users: default to CS, for regular users: default to their department
-  const [managementDept, setManagementDept] = useState('Country'); // 'Country', 'CS', 'LBF', 'SME'
+  const [managementDept, setManagementDept] = useState('Country'); // 'Country', 'CS', 'LBF', 'SME', 'Agrifinance'
   const [crmDept, setCrmDept] = useState(isAdmin ? 'CS' : userDept);
   const [callCenterDept, setCallCenterDept] = useState(isAdmin ? 'CS' : userDept);
   const [mtdDept, setMtdDept] = useState(isAdmin ? 'CS' : userDept);
@@ -438,6 +438,12 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
                 onClick={() => setManagementDept('SME')}
               >
                 SME
+              </button>
+              <button
+                className={`sd-mgmt-dept-btn ${managementDept === 'Agrifinance' ? 'sd-active' : ''}`}
+                onClick={() => setManagementDept('Agrifinance')}
+              >
+                AgriFinance
               </button>
             </div>
           </div>

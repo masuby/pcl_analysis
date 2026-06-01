@@ -92,7 +92,30 @@ function normalizePlatform(platformRaw) {
 }
 
 function makeEmptyAggregator() {
-  return { total: 0, quality: 0, converted: 0 };
+  return {
+    total: 0, quality: 0, converted: 0,
+    newSales: 0, repeatSales: 0,
+    loanAmount: 0, newLoanAmount: 0, repeatLoanAmount: 0,
+  };
+}
+
+// Fold a single row's converted/new/repeat/loan figures into an aggregator.
+function bumpAgg(agg, r) {
+  agg.total++;
+  if (r.isQuality) agg.quality++;
+  if (r.converted) {
+    agg.converted++;
+    const amt = r.loan_amount || 0;
+    agg.loanAmount += amt;
+    if (r.client_type === 'New') {
+      agg.newSales++;
+      agg.newLoanAmount += amt;
+    }
+    if (r.client_type === 'Repeat') {
+      agg.repeatSales++;
+      agg.repeatLoanAmount += amt;
+    }
+  }
 }
 
 // ── Index look-up (header → col idx) ────────────────────────────────────────
@@ -105,39 +128,63 @@ function indexOfHeader(header, ...candidates) {
   return -1;
 }
 
+function parseLoanAmount(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return v;
+  // Strip non-numeric chars (commas, spaces, currency symbols)
+  const cleaned = String(v).replace(/[^\d.-]/g, '');
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeClientType(v) {
+  const s = String(v || '').trim().toLowerCase();
+  if (s === 'new')    return 'New';
+  if (s === 'repeat') return 'Repeat';
+  return '';
+}
+
 function normalizeRow(rawRow, header, source) {
   const idx = {
-    product:   indexOfHeader(header, 'Product'),
-    platform:  indexOfHeader(header, 'Platform', 'Platform/Channel', 'Channel'),
-    name:      indexOfHeader(header, 'name'),
-    check_no:  indexOfHeader(header, 'check_no'),
-    date:      indexOfHeader(header, 'date'),
-    agent:     indexOfHeader(header, 'assigned_to'),
-    phone:     indexOfHeader(header, 'phone_no', 'phone_number'),
-    feedback:  indexOfHeader(header, 'feedback'),
-    status:    indexOfHeader(header, 'status'),
-    comment:   indexOfHeader(header, 'comment'),
-    converted: indexOfHeader(header, 'is_converted?', 'is_converted'),
+    product:     indexOfHeader(header, 'Product'),
+    platform:    indexOfHeader(header, 'Platform', 'Platform/Channel', 'Channel'),
+    name:        indexOfHeader(header, 'name'),
+    check_no:    indexOfHeader(header, 'check_no'),
+    date:        indexOfHeader(header, 'date'),
+    agent:       indexOfHeader(header, 'assigned_to'),
+    phone:       indexOfHeader(header, 'phone_no', 'phone_number'),
+    feedback:    indexOfHeader(header, 'feedback'),
+    status:      indexOfHeader(header, 'status'),
+    comment:     indexOfHeader(header, 'comment'),
+    converted:   indexOfHeader(header, 'is_converted?', 'is_converted'),
+    loan_amount: indexOfHeader(header, 'loan_amount', 'loan amount'),
+    client_type: indexOfHeader(header, 'client_type', 'client type'),
   };
   const g = (key) => idx[key] >= 0 ? rawRow[idx[key]] : '';
   const dt = serialToDate(g('date'));
   const status = String(g('status') || '').trim();
+  const converted = String(g('converted') || '').toLowerCase() === 'yes'
+                 || status === 'Converted';
   return {
     source,
-    product:   normalizeProduct(g('product'), source),
-    platform:  normalizePlatform(g('platform')),
-    name:      String(g('name')      || '').trim(),
-    check_no:  String(g('check_no')  || '').trim(),
-    date:      dt,
-    week:      weekOfMonth(dt),
-    agent:     String(g('agent')     || '').trim(),
-    phone:     String(g('phone')     || '').trim(),
-    feedback:  String(g('feedback')  || '').trim(),
+    product:     normalizeProduct(g('product'), source),
+    platform:    normalizePlatform(g('platform')),
+    name:        String(g('name')      || '').trim(),
+    check_no:    String(g('check_no')  || '').trim(),
+    date:        dt,
+    week:        weekOfMonth(dt),
+    agent:       String(g('agent')     || '').trim(),
+    phone:       String(g('phone')     || '').trim(),
+    feedback:    String(g('feedback')  || '').trim(),
     status,
-    comment:   String(g('comment')   || '').trim(),
-    converted: String(g('converted') || '').toLowerCase() === 'yes'
-               || status === 'Converted',
-    isQuality: QUALITY_STATUSES.has(status),
+    comment:     String(g('comment')   || '').trim(),
+    converted,
+    isQuality:   QUALITY_STATUSES.has(status),
+    // Loan amount & client_type are meaningful only when converted.
+    // We still expose the raw values so reports can inspect them, but
+    // aggregation rules below only count them for converted rows.
+    loan_amount: converted ? parseLoanAmount(g('loan_amount')) : 0,
+    client_type: converted ? normalizeClientType(g('client_type')) : '',
   };
 }
 
@@ -160,9 +207,14 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
     ...csRows.slice(1) .map((r) => normalizeRow(r, csHeader,  'CS')),
   ].filter((r) => r.platform && r.phone);   // drop empty rows
 
-  const total     = rows.length;
-  const quality   = rows.filter((r) => r.isQuality).length;
-  const converted = rows.filter((r) => r.converted).length;
+  const total       = rows.length;
+  const quality     = rows.filter((r) => r.isQuality).length;
+  const converted   = rows.filter((r) => r.converted).length;
+  const newSales    = rows.filter((r) => r.converted && r.client_type === 'New').length;
+  const repeatSales = rows.filter((r) => r.converted && r.client_type === 'Repeat').length;
+  const loanAmount  = rows.reduce((s, r) => s + (r.converted ? (r.loan_amount || 0) : 0), 0);
+  const newLoanAmount    = rows.reduce((s, r) => s + (r.converted && r.client_type === 'New'    ? (r.loan_amount || 0) : 0), 0);
+  const repeatLoanAmount = rows.reduce((s, r) => s + (r.converted && r.client_type === 'Repeat' ? (r.loan_amount || 0) : 0), 0);
 
   // ── byPlatform ────────────────────────────────────────────────────────────
   const byPlatform = {};
@@ -172,27 +224,19 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
       byProduct: Object.fromEntries(PRODUCTS.map((p) => [p, makeEmptyAggregator()])),
       byWeek:    {},
     };
-    p.total++;
-    if (r.isQuality)  p.quality++;
-    if (r.converted)  p.converted++;
+    bumpAgg(p, r);
 
     const bp = p.byProduct[r.product] ?? p.byProduct.OTHERS;
-    bp.total++;
-    if (r.isQuality)  bp.quality++;
-    if (r.converted)  bp.converted++;
+    bumpAgg(bp, r);
 
     if (r.week) {
       const w = p.byWeek[r.week] ??= {
         ...makeEmptyAggregator(),
         byProduct: Object.fromEntries(PRODUCTS.map((p) => [p, makeEmptyAggregator()])),
       };
-      w.total++;
-      if (r.isQuality)  w.quality++;
-      if (r.converted)  w.converted++;
+      bumpAgg(w, r);
       const wbp = w.byProduct[r.product] ?? w.byProduct.OTHERS;
-      wbp.total++;
-      if (r.isQuality)  wbp.quality++;
-      if (r.converted)  wbp.converted++;
+      bumpAgg(wbp, r);
     }
   });
 
@@ -204,16 +248,12 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
     const a = agentMap[key] ??= {
       agent:    r.agent,
       source:   r.source,
-      total: 0, quality: 0, converted: 0,
+      ...makeEmptyAggregator(),
       byProduct: Object.fromEntries(PRODUCTS.map((p) => [p, makeEmptyAggregator()])),
     };
-    a.total++;
-    if (r.isQuality)  a.quality++;
-    if (r.converted)  a.converted++;
+    bumpAgg(a, r);
     const bp = a.byProduct[r.product] ?? a.byProduct.OTHERS;
-    bp.total++;
-    if (r.isQuality)  bp.quality++;
-    if (r.converted)  bp.converted++;
+    bumpAgg(bp, r);
   });
   const byAgent = Object.values(agentMap).sort((a, b) => b.total - a.total);
 
@@ -238,9 +278,7 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
     { ...makeEmptyAggregator(), agents: 0 }]));
   rows.forEach((r) => {
     const bp = byProduct[r.product] ?? byProduct.OTHERS;
-    bp.total++;
-    if (r.isQuality)  bp.quality++;
-    if (r.converted)  bp.converted++;
+    bumpAgg(bp, r);
   });
   // Distinct agents per product
   const productAgents = Object.fromEntries(PRODUCTS.map((p) => [p, new Set()]));
@@ -264,13 +302,9 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
       byProduct: Object.fromEntries(PRODUCTS.map((p) => [p, { ...makeEmptyAggregator(), agents: 0 }])),
       agents: 0,
     };
-    w.total++;
-    if (r.isQuality)  w.quality++;
-    if (r.converted)  w.converted++;
+    bumpAgg(w, r);
     const bp = w.byProduct[r.product] ?? w.byProduct.OTHERS;
-    bp.total++;
-    if (r.isQuality)  bp.quality++;
-    if (r.converted)  bp.converted++;
+    bumpAgg(bp, r);
 
     if (r.agent) {
       const key = r.agent.toLowerCase();
@@ -295,6 +329,8 @@ export function processSocialMediaData(api, period = 'MAY 2026') {
     period,
     monthLabel: period.replace(/SHEET$/i, '').trim() || period,
     total, quality, converted,
+    newSales, repeatSales,
+    loanAmount, newLoanAmount, repeatLoanAmount,
     qualityRate: total > 0 ? quality   / total : 0,
     convRate:    total > 0 ? converted / total : 0,
     successRate: total > 0 ? quality   / total : 0,    // alias for the template

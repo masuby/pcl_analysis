@@ -22,6 +22,28 @@ export function buildSocialMediaEmailHTML(d) {
         </tr>`;
     }).join('');
 
+  // Per-product loan amount table (New / Repeat / Total)
+  const PRODUCTS_ORDER = ['CS', 'LBF', 'SME', 'OTHERS'];
+  const loanRows = PRODUCTS_ORDER
+    .filter((p) => d.byProduct?.[p])
+    .map((p, i) => {
+      const a  = d.byProduct[p];
+      const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
+      return `
+        <tr style="background:${bg};">
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#1f3864;">${p}</td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#1e40af;">
+            <strong>${fmt(a.newLoanAmount)}</strong>
+            <span style="color:#6b7280;font-weight:500;"> (${fmt(a.newSales)})</span>
+          </td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#92400e;">
+            <strong>${fmt(a.repeatLoanAmount)}</strong>
+            <span style="color:#6b7280;font-weight:500;"> (${fmt(a.repeatSales)})</span>
+          </td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:700;color:#7c3aed;">${fmt(a.loanAmount)}</td>
+        </tr>`;
+    }).join('');
+
   const topAgentRows = d.byAgent.slice(0, 5).map((a, i) => {
     const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
     return `
@@ -110,6 +132,37 @@ export function buildSocialMediaEmailHTML(d) {
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">CONV %</td>
               </tr>
               ${platformRows}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Loan amount by product -->
+        <tr>
+          <td style="padding:14px 32px 8px;">
+            <h3 style="margin:0 0 4px;color:#1f3864;font-size:15px;font-weight:700;">
+              Loan Amount by Product
+              <span style="font-size:11px;color:#9ca3af;font-weight:500;margin-left:6px;">amount (count of sales)</span>
+            </h3>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:8px;">
+              <tr style="background:#1f3864;">
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;">PRODUCT</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">NEW</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">REPEAT</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">TOTAL LOAN AMOUNT</td>
+              </tr>
+              ${loanRows}
+              <tr style="background:#eef2ff;">
+                <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#1f3864;">TOTAL</td>
+                <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#1e40af;font-weight:700;">
+                  ${fmt(d.newLoanAmount)} <span style="color:#6b7280;font-weight:500;">(${fmt(d.newSales)})</span>
+                </td>
+                <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#92400e;font-weight:700;">
+                  ${fmt(d.repeatLoanAmount)} <span style="color:#6b7280;font-weight:500;">(${fmt(d.repeatSales)})</span>
+                </td>
+                <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#7c3aed;font-weight:700;">
+                  ${fmt(d.loanAmount)}
+                </td>
+              </tr>
             </table>
           </td>
         </tr>

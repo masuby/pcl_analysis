@@ -108,6 +108,16 @@ const ManagementDashboard = () => {
       ...report.zanzibar
     }));
 
+  // AgriFinance data — single branch pulled from the Country sheet's "Agrifinance" row.
+  // No sub-branches; structured the same way as SME.
+  const agrifinanceData = parsedReports
+    .filter(report => report.agrifinance && Object.keys(report.agrifinance).length > 0)
+    .map(report => ({
+      fileName: report.fileName || 'Unknown',
+      date: report.date ? (report.date instanceof Date ? report.date : new Date(report.date)) : new Date(),
+      ...report.agrifinance
+    }));
+
   // View options for the dropdown
   const viewOptions = [
     { value: 'country', label: '🌍 Country Analysis', icon: '🌍' },
@@ -154,6 +164,7 @@ const ManagementDashboard = () => {
               lbfBranchesData={lbfBranchesData}
               smeData={smeData}
               zanzibarData={zanzibarData}
+              agrifinanceData={agrifinanceData}
             />
           )}
           

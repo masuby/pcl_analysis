@@ -401,7 +401,8 @@ function buildAgentPerformanceSheet(d) {
 
     const renderVal = (v, bg = 'FFFFFF') => {
       if (v == null) return cell('', { bg });
-      if (v.format === 'pct') return pctCell(v.value, bg);
+      if (v.format === 'pct')  return pctCell(v.value, bg);
+      if (v.format === 'text') return cell(v.value, { bg, al: 'right' });
       return numCell(v.value, { bg });
     };
 
@@ -516,9 +517,34 @@ function buildAgentPerformanceSheet(d) {
     ]);
     r++;
 
-    // New / Repeat — no new/repeat data tracked yet
-    metricRow('New',    WEEKS.map(() => null), null, { sub: true });
-    metricRow('Repeat', WEEKS.map(() => null), null, { sub: true });
+    // ── New / Repeat — populated from the new client_type column ──────────
+    // A "sale" is a converted row. We show `amount (count)` per cell so the
+    // reader sees both the loan size and how many sales it represents.
+    // e.g. "732,800 (1)" means 1 sale, total loan amount 732,800.
+    const fmtAmt = (n) => Math.round(n || 0).toLocaleString();
+    const fmtAC  = (amt, cnt) =>
+      (!cnt && !amt) ? null
+                     : { value: `${fmtAmt(amt)} (${cnt})`, format: 'text' };
+
+    const newWeek = WEEKS.map((w) => {
+      const a = weekProdAgg(w, p);
+      return fmtAC(a.newLoanAmount, a.newSales);
+    });
+    const repWeek = WEEKS.map((w) => {
+      const a = weekProdAgg(w, p);
+      return fmtAC(a.repeatLoanAmount, a.repeatSales);
+    });
+    const pAgg = d.byProduct[p] ?? {};
+    metricRow('New',    newWeek, fmtAC(pAgg.newLoanAmount,    pAgg.newSales),    { sub: true });
+    metricRow('Repeat', repWeek, fmtAC(pAgg.repeatLoanAmount, pAgg.repeatSales), { sub: true });
+
+    // Total loan amount per product (sum of all converted loan_amount values)
+    const loanWeek = WEEKS.map((w) => {
+      const a = weekProdAgg(w, p);
+      return a.loanAmount > 0 ? { value: a.loanAmount } : null;
+    });
+    const pLoan = pAgg.loanAmount || 0;
+    metricRow('Loan amount', loanWeek, pLoan > 0 ? { value: pLoan } : null, { sub: true });
   });
 
   blankRow();

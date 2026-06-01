@@ -304,6 +304,62 @@ const SocialMediaAnalysis = ({ autoGenerate = false }) => {
             </div>
           </div>
 
+          {/* ── Loan amount per product (New / Repeat / Total) ────────────── */}
+          <div className="sma-section">
+            <div className="sma-section-label">
+              Loan Amount by Product
+              <span style={{ marginLeft: 8, fontSize: '0.7rem', color: '#9ca3af', fontWeight: 500 }}>
+                amount (count of sales)
+              </span>
+            </div>
+            <div className="sma-table-wrap">
+              <table className="sma-table">
+                <thead>
+                  <tr>
+                    <th>PRODUCT</th>
+                    <th style={{ textAlign: 'right' }}>NEW</th>
+                    <th style={{ textAlign: 'right' }}>REPEAT</th>
+                    <th style={{ textAlign: 'right' }}>TOTAL LOAN AMOUNT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(processedData.byProduct).map(([p, a]) => (
+                    <tr key={p}>
+                      <td><span className={`sma-badge sma-badge--${p.toLowerCase()}`}>{p}</span></td>
+                      <td style={{ textAlign: 'right', color: '#1e40af' }}>
+                        {(a.newLoanAmount || a.newSales)
+                          ? <><strong>{fmt(a.newLoanAmount)}</strong> <span style={{ color: '#6b7280' }}>({fmt(a.newSales)})</span></>
+                          : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#92400e' }}>
+                        {(a.repeatLoanAmount || a.repeatSales)
+                          ? <><strong>{fmt(a.repeatLoanAmount)}</strong> <span style={{ color: '#6b7280' }}>({fmt(a.repeatSales)})</span></>
+                          : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>
+                        {a.loanAmount ? fmt(a.loanAmount) : <span style={{ color: '#d1d5db' }}>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: '#f8fafc', fontWeight: 700, borderTop: '2px solid #e5e7eb' }}>
+                    <td>TOTAL</td>
+                    <td style={{ textAlign: 'right', color: '#1e40af' }}>
+                      <strong>{fmt(processedData.newLoanAmount)}</strong>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}> ({fmt(processedData.newSales)})</span>
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#92400e' }}>
+                      <strong>{fmt(processedData.repeatLoanAmount)}</strong>
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}> ({fmt(processedData.repeatSales)})</span>
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#7c3aed' }}>
+                      {fmt(processedData.loanAmount)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* ── Per-platform preview ────────────────────────────────────────── */}
           <div className="sma-section">
             <div className="sma-section-label">By Platform</div>
