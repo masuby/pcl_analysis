@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { consentIncentiveAPI } from '../../../../../services/api';
 import { sendScoreCardEmail } from '../../DepartmentalDashboard/utils/emailScoreCard';
 import { buildConsentIncentiveEmailHTML } from './utils/consentIncentiveEmailTemplate';
-import { processConsentIncentiveReport } from './utils/consentIncentiveProcessor';
+import { processConsentIncentiveReport, filterReportByProduct } from './utils/consentIncentiveProcessor';
 import {
   downloadConsentIncentiveReport,
   buildConsentIncentiveReportBuffer,
@@ -46,7 +46,8 @@ function EmailModal({ processedData, onClose }) {
   });
   const [newEmail,  setNewEmail]  = useState('');
   const [pasteBox,  setPasteBox]  = useState('');
-  const [subject,   setSubject]   = useState(`CONSENT INCENTIVE REPORT — ${summary.period}`);
+  const [subject,   setSubject]   = useState(
+    `CONSENT INCENTIVE REPORT — ${summary.product ? `${summary.product} ` : ''}${summary.period}`);
   const [sending,  setSending]  = useState(false);
   const [progress, setProgress] = useState(null);
   const [err,      setErr]      = useState('');
@@ -547,8 +548,46 @@ const ConsentIncentiveReport = () => {
   const [procErr,       setProcErr]       = useState('');
   const [crmList,       setCrmList]       = useState(null);
   const [crmErr,        setCrmErr]        = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');     // 'YYYY-MM'
+  const [productView,   setProductView]   = useState(null);   // null=ALL | 'CS' | 'LBF' | 'SME'
   const [toast,         setToast]         = useState(null);
   const showToast = useCallback((t) => setToast({ ...t, _id: Date.now() }), []);
+
+  // Months that actually have CRM reports — the dropdown only offers these so
+  // the scan stays cheap (we only download/scan that month's CRM files).
+  const monthOptions = useMemo(() => {
+    if (!crmList?.length) return [];
+    const seen = new Map(); // 'YYYY-MM' -> { key, label, count }
+    crmList.forEach((r) => {
+      const raw = r.date || r.createdAt;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+      const cur = seen.get(key) || { key, label, count: 0 };
+      cur.count++;
+      seen.set(key, cur);
+    });
+    return [...seen.values()].sort((a, b) => (a.key < b.key ? 1 : -1));
+  }, [crmList]);
+
+  // Default the month picker to the latest available CRM month.
+  useEffect(() => {
+    if (!selectedMonth && monthOptions.length) setSelectedMonth(monthOptions[0].key);
+  }, [monthOptions, selectedMonth]);
+
+  const monthLabel = useMemo(() => {
+    if (!selectedMonth) return '';
+    const [y, m] = selectedMonth.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase();
+  }, [selectedMonth]);
+
+  // Product-scoped view of the processed report (cheap post-filter — no re-scan).
+  const displayData = useMemo(
+    () => (processedData && productView ? filterReportByProduct(processedData, productView) : processedData),
+    [processedData, productView],
+  );
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -595,18 +634,34 @@ const ConsentIncentiveReport = () => {
   const handleGenerate = useCallback(async () => {
     if (!allReady) return;
     if (!crmList?.length) { setProcErr('No CRM reports in database.'); return; }
-    setProcessing(true); setProcErr(''); setProcessedData(null);
+    if (!selectedMonth)   { setProcErr('Select a report month first.'); return; }
+
+    // Only scan CRM reports that fall in the selected month — keeps the scan
+    // fast and focused on the files that matter for this report period.
+    const crmForMonth = crmList.filter((r) => {
+      const raw = r.date || r.createdAt;
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return false;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === selectedMonth;
+    });
+    if (!crmForMonth.length) {
+      setProcErr(`No CRM reports found for ${monthLabel}. Pick another month or upload that month's CRM.`);
+      return;
+    }
+
+    setProcessing(true); setProcErr(''); setProcessedData(null); setProductView(null);
     try {
       setProgressMsg('Downloading Lead file…');
       const leadBuf = await consentIncentiveAPI.downloadFileBuffer(files.LEAD.id);
       setProgressMsg('Downloading Loan file…');
       const loanBuf = await consentIncentiveAPI.downloadFileBuffer(files.LOAN.id);
 
-      setProgressMsg(`Downloading ${crmList.length} CRM report(s)…`);
+      setProgressMsg(`Downloading ${crmForMonth.length} CRM report(s) for ${monthLabel}…`);
       const crmBuffers = [];
-      for (let i = 0; i < crmList.length; i++) {
-        const r = crmList[i];
-        setProgressMsg(`Downloading CRM ${i + 1}/${crmList.length}: ${r.title || r.fileName}…`);
+      for (let i = 0; i < crmForMonth.length; i++) {
+        const r = crmForMonth[i];
+        setProgressMsg(`Downloading CRM ${i + 1}/${crmForMonth.length}: ${r.title || r.fileName}…`);
         try {
           const buf = await consentIncentiveAPI.downloadCRMReportBuffer(r.id);
           crmBuffers.push({ buffer: buf, meta: r });
@@ -614,10 +669,10 @@ const ConsentIncentiveReport = () => {
           console.warn('Failed to download CRM', r.id, e);
         }
       }
-      if (!crmBuffers.length) throw new Error('Could not download any CRM report.');
+      if (!crmBuffers.length) throw new Error('Could not download any CRM report for the selected month.');
 
-      setProgressMsg('Processing — running 7-step procedure…');
-      const result = processConsentIncentiveReport(leadBuf, loanBuf, crmBuffers);
+      setProgressMsg(`Processing ${monthLabel} — running 7-step procedure…`);
+      const result = processConsentIncentiveReport(leadBuf, loanBuf, crmBuffers, { periodLabel: monthLabel });
       setProcessedData(result);
       setProgressMsg('');
     } catch (e) {
@@ -626,11 +681,11 @@ const ConsentIncentiveReport = () => {
     } finally {
       setProcessing(false);
     }
-  }, [allReady, files, crmList]);
+  }, [allReady, files, crmList, selectedMonth, monthLabel]);
 
   const handleDownload = useCallback(() => {
-    if (processedData) downloadConsentIncentiveReport(processedData);
-  }, [processedData]);
+    if (displayData) downloadConsentIncentiveReport(displayData);
+  }, [displayData]);
 
   return (
     <div className="cir-root">
@@ -669,18 +724,66 @@ const ConsentIncentiveReport = () => {
         <div className="cir-section">
           <div className="cir-action-bar">
             <span className={`cir-status ${statusClass}`}>{statusLabel}</span>
+
+            {/* Report month — only this month's CRM files are scanned */}
+            <label className="cir-month-picker">
+              <span className="cir-month-label">Report month:</span>
+              <select
+                className="cir-month-select"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                disabled={processing || !monthOptions.length}
+              >
+                {!monthOptions.length && <option value="">No CRM months</option>}
+                {monthOptions.map((m) => (
+                  <option key={m.key} value={m.key}>
+                    {m.label} ({m.count} CRM{m.count !== 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <button className="cir-btn cir-btn--gen cir-btn--lg"
-                    onClick={handleGenerate} disabled={!allReady || processing || !crmList?.length}>
+                    onClick={handleGenerate} disabled={!allReady || processing || !crmList?.length || !selectedMonth}>
               {processing ? '⏳ Processing…' : '⚙ Generate Report'}
             </button>
             {processedData && (
               <>
-                <button className="cir-btn cir-btn--dl cir-btn--lg" onClick={handleDownload}>⬇ Download Excel</button>
-                <button className="cir-btn cir-btn--email cir-btn--lg" onClick={() => setShowEmail(true)}>✉️ Send Email</button>
+                <button className="cir-btn cir-btn--dl cir-btn--lg" onClick={handleDownload}>
+                  ⬇ Download Excel{productView ? ` (${productView})` : ''}
+                </button>
+                <button className="cir-btn cir-btn--email cir-btn--lg" onClick={() => setShowEmail(true)}>
+                  ✉️ Send Email{productView ? ` (${productView})` : ''}
+                </button>
               </>
             )}
-            <span className="cir-action-note">{progressMsg || (allReady ? '7-step procedure will run' : 'Upload both files to proceed')}</span>
+            <span className="cir-action-note">{progressMsg || (allReady ? `${monthLabel || 'Pick a month'} · 7-step procedure will run` : 'Upload both files to proceed')}</span>
           </div>
+
+          {/* Product split — re-scope the report to one product (same sheets) */}
+          {processedData && (
+            <div className="cir-product-split">
+              <span className="cir-product-split-label">Report scope:</span>
+              {[
+                { key: null,  label: 'ALL' },
+                { key: 'CS',  label: 'CS'  },
+                { key: 'LBF', label: 'LBF' },
+                { key: 'SME', label: 'SME' },
+              ].map((opt) => (
+                <button
+                  key={opt.label}
+                  className={`cir-btn cir-product-btn ${productView === opt.key ? 'cir-product-btn--active' : ''}`}
+                  onClick={() => setProductView(opt.key)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <span className="cir-product-split-hint">
+                Download &amp; email use the selected scope — same sheets, product-specific.
+              </span>
+            </div>
+          )}
+
           {procErr && <div className="cir-error" style={{ marginTop: 10 }}>⚠ {procErr}</div>}
         </div>
       )}
@@ -690,18 +793,18 @@ const ConsentIncentiveReport = () => {
         <>
           <div className="cir-section">
             <div className="cir-section-label">CRM Lookup &amp; Processing Diagnostics</div>
-            <DiagnosticsPanel diagnostics={processedData.diagnostics} />
+            <DiagnosticsPanel diagnostics={displayData.diagnostics} />
           </div>
 
           <div className="cir-section">
-            <div className="cir-section-label">Summary — {processedData.summary.period}</div>
-            <SummaryStats summary={processedData.summary} />
+            <div className="cir-section-label">Summary — {displayData.summary.period}</div>
+            <SummaryStats summary={displayData.summary} />
           </div>
 
-          {processedData.teams?.length > 0 && (
+          {displayData.teams?.length > 0 && (
             <div className="cir-section">
               <div className="cir-section-label">
-                Team Summary ({processedData.teams.length} team{processedData.teams.length !== 1 ? 's' : ''}; {processedData.summary.teamsQualified} qualified for TZS 200,000 drink-up)
+                Team Summary ({displayData.teams.length} team{displayData.teams.length !== 1 ? 's' : ''}; {displayData.summary.teamsQualified} qualified for TZS 200,000 drink-up)
               </div>
               <div className="cir-table-wrap">
                 <table className="cir-table">
@@ -720,7 +823,7 @@ const ConsentIncentiveReport = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {processedData.teams.map((t, i) => (
+                    {displayData.teams.map((t, i) => (
                       <tr key={i}>
                         <td style={{ textAlign: 'right', color: '#9ca3af' }}>{i + 1}</td>
                         <td style={{ fontWeight: 600 }}>{t.team}</td>
@@ -748,15 +851,15 @@ const ConsentIncentiveReport = () => {
 
           <div className="cir-section">
             <div className="cir-section-label">
-              Pricing — {processedData.agents.length} agent{processedData.agents.length !== 1 ? 's' : ''}, sorted by Total Payout
+              Pricing — {displayData.agents.length} agent{displayData.agents.length !== 1 ? 's' : ''}, sorted by Total Payout
             </div>
-            <PricingTable agents={processedData.agents} topPerformers={processedData.topPerformers} />
+            <PricingTable agents={displayData.agents} topPerformers={displayData.topPerformers} />
           </div>
 
-          {processedData.converted.length > 0 && (
+          {displayData.converted.length > 0 && (
             <div className="cir-section">
               <div className="cir-section-label">
-                3-Month Converted ({processedData.converted.length})
+                3-Month Converted ({displayData.converted.length})
               </div>
               <div className="cir-table-wrap">
                 <table className="cir-table">
@@ -769,7 +872,7 @@ const ConsentIncentiveReport = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {processedData.converted.slice(0, 100).map((c, i) => {
+                    {displayData.converted.slice(0, 100).map((c, i) => {
                       const multi = (c.salesRepCount ?? 0) > 1;
                       return (
                         <tr key={i}>
@@ -811,9 +914,9 @@ const ConsentIncentiveReport = () => {
                     })}
                   </tbody>
                 </table>
-                {processedData.converted.length > 100 && (
+                {displayData.converted.length > 100 && (
                   <p style={{ fontSize: '0.75rem', color: '#6b7280', padding: '8px 0' }}>
-                    Showing first 100 of {processedData.converted.length} conversions. Download Excel for full list.
+                    Showing first 100 of {displayData.converted.length} conversions. Download Excel for full list.
                   </p>
                 )}
               </div>
@@ -822,8 +925,8 @@ const ConsentIncentiveReport = () => {
         </>
       )}
 
-      {showEmail && processedData && (
-        <EmailModal processedData={processedData} onClose={() => setShowEmail(false)} />
+      {showEmail && displayData && (
+        <EmailModal processedData={displayData} onClose={() => setShowEmail(false)} />
       )}
 
       <Toast

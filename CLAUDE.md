@@ -146,6 +146,44 @@ git commit -m "feat: ..."
 git push origin main         # auth as masuby
 ```
 
+> **Verified one-shot (git-bash, from project root)** — build both, sync, case-fix, commit the deploy repo. This whole block is confirmed working; the `pcl-api` binary is committed into `deploy/` alongside `dist/` (do NOT rely on the source repo for it — it's gitignored there):
+> ```bash
+> npm run build
+> docker run --rm -v "C:/Users/Daniel/Desktop/code/Website/pcl_analysis/backend:/app" -w /app \
+>   -e CGO_ENABLED=0 -e GOOS=linux -e GOARCH=amd64 golang:1.22-alpine \
+>   sh -c "go build -ldflags='-s -w' -o /app/pcl-api ./cmd/server"
+> rm -rf deploy/dist && cp -r dist deploy/dist && cp backend/pcl-api deploy/pcl-api
+> cd deploy/dist && mv Assets _t && mv _t assets \
+>   && for f in index.html assets/*.js assets/*.css; do sed -i 's|/Assets/|/assets/|g' "$f"; done && cd ../..
+> cd deploy && git add -A && git commit -m "build: refresh frontend + backend" && cd ..
+> ```
+
+### Credentials required (NOT on the dev machine — supply at run time)
+
+Neither secret is stored in the repo, git credential cache, or `~/.ssh`, so a fresh session **cannot push or deploy on its own** — it can only build/sync/commit locally and then hand these steps to the operator:
+
+- **GitHub push (pcltz)** — a Personal Access Token. Use the PAT-in-URL trick per push (no cache):
+  ```bash
+  cd deploy && git push https://pcltz:<TOKEN>@github.com/pcltz/pcl_analysis.git main
+  ```
+  (A plain `git push origin main` returns `Repository not found` / `Authentication failed` without it.)
+- **Server SSH** — the operator's private key + host. `~/.ssh/known_hosts` shows `139.59.64.29`; the frontend `.env.production` targets `154.72.68.246:8443`. Confirm which host is live before deploying.
+
+### Step 7 — Deploy on the server (Ubuntu + Docker)
+
+Once the **deploy** repo is pushed, SSH in and pull + rebuild. First-time setup (`.env`, admin user, DB restore) is in `deploy/README.md`.
+
+```bash
+ssh <user>@<server>
+cd pcl_analysis                 # the cloned pcltz/pcl_analysis (deploy) repo
+git pull origin main
+docker compose down
+docker compose up -d --build    # rebuilds the pcl-api image, reloads nginx + dist/
+docker compose logs -f api      # verify the API came up
+```
+
+Brings up 4 containers: **pcl-postgres**, **pcl-redis**, **pcl-api** (:8080), **pcl-nginx** (:80, serves `dist/` + proxies `/api/*`). Only re-run the DB restore (`./db/restore.sh`) when the committed `db/*.dump` actually changed — the dump is ~180 MB and unchanged by frontend/backend-only releases.
+
 ---
 
 ## Source-Repo `.gitignore` Reminders

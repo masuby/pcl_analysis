@@ -178,6 +178,10 @@ func main() {
 
 			// Social Media Analysis — reads call-centre Google Sheets via service account
 			protected.GET("/social-media/data", handlers.GetSocialMediaData)
+			protected.GET("/social-media/months", handlers.GetSocialMediaMonths)
+
+			// LBF Call Centre monthly targets — reads the Performance Dashboard sheet
+			protected.GET("/lbf-callcenter-targets", handlers.GetLBFCallCenterTargets)
 
 			// KPI Targets routes (admin-only)
 			kpiTargets := protected.Group("/kpi-targets")
@@ -247,6 +251,8 @@ func main() {
 				// Dashboard management
 				admin.POST("/refresh-views", handlers.RefreshMaterializedView)
 				admin.POST("/batch-parse", handlers.BatchParseReports)
+				// Local-development only: pull production reports into the local DB.
+				admin.POST("/equalize-reports", handlers.EqualizeReports)
 			}
 		}
 	}

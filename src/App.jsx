@@ -11,6 +11,7 @@ import LBFReports from './pages/LBFReports/LBFReports';
 import SMEReports from './pages/SMEReports/SMEReports';
 import AllReports from './pages/AllReports/AllReports';
 import Administration from './pages/Administration/Administration';
+import Automation from './pages/Automation/Automation';
 import Profile from './pages/Profile/Profile';
 import GapResponse from './pages/GapResponse/GapResponse';
 import ThemeToggle from './components/Common/ThemeToggle/ThemeToggle';
@@ -35,6 +36,7 @@ function App() {
                     <Route path="sme-reports" element={<SMEReports />} />
                     <Route path="all-reports" element={<AllReports />} />
                     <Route path="administration" element={<Administration />} />
+                    <Route path="automation" element={<Automation />} />
                     <Route path="profile" element={<Profile />} />
                     <Route index element={<Navigate to="/dashboard" />} />
                   </Route>

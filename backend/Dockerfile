@@ -22,8 +22,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o pcl-api ./cmd/ser
 # Final stage
 FROM alpine:3.19
 
-# Install ca-certificates for HTTPS and tzdata for timezones
-RUN apk --no-cache add ca-certificates tzdata
+# Install ca-certificates for HTTPS and tzdata for timezones.
+# python3 + paramiko + psycopg2 are included so the LOCAL-DEV "Equalize Reports"
+# endpoint can run backend/scripts/equalize_reports.py inside the container.
+# (Production uses deploy/Dockerfile, which does NOT include any of this.)
+RUN apk --no-cache add ca-certificates tzdata python3 py3-paramiko py3-psycopg2
 
 # Create non-root user
 RUN addgroup -g 1000 pcl && \
@@ -40,6 +43,9 @@ COPY --from=builder /app/migrations ./migrations
 
 # Copy service-account credentials for Google Sheets (Social Media Analysis)
 COPY --from=builder /app/credentials ./credentials
+
+# Copy local-dev scripts (Equalize Reports). Harmless in prod (separate Dockerfile).
+COPY --from=builder /app/scripts ./scripts
 
 # Create upload directory
 RUN mkdir -p /var/reports && chown -R pcl:pcl /var/reports

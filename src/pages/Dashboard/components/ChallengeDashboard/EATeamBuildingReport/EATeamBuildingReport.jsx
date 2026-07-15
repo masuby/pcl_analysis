@@ -18,6 +18,8 @@ import {
 } from './utils/eaTeamBuildingExport';
 import { Toast, ConfirmDialog } from '../../../../../components/feedback/Feedback';
 import CriteriaFileManager from '../shared/CriteriaFileManager';
+import { fetchCriteriaAttachment } from '../shared/criteriaAttachment';
+import { refreshSalesFileFromMTD } from '../shared/salesFileBuilder';
 import './EATeamBuildingReport.css';
 
 const EATBR_RECIPIENTS_KEY = 'eatbr_email_recipients';
@@ -124,8 +126,11 @@ function EmailModal({ processedData, onClose }) {
       const { buffer, fileName } = buildEATeamBuildingReportBuffer(processedData);
       const base64   = bufferToBase64(buffer);
       const htmlBody = buildEATeamBuildingEmailHTML(summary, monthsInData);
+      const attachments = [{ base64, name: fileName }];
+      const criteria = await fetchCriteriaAttachment('EA_TEAM_BUILDING_CRITERIA');
+      if (criteria) attachments.push(criteria);
       const result   = await sendScoreCardEmail(recipients, subject, htmlBody, {
-        mode: 'REPORT', attachmentBase64: base64, attachmentName: fileName,
+        mode: 'REPORT', attachments,
       });
       const status = result.success ? 'success' : 'failed';
       const errMsg = result.success ? null : (result.error || 'Failed to send');
@@ -239,6 +244,7 @@ function EmailModal({ processedData, onClose }) {
             <div className="eatbr-modal-note">
               📎 <strong>EA_Team_Building_Report_{new Date().toISOString().slice(0, 10)}.xlsx</strong>
               <br />Includes: Summary · All Agents · Qualified · Not Qualified sheets.
+              <br />Plus the criteria memo (PDF), when one has been uploaded.
             </div>
 
             {err && <div className="eatbr-error">{err}</div>}
@@ -266,6 +272,8 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
   const inputRef                  = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [deleting,  setDeleting]  = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [err,       setErr]       = useState('');
 
@@ -312,6 +320,54 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
     }
   }, [fileRecord, typeDef.kind, typeDef.label, onDeleted, showToast]);
 
+  const handleDownload = useCallback(async () => {
+    if (!fileRecord) return;
+    setDownloading(true); setErr('');
+    try {
+      const buffer = await localTripAPI.downloadFileBuffer(fileRecord.id);
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileRecord.fileName || `${typeDef.kind}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (ex) {
+      const msg = ex?.message || 'Download failed';
+      setErr(msg);
+      showToast?.({ type: 'error', title: 'Download failed', message: msg });
+    } finally {
+      setDownloading(false);
+    }
+  }, [fileRecord, typeDef.kind, showToast]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true); setErr('');
+    try {
+      const { record, stats } = await refreshSalesFileFromMTD({
+        existingFileId: fileRecord?.id ?? null,
+        onProgress: (m) => showToast?.({ type: 'info', title: 'Refreshing Sales File', message: m }),
+      });
+      onUploaded(record);
+      const skip = stats.skipped.length ? ` Skipped: ${stats.skipped.join(', ')}.` : '';
+      showToast?.({
+        type: 'success',
+        title: 'Sales File refreshed from MTD',
+        message: `${stats.total} rows · ${stats.monthsLabel} (CS ${stats.byDept.CS}, LBF ${stats.byDept.LBF}, SME ${stats.byDept.SME}) · ${stats.targetsFilled}/${stats.noTarget} missing targets filled from MTD${stats.stillMissing ? `, ${stats.stillMissing} unresolved` : ""}.${skip}`,
+      });
+    } catch (ex) {
+      const msg = ex?.message || 'Refresh failed';
+      setErr(msg);
+      showToast?.({ type: 'error', title: 'Refresh failed', message: msg });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fileRecord, onUploaded, showToast]);
+
   const hasFile = Boolean(fileRecord);
 
   return (
@@ -334,17 +390,30 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
       </div>
 
       <div className="eatbr-btn-group">
+        {typeDef.kind === 'SALES' && (
+          <button
+            className="eatbr-btn eatbr-btn--refresh"
+            onClick={handleRefresh}
+            disabled={uploading || deleting || downloading || refreshing}
+            title="Rebuild the Sales file from the latest MTD reports (CS, LBF, SME)"
+          >
+            {refreshing ? '…' : '🔄'}
+          </button>
+        )}
         {hasFile ? (
           <>
-            <button className="eatbr-btn eatbr-btn--replace" onClick={() => inputRef.current?.click()} disabled={uploading || deleting}>
+            <button className="eatbr-btn eatbr-btn--replace" onClick={() => inputRef.current?.click()} disabled={uploading || deleting || downloading || refreshing}>
               {uploading ? 'Uploading…' : '↩ Replace'}
             </button>
-            <button className="eatbr-btn eatbr-btn--delete" onClick={() => setConfirmOpen(true)} disabled={uploading || deleting}>
+            <button className="eatbr-btn eatbr-btn--download" onClick={handleDownload} disabled={uploading || deleting || downloading || refreshing} title="Download this file">
+              {downloading ? '…' : '⬇'}
+            </button>
+            <button className="eatbr-btn eatbr-btn--delete" onClick={() => setConfirmOpen(true)} disabled={uploading || deleting || downloading || refreshing}>
               {deleting ? '…' : '🗑'}
             </button>
           </>
         ) : (
-          <button className="eatbr-btn eatbr-btn--upload" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <button className="eatbr-btn eatbr-btn--upload" onClick={() => inputRef.current?.click()} disabled={uploading || refreshing}>
             {uploading ? 'Uploading…' : '⬆ Upload'}
           </button>
         )}
@@ -582,8 +651,9 @@ function PreviewTable({ hierarchy, monthsInData }) {
 
 // ── Summary stats ─────────────────────────────────────────────────────────────
 function SummaryStats({ summary }) {
-  const { totalAgents, totalLoans, totalAmount, qualified, notQualified,
-          qualifiedTLs, qualifiedRegions, oldAgents, newAgents, byProduct } = summary;
+  const { totalAgents, totalLoans, totalAmount, qualified,
+          selectedKE = 0, selectedUG = 0, slotsKE = 15, slotsUG = 20, selectedTotal = 0,
+          oldAgents, newAgents, byProduct } = summary;
   return (
     <div className="eatbr-stats-row">
       <div className="eatbr-stat">
@@ -591,20 +661,20 @@ function SummaryStats({ summary }) {
         <div className="eatbr-stat-label">Total Agents</div>
       </div>
       <div className="eatbr-stat eatbr-stat--green">
+        <div className="eatbr-stat-value">{(selectedTotal ?? 0).toLocaleString()}</div>
+        <div className="eatbr-stat-label">Selected (KE + UG)</div>
+      </div>
+      <div className="eatbr-stat eatbr-stat--blue">
+        <div className="eatbr-stat-value">{selectedKE} / {slotsKE}</div>
+        <div className="eatbr-stat-label">Kenya Slots</div>
+      </div>
+      <div className="eatbr-stat" style={{ '--stat-color': '#b45309' }}>
+        <div className="eatbr-stat-value" style={{ color: '#b45309' }}>{selectedUG} / {slotsUG}</div>
+        <div className="eatbr-stat-label">Uganda Slots</div>
+      </div>
+      <div className="eatbr-stat">
         <div className="eatbr-stat-value">{(qualified ?? 0).toLocaleString()}</div>
-        <div className="eatbr-stat-label">Qualified Reps</div>
-      </div>
-      <div className="eatbr-stat" style={{ '--stat-color': '#dc2626' }}>
-        <div className="eatbr-stat-value" style={{ color: '#dc2626' }}>{(notQualified ?? 0).toLocaleString()}</div>
-        <div className="eatbr-stat-label">Not Qualified</div>
-      </div>
-      <div className="eatbr-stat eatbr-stat--green">
-        <div className="eatbr-stat-value">{(qualifiedTLs ?? 0).toLocaleString()}</div>
-        <div className="eatbr-stat-label">Qualified TLs</div>
-      </div>
-      <div className="eatbr-stat eatbr-stat--green">
-        <div className="eatbr-stat-value">{(qualifiedRegions ?? 0).toLocaleString()}</div>
-        <div className="eatbr-stat-label">Qualified Regions</div>
+        <div className="eatbr-stat-label">Met Top-Perf. Bar</div>
       </div>
       <div className="eatbr-stat eatbr-stat--blue">
         <div className="eatbr-stat-value">{totalLoans.toLocaleString()}</div>
@@ -632,10 +702,66 @@ function SummaryStats({ summary }) {
               </span>
             )}
           </div>
-          <div className="eatbr-stat-label">{p} · {b.qualified ?? 0} qualified</div>
+          <div className="eatbr-stat-label">{p} · {b.qualified ?? 0} elig · {b.selected ?? 0} sel</div>
         </div>
       ))}
     </div>
+  );
+}
+
+// ── Selection tables (KE / UG destination slots) ─────────────────────────────
+function SelectionTables({ selection, summary }) {
+  if (!selection) return null;
+  const trips = [
+    ['KE', 'KENYA',  summary.selectedKE ?? 0, summary.slotsKE ?? 15, '#1e3a5f', '#dbeafe'],
+    ['UG', 'UGANDA', summary.selectedUG ?? 0, summary.slotsUG ?? 20, '#92400e', '#fef3c7'],
+  ];
+  return (
+    <>
+      {trips.map(([code, name, sel, slots, fg, bg]) => (
+        <div key={code} className="eatbr-table-wrap" style={{ marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, padding: '8px 10px', color: fg, background: bg, borderRadius: 6, margin: '10px 0 6px' }}>
+            {name} — {sel} auto-selected of {slots} slots
+          </div>
+          <table className="eatbr-table">
+            <thead>
+              <tr>
+                <th>PRODUCT</th>
+                <th>ROLE</th>
+                <th style={{ textAlign: 'right' }}>SLOTS</th>
+                <th>CRITERIA</th>
+                <th>SELECTED</th>
+                <th style={{ textAlign: 'right' }}>ACHV</th>
+                <th>NOTES</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(selection[code] ?? []).map((e, i) => (
+                <tr key={i}>
+                  <td><span className={`eatbr-badge eatbr-badge--${String(e.product).toLowerCase()}`}>{e.product}</span></td>
+                  <td style={{ fontWeight: 600 }}>{e.label}</td>
+                  <td style={{ textAlign: 'right' }}>{e.slots}</td>
+                  <td style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                    {e.manual ? e.manual : e.ratio ? `Top performer (≥ ${Math.round(e.ratio * 100)}% YTD)` : '90% of TLs on target YTD'}
+                  </td>
+                  <td style={{ color: e.selected.length ? '#166534' : '#9ca3af', fontWeight: e.selected.length ? 700 : 400 }}>
+                    {e.selected.length
+                      ? e.selected.map((s) => `${s.name}${s.detail ? ` — ${s.detail}` : ''}`).join(' · ')
+                      : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: '#166534' }}>
+                    {e.selected.map((s) => `${Math.round(s.pct * 100)}%`).join(' · ')}
+                  </td>
+                  <td style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                    {e.manual ? 'Manual — outside sales data' : e.note || (e.candidateCount ? `${e.candidateCount} candidate(s) met the bar` : '')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -793,6 +919,11 @@ const EATeamBuildingReport = () => {
           </div>
 
           <SummaryStats summary={processedData.summary} />
+
+          <div className="eatbr-section-label" style={{ marginTop: 14 }}>
+            Trip Selection — Kenya (15) &amp; Uganda (20)
+          </div>
+          <SelectionTables selection={processedData.selection} summary={processedData.summary} />
 
           <PreviewTable
             hierarchy={processedData.hierarchy}

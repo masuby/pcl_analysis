@@ -33,6 +33,28 @@
   flex-wrap: wrap;
 }
 
+.sma-month-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.sma-month-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.sma-month-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+  background: #ffffff;
+  cursor: pointer;
+}
+.sma-month-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .pen-btn {
   display: inline-flex;
   align-items: center;

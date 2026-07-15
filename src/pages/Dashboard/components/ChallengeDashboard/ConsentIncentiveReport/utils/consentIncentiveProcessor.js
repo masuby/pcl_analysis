@@ -421,6 +421,123 @@ function verifyFieldActivity(activityMap, createdBy, consentDate) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Team aggregation (shared by main processor + per-product filter)
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Build per-team standings from a list of already-priced agents.
+ * Each agent carries team + verified/unverified/converted + payout fields.
+ */
+export function buildTeamsFromAgents(agents) {
+  const teamStatsMap = new Map(); // teamName -> aggregator
+  agents.forEach((a) => {
+    if (!a.team) return;   // skip teamless agents
+    if (!teamStatsMap.has(a.team)) {
+      teamStatsMap.set(a.team, {
+        team:        a.team,
+        verified:    0,
+        unverified:  0,
+        converted:   0,
+        basePayout:  0,
+        topBonus:    0,
+        totalPayout: 0,
+        agentSet:    new Set(),
+        productSet:  new Set(),
+        branchSet:   new Set(),
+      });
+    }
+    const ts = teamStatsMap.get(a.team);
+    ts.verified    += a.verified;
+    ts.unverified  += a.unverified;
+    ts.converted   += a.converted;
+    ts.basePayout  += a.basePayout;
+    ts.topBonus    += a.topBonus;
+    ts.totalPayout += a.totalPayout;
+    ts.agentSet.add(a.name);
+    if (a.product) ts.productSet.add(a.product);
+    if (a.branch)  ts.branchSet.add(a.branch);
+  });
+
+  return [...teamStatsMap.values()].map((ts) => {
+    const qualified = ts.verified >= TEAM_DRINKUP_THRESHOLD;
+    return {
+      team:           ts.team,
+      verified:       ts.verified,
+      unverified:     ts.unverified,
+      converted:      ts.converted,
+      agents:         ts.agentSet.size,
+      products:       [...ts.productSet].sort().join(', '),
+      branches:       [...ts.branchSet].sort().join(', '),
+      basePayout:     ts.basePayout,
+      topBonus:       ts.topBonus,
+      agentPayout:    ts.totalPayout,
+      qualified,
+      drinkupAmount:  qualified ? TEAM_DRINKUP_AMOUNT : 0,
+      shortBy:        Math.max(0, TEAM_DRINKUP_THRESHOLD - ts.verified),
+    };
+  }).sort((a, b) => b.verified - a.verified);
+}
+
+/**
+ * Produce a product-scoped copy of a processed report (CS / LBF / SME).
+ * Agents, consents, conversions are filtered to the product; teams, summary
+ * totals, top performers and byProduct are recomputed from that subset so the
+ * downloaded Excel + email are fully product-specific. `summary.product` is
+ * stamped so the export/email can label the report.
+ */
+export function filterReportByProduct(data, product) {
+  if (!product) return data;
+  const P = String(product).toUpperCase();
+
+  const agents          = data.agents.filter((a) => a.product === P);
+  const consents3m      = data.consents3m.filter((c) => c.product === P);
+  const consentsCurrent = data.consentsCurrent.filter((c) => c.product === P);
+  const converted       = data.converted.filter((c) => c.product === P);
+
+  const teams      = buildTeamsFromAgents(agents);
+  const teamAwards = teams
+    .filter((t) => t.qualified)
+    .map((t) => ({ team: t.team, totalVerified: t.verified, drinkupAmount: t.drinkupAmount }));
+
+  const totalVerified   = agents.reduce((s, a) => s + a.verified,   0);
+  const totalUnverified = agents.reduce((s, a) => s + a.unverified, 0);
+  const totalConverted  = agents.reduce((s, a) => s + a.converted,  0);
+  const totalPayout     = agents.reduce((s, a) => s + a.totalPayout, 0);
+  const teamAwardTotal  = teamAwards.reduce((s, t) => s + t.drinkupAmount, 0);
+
+  const prev = data.summary.byProduct?.[P] ?? {};
+  const byProduct = {
+    [P]: {
+      label:       PRODUCT_LABELS[P] ?? prev.label ?? P,
+      agents:      agents.length,
+      verified:    totalVerified,
+      unverified:  totalUnverified,
+      converted:   totalConverted,
+      totalPayout,
+    },
+  };
+  const topPerformers = data.topPerformers?.[P] ? { [P]: data.topPerformers[P] } : {};
+
+  const summary = {
+    ...data.summary,
+    product:        P,
+    totalAgents:    agents.length,
+    totalVerified,
+    totalUnverified,
+    totalConverted,
+    totalPayout,
+    teamAwardTotal,
+    grandTotal:     totalPayout + teamAwardTotal,
+    totalTeams:     teams.length,
+    teamsQualified: teams.filter((t) => t.qualified).length,
+    topTeam:        teams[0] ?? null,
+    byProduct,
+    topPerformers,
+  };
+
+  return { ...data, agents, consents3m, consentsCurrent, converted, teams, teamAwards, topPerformers, summary };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN PROCESSOR
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -430,10 +547,14 @@ function verifyFieldActivity(activityMap, createdBy, consentDate) {
  * @param {Array<{ buffer: ArrayBuffer, meta: Object }>} crmBuffers   — latest first
  * @returns processed report object
  */
-export function processConsentIncentiveReport(leadBuffer, loanBuffer, crmBuffers) {
+export function processConsentIncentiveReport(leadBuffer, loanBuffer, crmBuffers, options = {}) {
   if (!crmBuffers || !crmBuffers.length) {
     throw new Error('No CS CRM reports available. Upload a CRM report to the database first.');
   }
+  // The UI lets the user pick the report month; when supplied it overrides the
+  // period label everywhere (title, summary, email) so the report reads e.g.
+  // "JUNE 2026" regardless of any stray dates in the Lead file.
+  const periodLabel = options.periodLabel || null;
 
   // ── Step 1: VLOOKUP user_data from LATEST CRM ────────────────────────────
   const latestCRM = crmBuffers[0];
@@ -711,53 +832,7 @@ export function processConsentIncentiveReport(leadBuffer, loanBuffer, crmBuffers
 
   // ── Team Summary (per-team stats, qualification flag) ────────────────────
   // Build by walking agents (already enriched with team + verified/unverified/converted)
-  const teamStatsMap = new Map(); // teamName -> aggregator
-  agents.forEach((a) => {
-    if (!a.team) return;   // skip teamless agents
-    if (!teamStatsMap.has(a.team)) {
-      teamStatsMap.set(a.team, {
-        team:        a.team,
-        verified:    0,
-        unverified:  0,
-        converted:   0,
-        basePayout:  0,
-        topBonus:    0,
-        totalPayout: 0,
-        agentSet:    new Set(),
-        productSet:  new Set(),
-        branchSet:   new Set(),
-      });
-    }
-    const ts = teamStatsMap.get(a.team);
-    ts.verified    += a.verified;
-    ts.unverified  += a.unverified;
-    ts.converted   += a.converted;
-    ts.basePayout  += a.basePayout;
-    ts.topBonus    += a.topBonus;
-    ts.totalPayout += a.totalPayout;
-    ts.agentSet.add(a.name);
-    if (a.product) ts.productSet.add(a.product);
-    if (a.branch)  ts.branchSet.add(a.branch);
-  });
-
-  const teams = [...teamStatsMap.values()].map((ts) => {
-    const qualified = ts.verified >= TEAM_DRINKUP_THRESHOLD;
-    return {
-      team:           ts.team,
-      verified:       ts.verified,
-      unverified:     ts.unverified,
-      converted:      ts.converted,
-      agents:         ts.agentSet.size,
-      products:       [...ts.productSet].sort().join(', '),
-      branches:       [...ts.branchSet].sort().join(', '),
-      basePayout:     ts.basePayout,
-      topBonus:       ts.topBonus,
-      agentPayout:    ts.totalPayout,
-      qualified,
-      drinkupAmount:  qualified ? TEAM_DRINKUP_AMOUNT : 0,
-      shortBy:        Math.max(0, TEAM_DRINKUP_THRESHOLD - ts.verified),
-    };
-  }).sort((a, b) => b.verified - a.verified);
+  const teams = buildTeamsFromAgents(agents);
 
   // teamAwards = subset of qualified teams (used by the original code path)
   const teamAwards = teams
@@ -786,10 +861,10 @@ export function processConsentIncentiveReport(leadBuffer, loanBuffer, crmBuffers
     topTeam:        teams[0] ?? null,
     byProduct,
     topPerformers,
-    period:         monthsInData.join(' · ') || 'All Time',
+    period:         periodLabel || monthsInData.join(' · ') || 'All Time',
     monthsInData,
     currentMonthKey,
-    currentMonthLabel: maxLeadDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' }),
+    currentMonthLabel: periodLabel || maxLeadDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' }),
     threeMonthsFrom:   threeMonthsAgo,
     threeMonthsTo:     maxLeadDate,
   };

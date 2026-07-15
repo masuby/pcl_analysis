@@ -16,7 +16,7 @@ const ReportTypeSelector = ({
   const [showDepartmentMenu, setShowDepartmentMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isMenuHovered, setIsMenuHovered] = useState(false);
-  const reportTypes = ['SUMMARY', 'MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE'];
+  const reportTypes = ['SUMMARY', 'MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL', 'CHALLENGE', 'DATA', 'COLLECTION'];
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
   const menuRef = useRef(null);
@@ -54,7 +54,7 @@ const ReportTypeSelector = ({
 
     // Show menu for CHALLENGE and other non-MANAGEMENT types (but not SUMMARY - it shows user's department only)
     // For DEPARTMENTAL, only show menu if user is Admin/ALL Access (since departments array will be empty for non-admins)
-    if (type !== 'MANAGEMENT' && type !== 'SUMMARY' && (isAdmin || type === 'CHALLENGE')) {
+    if (type !== 'MANAGEMENT' && type !== 'SUMMARY' && type !== 'DATA' && type !== 'COLLECTION' && (isAdmin || type === 'CHALLENGE')) {
       // For DEPARTMENTAL type, only show menu if user has access (isAdmin)
       if (type === 'DEPARTMENTAL' && !isAdmin) {
         return;
@@ -168,7 +168,7 @@ const ReportTypeSelector = ({
                 data-type={type}
               >
                 <span className="button-text">{type}</span>
-                {selectedType === type && selectedDepartment !== 'ALL' && type !== 'MANAGEMENT' && (
+                {selectedType === type && selectedDepartment !== 'ALL' && type !== 'MANAGEMENT' && type !== 'DATA' && type !== 'COLLECTION' && (
                   <span className="department-indicator">{selectedDepartment}</span>
                 )}
                 {type !== 'MANAGEMENT' && type !== 'SUMMARY' && ((isAdmin && type !== 'MANAGEMENT') || type === 'CHALLENGE') && (type !== 'DEPARTMENTAL' || isAdmin) && showDepartmentMenu && hoveredButton === type && (

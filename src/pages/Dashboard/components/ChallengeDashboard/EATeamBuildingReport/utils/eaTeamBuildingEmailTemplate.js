@@ -6,8 +6,8 @@
  */
 export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
   const {
-    totalAgents, qualified, notQualified,
-    qualifiedTLs, qualifiedRegions,
+    totalAgents, qualified,
+    selectedKE = 0, selectedUG = 0, slotsKE = 15, slotsUG = 20, selectedTotal = 0,
     totalLoans, totalAmount, byProduct,
   } = summary;
 
@@ -35,7 +35,8 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
         <tr style="background:${bg};">
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;font-weight:600;color:#1f3864;">${PRODUCT_LABELS[p] ?? p}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${b.agents}</td>
-          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#166534;font-weight:600;">${b.qualified}</td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#166534;font-weight:600;">${b.qualified ?? 0}</td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#1e3a5f;font-weight:700;">${b.selected ?? 0}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.totalLoans)}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.totalAmount)}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.target)}</td>
@@ -82,9 +83,10 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
           <td style="padding:28px 40px 0;">
             <p style="margin:0 0 6px;font-size:14px;color:#374151;">Dear Manager,</p>
             <p style="margin:0 0 18px;font-size:13px;color:#4b5563;line-height:1.7;">
-              Please find the <strong>EA Team Building Report — All PCL Staff (KE & UG)</strong> for the period <strong>${period}</strong>.
-              This report selects the top-performing PCL Kenya and Uganda staff for the 2026 East Africa Team Building event, per the EA Team Building memo criteria
-              and shows who has qualified, who has not, and the portfolio-at-risk position for each branch and region.
+              Please find the <strong>EA Team Building Report — All PCL Staff (KE &amp; UG)</strong> for the period <strong>${period}</strong>.
+              This report selects the top-performing PCL staff for the 2026 East Africa Team Building event — <strong>${slotsKE} Kenya</strong> and
+              <strong>${slotsUG} Uganda</strong> slots, filled by role (Sales Agents, Telesales, Team Leaders, FSTL/BLO, BM, RSM, Cluster) using each role's
+              "Top performer" YTD threshold. Kenya slots are filled first; no one can qualify for both trips.
             </p>
 
             <!-- Instructions -->
@@ -115,24 +117,28 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
                       <td style="padding:7px 12px;font-size:11px;font-weight:700;color:#1f3864;border-bottom:1px solid #e5e7eb;">CONTENTS</td>
                     </tr>
                     <tr style="background:#ffffff;">
+                      <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#166534;border-bottom:1px solid #f3f4f6;">Selection</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">The Kenya (${slotsKE}) &amp; Uganda (${slotsUG}) slot tables — selected staff per role with achievement % and notes</td>
+                    </tr>
+                    <tr style="background:#f8fafc;">
                       <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#1f3864;border-bottom:1px solid #f3f4f6;">Summary</td>
-                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Overall totals — agents, qualified counts, disbursement vs target per product</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Overall totals — agents, selected counts per trip, disbursement vs target per product</td>
                     </tr>
-                    <tr style="background:#f8fafc;">
+                    <tr style="background:#ffffff;">
                       <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#1f3864;border-bottom:1px solid #f3f4f6;">All Agents</td>
-                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Full agent list with monthly disbursement, loans, targets, PAR, and qualification status — sorted by % achieved</td>
-                    </tr>
-                    <tr style="background:#ffffff;">
-                      <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#166534;border-bottom:1px solid #f3f4f6;">Qualified</td>
-                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Qualified Sales Reps · Qualified Team Leaders · Qualified Regions / BMs — all ranked by % achieved</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Full agent list with monthly disbursement, loans, targets, PAR, and YTD % — sorted by % achieved</td>
                     </tr>
                     <tr style="background:#f8fafc;">
-                      <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#991b1b;border-bottom:1px solid #f3f4f6;">Not Qualified</td>
-                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Agents who did not meet criteria, ranked closest-to-qualifying first, with reason per agent</td>
+                      <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#166534;border-bottom:1px solid #f3f4f6;">Qualified</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Reps who met their role's top-performer YTD bar — the eligible pool, ranked by % achieved</td>
                     </tr>
                     <tr style="background:#ffffff;">
+                      <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#991b1b;border-bottom:1px solid #f3f4f6;">Not Qualified</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;border-bottom:1px solid #f3f4f6;">Reps below the bar, ranked closest-first, with the reason per agent</td>
+                    </tr>
+                    <tr style="background:#f8fafc;">
                       <td style="padding:7px 12px;font-size:12px;font-weight:600;color:#92400e;">Criteria</td>
-                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;">2026 qualification thresholds for agents (Old / New), Team Leaders, and Regions by product</td>
+                      <td style="padding:7px 12px;font-size:12px;color:#4b5563;">The KENYA (${slotsKE}) &amp; UGANDA (${slotsUG}) memo tables — role, slots, and top-performer threshold</td>
                     </tr>
                   </table>
                 </td>
@@ -147,10 +153,10 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
               <tr>
                 ${metricCard('Total Agents',    totalAgents,                    '#1f3864')}
-                ${metricCard('Qualified Reps',  qualified,                      '#166534')}
-                ${metricCard('Not Qualified',   notQualified,                   '#991b1b')}
-                ${metricCard('Qualified TLs',   qualifiedTLs   ?? 0,            '#166534')}
-                ${metricCard('Qualified Regions', qualifiedRegions ?? 0,        '#166534')}
+                ${metricCard('Selected KE+UG',  selectedTotal,                  '#166534')}
+                ${metricCard('Kenya Slots',     `${selectedKE} / ${slotsKE}`,   '#1e3a5f')}
+                ${metricCard('Uganda Slots',    `${selectedUG} / ${slotsUG}`,   '#b45309')}
+                ${metricCard('Met the Bar',     qualified,                      '#166534')}
                 ${metricCard('Total Loans',     fmt(totalLoans),                '#1f3864')}
               </tr>
             </table>
@@ -170,7 +176,8 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
               <tr style="background:#1f3864;">
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;">PRODUCT</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">AGENTS</td>
-                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">QUALIFIED</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">ELIGIBLE</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">SELECTED</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">LOANS</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">DISBURSED (TZS)</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">TARGET (TZS)</td>
@@ -189,7 +196,7 @@ export function buildEATeamBuildingEmailHTML(summary, monthsInData) {
                 📎 The complete Excel report is attached to this email.
               </p>
               <p style="margin:0;color:#fff;font-size:14px;font-weight:600;">
-                Sheets: Summary · All Agents · Qualified · Not Qualified · Criteria
+                Sheets: Selection · Summary · All Agents · Qualified · Not Qualified · Criteria
               </p>
             </div>
           </td>

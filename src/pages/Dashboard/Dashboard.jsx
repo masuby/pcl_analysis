@@ -8,6 +8,8 @@ import CallCenterDashboard from './components/CallCenterDashboard/CallCenterDash
 import MTDdashboard from './components/MTDdashboard/MTDdashboard';
 import DepartmentalDashboard from './components/DepartmentalDashboard/DepartmentalDashboard';
 import ChallengeDashboard from './components/ChallengeDashboard/ChallengeDashboard';
+import DataDashboard from './components/DataDashboard/DataDashboard';
+import CollectionDashboard from './components/CollectionDashboard/CollectionDashboard';
 import LoadingSpinner from '../../components/Common/Loading/LoadingSpinner';
 import Toast from '../../components/Common/Toast/Toast';
 import { useDashboardData } from './hooks/useDashboardData';
@@ -110,13 +112,17 @@ const Dashboard = () => {
         );
       case 'CHALLENGE':
         return (
-          <ChallengeDashboard 
+          <ChallengeDashboard
             reports={reports}
             selectedDepartment={selectedDepartment}
             onDepartmentChange={handleDepartmentChange}
             userData={userData}
           />
         );
+      case 'DATA':
+        return <DataDashboard />;
+      case 'COLLECTION':
+        return <CollectionDashboard />;
       default:
         return (
           <div className="no-dashboard-message">

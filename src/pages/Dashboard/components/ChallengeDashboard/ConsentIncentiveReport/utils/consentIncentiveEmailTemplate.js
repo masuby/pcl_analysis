@@ -6,7 +6,7 @@
 export function buildConsentIncentiveEmailHTML(summary) {
   const {
     totalAgents, totalVerified, totalConverted, totalPayout, teamAwardTotal,
-    byProduct, topPerformers, period,
+    byProduct, topPerformers, period, product,
   } = summary;
 
   const generated = new Date().toLocaleString('en-GB');
@@ -17,6 +17,9 @@ export function buildConsentIncentiveEmailHTML(summary) {
     LBF: 'LBF — Log Book Finance',
     SME: 'SME — Small & Medium Enterprise',
   };
+
+  // For a product-scoped report, surface the product alongside the period.
+  const periodDisplay = product ? `${PRODUCT_LABELS[product] ?? product} · ${period}` : period;
 
   const productRows = ['CS', 'LBF', 'SME']
     .filter((p) => byProduct[p])
@@ -62,9 +65,9 @@ export function buildConsentIncentiveEmailHTML(summary) {
         <tr>
           <td style="background:linear-gradient(135deg,#1f3864 0%,#2e74b5 100%);padding:32px 40px;text-align:center;">
             <h1 style="margin:0;color:#fff;font-size:26px;font-weight:700;letter-spacing:0.5px;">
-              🎯 CONSENT INCENTIVE REPORT
+              🎯 CONSENT INCENTIVE REPORT${product ? ` — ${product}` : ''}
             </h1>
-            ${period ? `<p style="margin:10px 0 0;color:rgba(255,255,255,0.9);font-size:16px;font-weight:500;">${period}</p>` : ''}
+            ${periodDisplay ? `<p style="margin:10px 0 0;color:rgba(255,255,255,0.9);font-size:16px;font-weight:500;">${periodDisplay}</p>` : ''}
             <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:12px;">Generated: ${generated}</p>
           </td>
         </tr>
@@ -74,7 +77,7 @@ export function buildConsentIncentiveEmailHTML(summary) {
           <td style="padding:28px 40px 0;">
             <p style="margin:0 0 6px;font-size:14px;color:#374151;">Dear Manager,</p>
             <p style="margin:0 0 18px;font-size:13px;color:#4b5563;line-height:1.7;">
-              Please find the <strong>Consent Incentive Report</strong> for the period <strong>${period}</strong>.
+              Please find the <strong>Consent Incentive Report${product ? ` (${product} only)` : ''}</strong> for the period <strong>${period}</strong>.
               This report calculates individual agent payouts based on verified and converted consents,
               identifies top performers per product, and highlights teams that have reached the
               drink-up award threshold.

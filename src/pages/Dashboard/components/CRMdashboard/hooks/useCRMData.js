@@ -119,12 +119,73 @@ const extractAllSheetData = (workbook, sheetName) => {
 };
 
 /**
- * Extract data from summary sheet - finds agent summary and team leader summary by text markers
- * @param {Object} workbook - XLSX workbook object
- * @param {string} sheetName - Name of the sheet (usually 'summary')
- * @returns {Object} Object with agentSummary and teamLeaderSummary arrays
+ * Extract agent + team-leader summary tables from the Summary sheet.
+ *
+ * The report stacks the blocks VERTICALLY, each led by a title cell in column A
+ * ("SALES AGENTS — by ZONE", "TEAM LEADERS — by BRANCH", …). For each role we
+ * pick the block matching `preferGroup` (zone for CS, branch for LBF/SME),
+ * falling back to whichever block for that role exists.
+ *
+ * @returns {{ agentSummary: {indexLabel, rows}, teamLeaderSummary: {indexLabel, rows} }}
  */
-const extractSummarySheetData = (workbook, sheetName) => {
+const extractSummarySheetData = (workbook, sheetName, preferGroup = 'zone') => {
+  const empty = () => ({ indexLabel: 'Group', rows: [] });
+  try {
+    if (!workbook.SheetNames.includes(sheetName)) {
+      return { agentSummary: empty(), teamLeaderSummary: empty() };
+    }
+    const aoa = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1, defval: '', blankrows: true,
+    });
+
+    // Locate every block by its title cell in column A.
+    const blockDefs = [];
+    for (let r = 0; r < aoa.length; r++) {
+      const c0 = String((aoa[r] || [])[0] || '').toUpperCase();
+      const role = c0.includes('SALES AGENT') ? 'agent' : c0.includes('TEAM LEADER') ? 'tl' : null;
+      if (role) blockDefs.push({ role, group: c0.includes('BRANCH') ? 'branch' : 'zone', titleRow: r });
+    }
+
+    // Parse one block: header row = titleRow+1, data until a blank row or TOTAL.
+    const parseBlock = (titleRow) => {
+      const headerRow = aoa[titleRow + 1] || [];
+      let lastCol = 0;
+      for (let c = 0; c < headerRow.length; c++) {
+        if (String(headerRow[c] ?? '').trim() !== '') lastCol = c;
+      }
+      const indexLabel = String(headerRow[0] ?? '').trim() || 'Group';
+      const colLabels = [];
+      for (let c = 1; c <= lastCol; c++) colLabels.push(String(headerRow[c] ?? '').trim() || `Column_${c + 1}`);
+
+      const rows = [];
+      for (let r = titleRow + 2; r < aoa.length; r++) {
+        const row = aoa[r] || [];
+        const first = String(row[0] ?? '').trim();
+        if (first === '') break;
+        const isTotal = first.toUpperCase() === 'TOTAL';
+        const obj = { __index: first, __isTotal: isTotal };
+        colLabels.forEach((lab, i) => { obj[lab] = row[i + 1] ?? ''; });
+        rows.push(obj);
+        if (isTotal) break;
+      }
+      return { indexLabel, rows };
+    };
+
+    const pick = (role) => {
+      const match = blockDefs.find((b) => b.role === role && b.group === preferGroup)
+        || blockDefs.find((b) => b.role === role);
+      return match ? parseBlock(match.titleRow) : empty();
+    };
+
+    return { agentSummary: pick('agent'), teamLeaderSummary: pick('tl') };
+  } catch (error) {
+    console.error(`[extractSummarySheetData] Error extracting data from ${sheetName}:`, error);
+    return { agentSummary: empty(), teamLeaderSummary: empty() };
+  }
+};
+
+/** @deprecated legacy side-by-side extractor (kept for reference). */
+const _extractSummarySheetDataLegacy = (workbook, sheetName) => {
   try {
     if (!workbook.SheetNames.includes(sheetName)) {
       console.warn(`Sheet '${sheetName}' not found. Available sheets:`, workbook.SheetNames);
@@ -364,6 +425,110 @@ const extractTableFromRange = (allData, startRow, endRow, startCol, endCol, maxC
   return result;
 };
 
+/**
+ * Find a sheet by name, tolerant of case / spacing / underscore differences.
+ * @returns {string|null} the actual sheet name, or null
+ */
+const findSheet = (sheetNames, ...candidates) => {
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s_]+/g, ' ');
+  const wanted = candidates.map(norm);
+  return sheetNames.find((n) => wanted.includes(norm(n))) || null;
+};
+
+/**
+ * Maps the new "Email Summary" sheet (Section | Metric | Value) to the legacy
+ * Email-sheet keys the UI reads. Keyed by "section|metric" (normalised).
+ * Each entry lists every legacy key the value should populate (aliases used
+ * across the CS / LBF / SME dashboard variants).
+ */
+const EMAIL_SUMMARY_MAP = {
+  // ── Leads ──────────────────────────────────────────────────────────────
+  'leads|leads generated':          ['lead', 'count_leads', 'total_count_leads'],
+  'leads|accepted consent':         ['accepted_lead', 'number_consented_lead'],
+  'leads|not provided':             ['not_provided_lead'],
+  'leads|rejected':                 ['rejected_lead'],
+  'leads|prospects':                ['prospect_lead'],
+  'leads|% accepted':               ['percentage_accepted_lead', 'percentage_consented_lead'],
+  // ── Sales Agents ───────────────────────────────────────────────────────
+  'sales agents|actual on crm':        ['total_agent', 'total_count_agent'],
+  'sales agents|logged in':            ['total_agent_logged_in', 'logged_in_agent'],
+  'sales agents|assigned activities':  ['agent_assigned_activities'],
+  'sales agents|completing at location': ['agent_completed_at_location', 'agents_completed_at_location'],
+  'sales agents|activity completion rate': ['percentage_agent_completed_at_location'],
+  'sales agents|locations planned':    ['agent_location_planned', 'agents_location_planned'],
+  'sales agents|locations reached':    ['agent_reached_location', 'agents_location_reached'],
+  'sales agents|% locations reached':  ['percentage_reached_location', 'percentage_agents_location_reached'],
+  "sales agents|assigned in today's plan": ['todays_agents_assigned', 'todays_agents_assigned_activities'],
+  'sales agents|% assigned today':     ['percentage_todays_agents_assigned'],
+  // Extended detail (branch lists + today plan)
+  'sales agents|branches with no location visited (count)':    ['agent_count_without_planned_location'],
+  'sales agents|branches with no location visited':            ['agent_branch_without_planned_location'],
+  'sales agents|branches with no activities assigned (count)': ['branches_count_without_assgned_activities'],
+  'sales agents|branches with no activities assigned':         ['branches_without_assgned_activities', 'agents_no_assigned_location'],
+  'sales agents|today locations planned':                      ['todays_locations_planned', 'agents_todays_location_planned', 'today_tl_location_planned'],
+  'sales agents|avg locations visited':                        ['average_location_agent_visited', 'today_average_location_visited', 'todays_average_location_visited_by_agents'],
+  // ── Team Leaders ───────────────────────────────────────────────────────
+  'team leaders|actual on crm':        ['count_team_leaders', 'total_count_team_leaders'],
+  'team leaders|logged in':            ['logged_in_team_leaders'],
+  'team leaders|assigned activities':  ['team_leaders_assigned_activities'],
+  'team leaders|completing at location': ['team_leaders_completed_at_location', 'tl_completed_activities_at_location'],
+  'team leaders|activity completion rate': ['percentage_completed_at_location', 'percentage_tl_completed_at_location'],
+  'team leaders|locations planned':    ['team_leaders_location_planned', 'tl_location_planned', 'tl_planned_visited_location'],
+  'team leaders|locations reached':    ['team_leaders_location_reached', 'tl_location_reached'],
+  'team leaders|% locations reached':  ['percentage_tl_location_reached'],
+  "team leaders|assigned in today's plan": ['todays_tls_assigned_activities', 'today_tl_assigned_activities'],
+  'team leaders|% assigned today':     ['percentage_today_tl_assigned_activities'],
+  // Extended detail (branch lists + today plan)
+  'team leaders|branches with no location visited (count)':    ['branches_tl_count_no_planned_location'],
+  'team leaders|branches with no location visited':            ['branches_tl_no_planned_location', 'tl_no_assigned_planned_location'],
+  'team leaders|branches with no activities assigned (count)': ['branches_tl_count_no_assigned_activites'],
+  'team leaders|branches with no activities assigned':         ['branches_tl_no_assigned_activities'],
+  'team leaders|today locations planned':                      ['todays_tls_location_planned', 'today_tl_location_planned'],
+  'team leaders|avg locations visited':                        ['average_location_visited_by_tl'],
+};
+
+/**
+ * Parse the new "Email Summary" sheet into the legacy [{Text, Value}] shape so
+ * the existing UI (extractMetrics / getValue) works unchanged. Unmapped rows
+ * are still exposed under a generated snake_case key so nothing is lost.
+ */
+const extractEmailSummarySheet = (workbook, sheetName) => {
+  try {
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
+    const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const out = [];
+    let currentSection = '';
+
+    for (const row of rows) {
+      const c0 = norm(row[0]);
+      const c1 = norm(row[1]);
+      const value = row[2];
+
+      if (!c0 && !c1) continue;                       // blank row
+      if (c0 === 'email summary') continue;           // title row
+      if (c0 === 'section' && c1 === 'metric') continue; // header row
+
+      if (c0) currentSection = c0;
+      const section = c0 || currentSection;
+      const metric  = c1;
+      if (!metric) continue;
+
+      const mapKey  = `${section}|${metric}`;
+      const legacy  = EMAIL_SUMMARY_MAP[mapKey];
+      if (legacy && legacy.length) {
+        legacy.forEach((k) => out.push({ Text: k, Value: value }));
+      } else {
+        // Fallback so unmapped metrics are still available (not silently dropped).
+        out.push({ Text: `${section}_${metric}`.replace(/[^a-z0-9]+/g, '_'), Value: value });
+      }
+    }
+    return out;
+  } catch (error) {
+    console.error(`[extractEmailSummarySheet] Error reading '${sheetName}':`, error);
+    return [];
+  }
+};
+
 export const useCRMData = (department, selectedDate = null) => {
   const { refreshTrigger } = useReportRefresh();
   const [reports, setReports] = useState([]);
@@ -531,32 +696,33 @@ export const useCRMData = (department, selectedDate = null) => {
         historicalData: [] // Skip historical data to improve performance
       };
 
-      // Parse Email sheet (Text/Value pairs)
-      if (sheetNames.includes('Email')) {
-        const worksheet = workbook.Sheets['Email'];
-        const emailData = XLSX.utils.sheet_to_json(worksheet);
-        parsed.emailData = emailData;
+      // ── Email metrics ──────────────────────────────────────────────────────
+      // Legacy format: an "Email" sheet of Text/Value pairs. New format
+      // (crm_reports.py): an "Email Summary" sheet of Section/Metric/Value.
+      // Prefer the legacy sheet when present, otherwise fall back to the new one.
+      const emailSheet = findSheet(sheetNames, 'Email');
+      if (emailSheet) {
+        parsed.emailData = XLSX.utils.sheet_to_json(workbook.Sheets[emailSheet]);
       }
-
-      const getLeadSummarySheetName = (dept) => {
-        if (dept === 'CS') {
-          return 'LEADS_SUMMARY';
-        } else {
-          return 'LEAD SUMMARY';
+      if (!parsed.emailData || parsed.emailData.length === 0) {
+        const emailSummarySheet = findSheet(sheetNames, 'Email Summary', 'Email_Summary');
+        if (emailSummarySheet) {
+          parsed.emailData = extractEmailSummarySheet(workbook, emailSummarySheet);
         }
-      };
-
-      const leadSummarySheet = getLeadSummarySheetName(department);
-      
-      // Extract lead summary
-      if (sheetNames.includes(leadSummarySheet)) {
-        const leadsData = extractAllSheetData(workbook, leadSummarySheet);
-        parsed.leadsSummary = leadsData;
       }
 
-      // Extract agent summary and team leader summary from "summary" sheet
-      if (sheetNames.includes('summary')) {
-        const summaryData = extractSummarySheetData(workbook, 'summary');
+      // ── Lead summary ───────────────────────────────────────────────────────
+      // Match any casing/spacing variant ('LEADS_SUMMARY', 'LEAD SUMMARY', 'Lead Summary').
+      const leadSummarySheet = findSheet(sheetNames, 'LEADS_SUMMARY', 'LEAD SUMMARY', 'Lead Summary', 'Leads Summary');
+      if (leadSummarySheet) {
+        parsed.leadsSummary = extractAllSheetData(workbook, leadSummarySheet);
+      }
+
+      // ── Agent / Team-leader summary (case-insensitive 'summary' / 'Summary') ─
+      const summarySheet = findSheet(sheetNames, 'summary', 'Summary');
+      if (summarySheet) {
+        const preferGroup = department === 'CS' ? 'zone' : 'branch';
+        const summaryData = extractSummarySheetData(workbook, summarySheet, preferGroup);
         parsed.agentSummary = summaryData.agentSummary;
         parsed.teamLeaderSummary = summaryData.teamLeaderSummary;
       }

@@ -8,13 +8,15 @@
  * Agents and Team Leaders are excluded from this report — the engine filters
  * them out via the MANAGER_ROLES whitelist below.
  * ─────────────────────────────────────────────────────────────────────────────
- * LEADER % thresholds (same shape as Local Trip, applied at branch/region level)
- *   LBF BM / Call Center Supervisor  → ≥130% cumulative YTD sales · PAR ≤ 4%
- *   CS  Regional Manager (Mainland)  → ≥150% cumulative YTD sales · PAR ≤ 4%
- *   CS  Regional Manager (Zanzibar)  → ≥130% cumulative YTD sales · PAR ≤ 4%
- *   SME Regional Manager             → ≥120% cumulative YTD sales · PAR ≤ 4%
+ * LEADER % thresholds (per-criterion, applied at branch/region level)
+ *   LBF BM / Call Center Supervisor  → sales ≥130% · loans ≥130% · PAR ≤ 4%
+ *   CS  Regional Manager (Mainland)  → sales ≥150% · loans ≥130% · PAR ≤ 4%
+ *   CS  Regional Manager (Zanzibar)  → sales ≥130% · loans ≥130% · PAR ≤ 4%
+ *   SME Regional Manager             → sales ≥120% · (no loan line) · PAR ≤ 4%
  * ─────────────────────────────────────────────────────────────────────────────
- * NOTE on "130 % loan counts": deferred — Sales file has no loan-count target.
+ * NOTE on "130 % loan counts": the source files carry no loan-count TARGET, so
+ * this criterion is INFORMATIONAL (computed + displayed, gated behind
+ * ENFORCE_LOAN_COUNTS=false) until a real target column is wired through.
  * ─────────────────────────────────────────────────────────────────────────────
  * Tenure rule: all staff must have ≥3 months of work (rows where earliest
  *              activity date is after the start of the reporting window are
@@ -74,6 +76,12 @@ const MONTH_ORDER = [
 const JAN_2026  = new Date('2026-01-01');
 const MAY_2026  = new Date('2026-05-01');
 const PAR_LIMIT = 0.04; // 4%
+
+// "Achieve 130% of your loan counts" — enforced when the Sales file's Target
+// sheet carries a real "Loan Count target" column (= branch target ÷ per-rep
+// rate). Skipped when that column is absent (older files) so it can't
+// spuriously fail everyone. Master kill-switch below.
+const ENFORCE_LOAN_COUNTS = true;
 
 // ── robust field getter ───────────────────────────────────────────────────────
 function getField(row, name, posIdx) {
@@ -192,20 +200,22 @@ function qualifyAgent(agent, product, region, monthsCount) {
 }
 
 /**
- * Local Trip leader-level percentage thresholds (per LOCAL TRIPS memo).
- * Applied to both Team Leader (branch) and Region / Branch Manager levels.
- *   LBF              → 130 %
- *   CS  TZ Mainland  → 150 %
- *   CS  Zanzibar     → 130 %
- *   SME & AGRI       → 120 %
- * Unknown products fall back to 130 % to err on the strict side.
+ * EA Trip leader-level percentage thresholds (per EAST AFRICA TRIP memo),
+ * one ratio PER criterion:
+ *   LBF BM / CC Supervisor → sales 130 % · loans 130 %
+ *   CS  RM  TZ Mainland    → sales 150 % · loans 130 %   (loan counts stay 130%)
+ *   CS  RM  Zanzibar       → sales 130 % · loans 130 %
+ *   SME RM                 → sales 120 % ·  (no loan-count line in the memo)
+ * Unknown products fall back to 130 % across the board.
  */
-function leaderRatio(product, region) {
+function leaderRatios(product, region) {
   const p = String(product || '').toUpperCase();
-  if (p === 'LBF') return 1.30;
-  if (p === 'CS')  return isZanzibar(region) ? 1.30 : 1.50;
-  if (p === 'SME' || p === 'AGRI' || p === 'SME & AGRI') return 1.20;
-  return 1.30;
+  if (p === 'LBF') return { sales: 1.30, loans: 1.30 };
+  if (p === 'CS')  return isZanzibar(region)
+    ? { sales: 1.30, loans: 1.30 }
+    : { sales: 1.50, loans: 1.30 };
+  if (p === 'SME' || p === 'AGRI' || p === 'SME & AGRI') return { sales: 1.20, loans: null };
+  return { sales: 1.30, loans: 1.30 };
 }
 
 /**
@@ -217,60 +227,54 @@ function leaderRatio(product, region) {
  * SME only requires (a) and (c); CS/LBF require all four.
  */
 function qualifyTL(bObj, product, region) {
-  const ratio      = leaderRatio(product, region);
-  const p          = String(product || '').toUpperCase();
-  const requiresLoanCount = (p === 'LBF' || p === 'CS');
+  const ratios = leaderRatios(product, region);
 
-  const reqSales  = bObj.target * ratio;
+  const reqSales  = bObj.target * ratios.sales;
   const passSales = bObj.target > 0 && bObj.totalAmount >= reqSales;
   const salesPct  = bObj.target > 0 ? bObj.totalAmount / bObj.target : 0;
 
-  const reqLoans  = bObj.loansTarget * ratio;
-  const passLoans = !requiresLoanCount || (bObj.loansTarget > 0 && bObj.totalLoans >= reqLoans);
   const loansPct  = bObj.loansTarget > 0 ? bObj.totalLoans / bObj.loansTarget : 0;
+  const passLoans = ratios.loans == null || !(ENFORCE_LOAN_COUNTS && bObj.loansTargetFromSheet)
+    || (bObj.loansTarget > 0 && bObj.totalLoans >= bObj.loansTarget * ratios.loans);
 
   const passPAR   = bObj.par30 <= PAR_LIMIT;
   const ok = passSales && passLoans && passPAR;
 
-  const required = Math.round(ratio * 100);
   const parts = [];
-  if (!passSales) parts.push(bObj.target === 0      ? 'No sales target' : `Sales ${Math.round(salesPct*100)}% < ${required}%`);
-  if (!passLoans) parts.push(bObj.loansTarget === 0 ? 'No loan-count tgt' : `Loans ${Math.round(loansPct*100)}% < ${required}%`);
+  if (!passSales) parts.push(bObj.target === 0      ? 'No sales target' : `Sales ${Math.round(salesPct*100)}% < ${Math.round(ratios.sales*100)}%`);
+  if (!passLoans) parts.push(bObj.loansTarget === 0 ? 'No loan-count tgt' : `Loans ${Math.round(loansPct*100)}% < ${Math.round(ratios.loans*100)}%`);
   if (!passPAR)   parts.push(`PAR>30 ${(bObj.par30 * 100).toFixed(1)}% > 4%`);
 
   return {
     qualified: ok, reason: ok ? 'Criteria met' : parts.join('; '),
     achievement: salesPct, loansAchv: loansPct,
-    par30: bObj.par30, requiredRatio: ratio,
+    par30: bObj.par30, requiredRatio: ratios.sales,
   };
 }
 
 function qualifyRegion(rObj, product, region) {
-  const ratio      = leaderRatio(product, region);
-  const p          = String(product || '').toUpperCase();
-  const requiresLoanCount = (p === 'LBF' || p === 'CS');
+  const ratios = leaderRatios(product, region);
 
-  const reqSales  = rObj.target * ratio;
+  const reqSales  = rObj.target * ratios.sales;
   const passSales = rObj.target > 0 && rObj.totalAmount >= reqSales;
   const salesPct  = rObj.target > 0 ? rObj.totalAmount / rObj.target : 0;
 
-  const reqLoans  = rObj.loansTarget * ratio;
-  const passLoans = !requiresLoanCount || (rObj.loansTarget > 0 && rObj.totalLoans >= reqLoans);
   const loansPct  = rObj.loansTarget > 0 ? rObj.totalLoans / rObj.loansTarget : 0;
+  const passLoans = ratios.loans == null || !(ENFORCE_LOAN_COUNTS && rObj.loansTargetFromSheet)
+    || (rObj.loansTarget > 0 && rObj.totalLoans >= rObj.loansTarget * ratios.loans);
 
   const passPAR   = rObj.par30 <= PAR_LIMIT;
   const ok = passSales && passLoans && passPAR;
 
-  const required = Math.round(ratio * 100);
   const parts = [];
-  if (!passSales) parts.push(rObj.target === 0      ? 'No sales target' : `Sales ${Math.round(salesPct*100)}% < ${required}%`);
-  if (!passLoans) parts.push(rObj.loansTarget === 0 ? 'No loan-count tgt' : `Loans ${Math.round(loansPct*100)}% < ${required}%`);
+  if (!passSales) parts.push(rObj.target === 0      ? 'No sales target' : `Sales ${Math.round(salesPct*100)}% < ${Math.round(ratios.sales*100)}%`);
+  if (!passLoans) parts.push(rObj.loansTarget === 0 ? 'No loan-count tgt' : `Loans ${Math.round(loansPct*100)}% < ${Math.round(ratios.loans*100)}%`);
   if (!passPAR)   parts.push(`PAR>30 ${(rObj.par30 * 100).toFixed(1)}% > 4%`);
 
   return {
     qualified: ok, reason: ok ? 'Criteria met' : parts.join('; '),
     achievement: salesPct, loansAchv: loansPct,
-    par30: rObj.par30, requiredRatio: ratio,
+    par30: rObj.par30, requiredRatio: ratios.sales,
   };
 }
 
@@ -339,17 +343,27 @@ export function processEATripReport(salesBuf, usersBuf, activitiesBuf, loanBuf) 
     return { ...d, par30: d.par30Principal / d.totalPrincipal };
   }
 
-  // ── target map (VLOOKUP style) ────────────────────────────────────────────────
-  // col-0 = Branch/TL name, col-1 = target value
-  const targetMap = {};
+  // ── target maps (VLOOKUP style) ───────────────────────────────────────────────
+  // Target sheet columns: Branch/TL | Target | Loan Count target |
+  //                       Active Reps Target | Actual Reps Target
+  const numOf = (v) => (typeof v === 'number' ? v : parseFloat(String(v ?? '0').replace(/,/g, '')) || 0);
+  const targetMap        = {};
+  const loanCountTgtMap  = {};
+  const activeRepsTgtMap = {};
+  const actualRepsTgtMap = {};
   targetRows.forEach((row) => {
     const vals = Object.values(row);
     if (vals.length < 2) return;
     const key = normKey(String(vals[0] ?? '').trim());
-    const raw = vals[1];
-    const val = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0').replace(/,/g, '')) || 0;
-    if (!key || key === 'branch/tl' || key === 'branch / tl' || key === 'target' || val === 0) return;
-    targetMap[key] = val;
+    if (!key || key === 'branch/tl' || key === 'branch / tl' || key === 'target') return;
+    const val = numOf(vals[1]);
+    if (val !== 0) targetMap[key] = val;
+    const lc = numOf(getField(row, 'Loan Count target',  2));
+    if (lc  !== 0) loanCountTgtMap[key]  = lc;
+    const ar = numOf(getField(row, 'Active Reps Target', 3));
+    if (ar  !== 0) activeRepsTgtMap[key] = ar;
+    const cr = numOf(getField(row, 'Actual Reps Target', 4));
+    if (cr  !== 0) actualRepsTgtMap[key] = cr;
   });
 
   // ── users map: norm(displayName) → { title, role, branch } (use Title) ──────
@@ -497,7 +511,13 @@ export function processEATripReport(salesBuf, usersBuf, activitiesBuf, loanBuf) 
         // Step 2: branch totals + PAR + loan-count target
         bObj.totalAmount    = bObj.agents.reduce((s, a) => s + a.totalAmount, 0);
         bObj.totalLoans     = bObj.agents.reduce((s, a) => s + a.totalLoans,  0);
-        bObj.loansTarget    = bObj.agents.reduce((s, a) => s + (a.minLoans || 0), 0);
+        const bLoanTgt = loanCountTgtMap[normKey(branch)] ?? 0;
+        bObj.loansTargetFromSheet = bLoanTgt > 0;
+        bObj.loansTarget    = bLoanTgt > 0
+          ? bLoanTgt * monthsCount
+          : bObj.agents.reduce((s, a) => s + (a.minLoans || 0), 0);
+        bObj.activeRepsTarget = activeRepsTgtMap[normKey(branch)] ?? 0;
+        bObj.actualRepsTarget = actualRepsTgtMap[normKey(branch)] ?? 0;
         bObj.totalPrincipal = bObj.agents.reduce((s, a) => s + a.totalPrincipal, 0);
         bObj.par30Principal = bObj.agents.reduce((s, a) => s + a.par30Principal, 0);
         bObj.par30          = bObj.totalPrincipal > 0 ? bObj.par30Principal / bObj.totalPrincipal : 0;
@@ -519,7 +539,13 @@ export function processEATripReport(salesBuf, usersBuf, activitiesBuf, loanBuf) 
       // Step 4: region totals + PAR + loan-count target
       rObj.totalAmount    = Object.values(rObj.branches).reduce((s, b) => s + b.totalAmount, 0);
       rObj.totalLoans     = Object.values(rObj.branches).reduce((s, b) => s + b.totalLoans,  0);
-      rObj.loansTarget    = Object.values(rObj.branches).reduce((s, b) => s + (b.loansTarget || 0), 0);
+      const rLoanTgt = loanCountTgtMap[regionKey] ?? 0;
+      rObj.loansTargetFromSheet = rLoanTgt > 0;
+      rObj.loansTarget    = rLoanTgt > 0
+        ? rLoanTgt * monthsCount
+        : Object.values(rObj.branches).reduce((s, b) => s + (b.loansTarget || 0), 0);
+      rObj.activeRepsTarget = activeRepsTgtMap[regionKey] ?? 0;
+      rObj.actualRepsTarget = actualRepsTgtMap[regionKey] ?? 0;
       rObj.totalPrincipal = Object.values(rObj.branches).reduce((s, b) => s + b.totalPrincipal, 0);
       rObj.par30Principal = Object.values(rObj.branches).reduce((s, b) => s + b.par30Principal, 0);
       rObj.par30          = rObj.totalPrincipal > 0 ? rObj.par30Principal / rObj.totalPrincipal : 0;
@@ -602,14 +628,21 @@ export function processEATripReport(salesBuf, usersBuf, activitiesBuf, loanBuf) 
     newAgents:       allAgents.filter((a) => a.flag === 'No' && a.period !== 'Unknown').length,
     monthsInData,
     byProduct: Object.fromEntries(
-      products.map((p) => [p, {
-        target:      hierarchy[p].target,
-        totalAmount: hierarchy[p].totalAmount,
-        totalLoans:  hierarchy[p].totalLoans,
-        qualified:   hierarchy[p].qualCount,
-        agents:      Object.values(hierarchy[p].regions)
-          .flatMap((r) => Object.values(r.branches).flatMap((b) => b.agents)).length,
-      }]),
+      products.map((p) => {
+        // This is a MANAGERS report: "qualified" per product = qualified
+        // managers (LBF Branch Managers = qualified branches; CS/SME Regional
+        // Managers = qualified regions), so it sums to qualifiedManagers.
+        const mgr = p === 'LBF' ? lbfMgrs : p === 'CS' ? csMgrs : p === 'SME' ? smeMgrs : { total: 0, qualified: 0 };
+        return [p, {
+          target:      hierarchy[p].target,
+          totalAmount: hierarchy[p].totalAmount,
+          totalLoans:  hierarchy[p].totalLoans,
+          qualified:   mgr.qualified,   // qualified managers
+          managers:    mgr.total,       // total managers (branches for LBF, regions for CS/SME)
+          agents:      Object.values(hierarchy[p].regions)
+            .flatMap((r) => Object.values(r.branches).flatMap((b) => b.agents)).length,
+        }];
+      }),
     ),
   };
 

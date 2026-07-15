@@ -1,698 +1,272 @@
-import { useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { extractMetrics, getFormattedValue, formatNumber } from '../../utils/crmUtils';
+import { extractMetrics } from '../../utils/crmUtils';
 import './CRMAnalysis.css';
 
+/**
+ * CRM Analysis — rendered to mirror the emailed CRM report (crm_reports.py,
+ * SECTION 4): a spectrum masthead, centered subheaders, bold-blue prose, the
+ * "For today" plan blocks, colour-graded agent/TL branch tables and a leads
+ * counts+% table. Colours & layout intentionally match the email exactly.
+ */
+
+// ── palette (matches crm_reports.py) ────────────────────────────────────────
+const SPECTRUM_CSS = 'linear-gradient(90deg,#7c3aed,#2563eb,#16a34a,#eab308,#ea580c,#dc2626)';
+const STOPS = [[124, 58, 237], [37, 99, 235], [22, 163, 74], [234, 179, 8], [234, 88, 12], [220, 38, 38]];
+const BLUE = '#1d4ed8';
+const DARK = '#1e3a8a';
+const NAVY = '#2f5597';
+
+// frac 0 -> violet (best), 1 -> red (worst); multi-stop lerp (== spectrum_hex).
+const spectrumHex = (frac) => {
+  const f = Math.max(0, Math.min(1, frac));
+  const seg = f * (STOPS.length - 1);
+  const i = Math.min(Math.floor(seg), STOPS.length - 2);
+  const [a, b, t] = [STOPS[i], STOPS[i + 1], seg - i];
+  const c = [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * t));
+  return `#${c.map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+};
+
+// Bold + blue the key figures (numbers / percentages / dates) inside prose.
+const NUM_RE = /(\d{1,2}[-/]\d{2}[-/]\d{4}|\d[\d,]*(?:\.\d+)?%?)/;
+const highlight = (text) =>
+  String(text).split(NUM_RE).map((part, i) =>
+    (i % 2 === 1 ? <b key={i} style={{ color: BLUE }}>{part}</b> : part));
+
+const num = (v) => {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v ?? '').replace(/[%,]/g, ''));
+  return Number.isNaN(n) ? 0 : n;
+};
+
+// ── presentational pieces ───────────────────────────────────────────────────
+const HeaderBanner = ({ product, reportDate }) => {
+  const gen = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+  return (
+    <>
+      <div style={{ height: 6, background: SPECTRUM_CSS }} />
+      <div style={{ background: 'linear-gradient(135deg,#24466f 0%,#2f5597 55%,#3a67b0 100%)', padding: '30px 22px', textAlign: 'center' }}>
+        <div style={{ fontSize: 12, letterSpacing: 4, color: '#cfe0f5', textTransform: 'uppercase', marginBottom: 9 }}>
+          Platinum Credit &nbsp;&bull;&nbsp; CRM
+        </div>
+        <div style={{ fontSize: 33, fontWeight: 800, color: '#fff', letterSpacing: '0.5px' }}>{product} CRM User Report</div>
+        <div style={{ fontSize: 14, color: '#dbeafe', marginTop: 11 }}>
+          Report Date: <b style={{ color: '#fff' }}>{reportDate}</b> &nbsp;&bull;&nbsp; Generated on: <b style={{ color: '#fff' }}>{gen}</b>
+        </div>
+      </div>
+      <div style={{ height: 6, background: SPECTRUM_CSS, marginBottom: 20 }} />
+    </>
+  );
+};
+
+const Subheader = ({ children }) => (
+  <>
+    <h3 style={{ textAlign: 'center', color: BLUE, fontSize: 21, fontWeight: 800, margin: '30px 0 6px', letterSpacing: '0.3px' }}>
+      {children}
+    </h3>
+    <div style={{ height: 3, width: 250, margin: '0 auto 14px', background: SPECTRUM_CSS }} />
+  </>
+);
+
+const Prose = ({ lines, icon = '◆' }) => (
+  <div style={{ maxWidth: 820, margin: '0 auto 10px' }}>
+    {lines.map((ln, i) => (
+      <p key={i} style={{ fontSize: 13.5, lineHeight: 1.6, margin: '10px 0', color: '#333' }}>
+        <span style={{ color: BLUE, fontSize: 12, marginRight: 9 }}>{icon}</span>{highlight(ln)}
+      </p>
+    ))}
+  </div>
+);
+
+const TodayBlock = ({ date, lines }) => (
+  <>
+    <p style={{ textAlign: 'center', fontWeight: 700, color: DARK, fontSize: 14.5, margin: '16px 0 2px' }}>
+      For today <b style={{ color: BLUE }}>{date}</b>
+    </p>
+    <Prose lines={lines} icon="★" />
+  </>
+);
+
+// The 7 columns the email shows, graded on Activity Completion Rate.
+const EMAIL_COLS = [
+  'CRM Users (Logins)', 'Users Assigned Activities', 'Users Completing @ Location',
+  'Activity Completion Rate', 'Locations Planned', 'Locations Reached', '% Locations Reached',
+];
+const KEY_COL = 'Activity Completion Rate';
+const PCT_COLS = new Set(['Activity Completion Rate', '% Locations Reached']);
+
+const fmtCell = (col, v) => {
+  if (PCT_COLS.has(col)) return `${(num(v) * 100).toFixed(2)}%`;
+  if (v === '' || v == null) return '';
+  const n = num(v);
+  return Number.isInteger(n) ? n.toLocaleString() : n.toFixed(1);
+};
+
+const BOX = { maxWidth: '100%', overflowX: 'auto', border: '1px solid #cbd5e1', boxShadow: '0 2px 8px rgba(30,58,138,0.10)', margin: '8px auto 18px' };
+const TABLE = { borderCollapse: 'separate', borderSpacing: 0, width: 'max-content', minWidth: '100%' };
+const TH = { padding: '9px 13px', background: NAVY, color: '#fff', fontSize: 12, fontWeight: 600, borderBottom: '2px solid #24466f', whiteSpace: 'nowrap', textAlign: 'center' };
+const TH_CORNER = { ...TH, textAlign: 'left', position: 'sticky', left: 0, zIndex: 2 };
+const TD = { padding: '7px 13px', borderBottom: '1px solid #eef1f6', fontSize: 12, color: '#222', textAlign: 'center', whiteSpace: 'nowrap' };
+const TD_LEFT = { ...TD, textAlign: 'left', fontWeight: 600, color: '#1f2937', background: '#fff', position: 'sticky', left: 0, zIndex: 1 };
+
+const GradedTable = ({ summary }) => {
+  if (!summary || !summary.rows || summary.rows.length === 0) {
+    return <p style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>(no data for the day)</p>;
+  }
+  const dataRows = summary.rows.filter((r) => !r.__isTotal);
+  const totalRow = summary.rows.find((r) => r.__isTotal);
+  const sorted = [...dataRows].sort((a, b) => num(b[KEY_COL]) - num(a[KEY_COL]));
+  const n = sorted.length;
+
+  const renderRow = (row, rank, isTotal) => {
+    const frac = n > 1 ? rank / (n - 1) : 0;
+    return (
+      <tr key={`${row.__index}-${rank}-${isTotal}`}>
+        <td style={isTotal ? { ...TD_LEFT, fontWeight: 700 } : TD_LEFT}>{row.__index}</td>
+        {EMAIL_COLS.map((col) => {
+          const key = col === KEY_COL;
+          const style = (key && !isTotal)
+            ? { ...TD, background: spectrumHex(frac), color: '#fff', fontWeight: 700 }
+            : (isTotal ? { ...TD, fontWeight: 700 } : TD);
+          return <td key={col} style={style}>{fmtCell(col, row[col])}</td>;
+        })}
+      </tr>
+    );
+  };
+
+  return (
+    <div style={BOX}>
+      <table style={TABLE}>
+        <thead>
+          <tr>
+            <th style={TH_CORNER}>{summary.indexLabel}</th>
+            {EMAIL_COLS.map((c) => <th key={c} style={TH}>{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r, i) => renderRow(r, i, false))}
+          {totalRow && renderRow(totalRow, 0, true)}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const LeadsTable = ({ metrics }) => {
+  const raw = (k) => num(metrics[k]);
+  const total = raw('lead');
+  const cols = [
+    ['Accepted', 'accepted_lead'], ['Not Provided', 'not_provided_lead'],
+    ['Rejected', 'rejected_lead'], ['Prospects', 'prospect_lead'], ['Grand Total', 'lead'],
+  ];
+  return (
+    <div style={BOX}>
+      <table style={TABLE}>
+        <thead>
+          <tr>{cols.map(([label]) => <th key={label} style={TH}>{label}</th>)}</tr>
+        </thead>
+        <tbody>
+          <tr>{cols.map(([label, key]) => <td key={label} style={TD}>{raw(key).toLocaleString()}</td>)}</tr>
+          <tr>
+            {cols.map(([label, key]) => {
+              const pct = key === 'lead' ? (total ? 1 : 0) : (total ? raw(key) / total : 0);
+              return <td key={label} style={{ ...TD, color: '#1f3864', fontStyle: 'italic' }}>{(pct * 100).toFixed(2)}%</td>;
+            })}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// ── main component ──────────────────────────────────────────────────────────
 const CRMAnalysis = ({ parsedData, department }) => {
   if (!parsedData) return null;
 
   const metrics = extractMetrics(parsedData.emailData || []);
-  
-  // Helper function to get value (matching Python get_value function)
+
+  // Format a value for display (percentage-aware), mirroring the email's _fmt.
   const getValue = (key, defaultVal = 'None') => {
-    const rawValue = metrics[key.toLowerCase()] || defaultVal;
-    
-    if (rawValue === 'N/A' || rawValue === 'None' || rawValue === '' || rawValue === null || rawValue === undefined) {
-      return 'None';
-    }
-
+    const rawValue = metrics[key.toLowerCase()] ?? defaultVal;
+    if (rawValue === 'N/A' || rawValue === 'None' || rawValue === '' || rawValue == null) return 'None';
     const keyLower = key.toLowerCase();
-    const isPercentageKey = ['percentage', 'percent', '%', 'rate', 'ratio'].some(
-      indicator => keyLower.includes(indicator)
-    );
-
-    try {
-      let numValue;
-      if (typeof rawValue === 'string') {
-        const cleanStr = rawValue.replace('%', '').trim();
-        numValue = parseFloat(cleanStr);
-      } else {
-        numValue = parseFloat(rawValue);
-      }
-
-      if (isNaN(numValue)) {
-        return String(rawValue);
-      }
-
-      if (isPercentageKey) {
-        if (numValue >= 0 && numValue <= 1) {
-          return `${(numValue * 100).toFixed(2)}%`;
-        } else if (numValue >= 0 && numValue <= 100) {
-          return `${numValue.toFixed(2)}%`;
-        } else {
-          return `${numValue.toFixed(2)}%`;
-        }
-      } else {
-        if (Number.isInteger(numValue)) {
-          return String(Math.floor(numValue));
-        } else {
-          return `${Math.floor(numValue)}`;
-        }
-      }
-    } catch (e) {
-      return String(rawValue);
+    const isPct = ['percentage', 'percent', '%', 'rate', 'ratio'].some((i) => keyLower.includes(i));
+    const n = typeof rawValue === 'string' ? parseFloat(rawValue.replace('%', '').trim()) : parseFloat(rawValue);
+    if (Number.isNaN(n)) return String(rawValue);
+    if (isPct) {
+      const v = (n >= 0 && n <= 1) ? n * 100 : n;
+      return `${v.toFixed(2)}%`;
     }
+    return Number.isInteger(n) ? String(n) : String(Math.floor(n));
   };
 
-  // Format date
-  const currentDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-  const reportDate = parsedData.reportDate instanceof Date
-    ? parsedData.reportDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
-    : new Date(parsedData.reportDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  const product = department || 'CRM';
+  const dateObj = parsedData.reportDate instanceof Date ? parsedData.reportDate : new Date(parsedData.reportDate);
+  const reportDateFull = dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+  const todayDate = dateObj.toLocaleDateString('en-GB').replace(/\//g, '-');
 
-  // Prepare trend data for lead graph
-  const prepareLeadTrendData = () => {
-    if (!parsedData.historicalData || parsedData.historicalData.length === 0) return [];
-    
-    const trendData = parsedData.historicalData.map((hist) => {
-      const histMetrics = extractMetrics(hist.emailData || []);
-      const value = parseFloat(histMetrics['lead'] || histMetrics['count_leads'] || '0') || 0;
-      return {
-        date: hist.date instanceof Date 
-          ? hist.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-          : new Date(hist.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: value,
-        fullDate: hist.date
-      };
-    });
-    
-    // Add current value
-    const currentValue = parseFloat(metrics['lead'] || metrics['count_leads'] || '0') || 0;
-    const currentDate = parsedData.reportDate instanceof Date
-      ? parsedData.reportDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      : new Date(parsedData.reportDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    
-    trendData.push({
-      date: currentDate,
-      value: currentValue,
-      fullDate: parsedData.reportDate
-    });
-    
-    return trendData.sort((a, b) => new Date(a.fullDate) - new Date(b.fullDate));
-  };
+  const leadLines = [
+    `${getValue('lead')} leads were generated in the system across all ${product} branches.`,
+    `${getValue('percentage_accepted_lead')} (${getValue('accepted_lead')}) of leads generated were consented, `
+      + `${getValue('percentage_not_provided_lead')} (${getValue('not_provided_lead')}) were not provided and `
+      + `${getValue('percentage_rejected_lead')} (${getValue('rejected_lead')}) were rejected.`,
+    `Out of ${getValue('lead')} leads, ${getValue('prospect_lead')} are prospects.`,
+  ];
 
-  const leadTrendData = prepareLeadTrendData();
+  const agentLines = [
+    `Total count of Sales Agents in CRM stood at ${getValue('total_agent')}, and only ${getValue('total_agent_logged_in')} logged in for the day.`,
+    `Out of ${getValue('agent_assigned_activities')} Sales Agents assigned activities for the day, `
+      + `${getValue('agent_completed_at_location')} (${getValue('percentage_agent_completed_at_location')}) completed at least one activity at the assigned location.`,
+    `${getValue('agent_location_planned')} locations were planned for the day. Only `
+      + `${getValue('agent_reached_location')} (${getValue('percentage_reached_location')}) locations were reached on the day.`,
+    `${getValue('agent_branch_without_planned_location')} had no planned location visited by a Sales Agent.`,
+    `${getValue('branches_without_assgned_activities')} had no assigned activities or planned locations to be visited by a Sales Agent.`,
+  ];
+  const agentToday = [
+    `${getValue('todays_locations_planned')} locations have been planned.`,
+    `${getValue('todays_agents_assigned')} (${getValue('percentage_todays_agents_assigned')}) Sales Agents have been assigned activities.`,
+    `Average locations to be visited per Sales Agent is ${getValue('average_location_agent_visited')}.`,
+  ];
 
-  // Custom tooltip for charts
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="custom-tooltip">
-          <p className="tooltip-label">{label}</p>
-          <p className="tooltip-value">{formatNumber(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
+  const tlLines = [
+    `Total count of Team Leaders in CRM stood at ${getValue('count_team_leaders')}, and only ${getValue('logged_in_team_leaders')} logged in for the day.`,
+    `Out of ${getValue('team_leaders_assigned_activities')} Team Leaders assigned activities for the day, `
+      + `${getValue('team_leaders_completed_at_location')} (${getValue('percentage_completed_at_location')}) completed at least one activity at the assigned location.`,
+    `${getValue('team_leaders_location_planned')} locations were planned for the day. Only `
+      + `${getValue('team_leaders_location_reached')} (${getValue('percentage_tl_location_reached')}) locations were reached on the day.`,
+    `${getValue('branches_tl_no_planned_location')} had no planned location visited by a Team Leader.`,
+    `${getValue('branches_tl_no_assigned_activities')} had no assigned activities or planned locations to be visited by a Team Leader.`,
+  ];
+  const tlToday = [
+    `${getValue('todays_tls_location_planned')} locations have been planned.`,
+    `${getValue('todays_tls_assigned_activities')} (${getValue('percentage_today_tl_assigned_activities')}) Team Leaders have been assigned activities.`,
+    `Average locations to be visited per Team Leader is ${getValue('average_location_visited_by_tl')}.`,
+  ];
 
-  // Render department-specific content
-  const renderCSContent = () => (
-    <div className="crm-analysis-container">
-      <div className="crm-section">
-        <h2 className="section-title">📈 LEADS SUMMARY</h2>
-        <div className="content">
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('lead')}</span> leads were generated in the system across all CS branches.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="percentage-value">{getValue('percentage_accepted_lead')}</span> (<span className="number-value">{getValue('accepted_lead')}</span>) of leads generated were consented, 
-              <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
-              <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('lead')}</span> leads, <span className="number-value">{getValue('prospect_lead')}</span> is a prospect.</p>
-          </div>
-          
-          {/* Lead Trend Chart */}
-          {leadTrendData.length > 0 && (
-            <div className="chart-section">
-              <h4 className="chart-title">Leads Generated Trend</h4>
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={leadTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#2E75B6" strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-          
-          {parsedData.leadsSummary && parsedData.leadsSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">Lead Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.leadsSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+  return (
+    <div className="crm-analysis-container"
+         style={{ fontFamily: 'Arial,Helvetica,sans-serif', maxWidth: 920, margin: '0 auto', color: '#222', background: '#fff', padding: '8px 12px' }}>
+      <HeaderBanner product={product} reportDate={reportDateFull} />
 
-      <div className="crm-section">
-        <h2 className="section-title">🎯 MARKETING ACTIVITIES SUMMARY</h2>
-        
-        <div className="subsection-title">👥 Sales Agents</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of agents in CRM stood at <span className="number-value">{getValue('total_agent')}</span>, 
-            and only <span className="number-value">{getValue('total_agent_logged_in')}</span> logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('agent_assigned_activities')}</span> agents assigned activities for the day, 
-              <span className="number-value"> {getValue('agent_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_agent_completed_at_location')}</span>) 
-            agents completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('agent_location_planned')}</span> locations were planned for the day. 
-            Only <span className="number-value">{getValue('agent_reached_location')}</span> (<span className="percentage-value">{getValue('percentage_reached_location')}</span>) 
-            locations were reached on the day.</p>
-          </div>
-          
-          <div className="highlight">
-            <p><span className="number-value">{getValue('agent_count_without_planned_location')}</span> branches had no planned location visited by an agent. 
-            ({getValue('agent_branch_without_planned_location')})</p>
-            <p><span className="number-value">{getValue('branches_count_without_assgned_activities')}</span> branches had no assigned activities or planned locations to be visited 
-            ({getValue('branches_without_assgned_activities')}).</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today : {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('todays_locations_planned')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('todays_agents_assigned')}</span> (<span className="percentage-value">{getValue('percentage_todays_agents_assigned')}</span>) 
-            have been assigned activities.</p>
-            <p>Average locations to be visited per agent is <span className="number-value">{getValue('average_location_agent_visited')}</span>.</p>
-          </div>
-          
-          {parsedData.agentSummary && parsedData.agentSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">Agent Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.agentSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="subsection-title">Team Leaders</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of TLs in CRM stood at <span className="number-value">{getValue('count_team_leaders')}</span>, 
-            and only <span className="number-value">{getValue('logged_in_team_leaders')}</span> TLs logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('team_leaders_assigned_activities')}</span> TLs assigned activities for the day, 
-              <span className="number-value"> {getValue('team_leaders_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
-            TLs completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('team_leaders_location_planned')}</span> locations were planned for the day. 
-            Only <span className="number-value">{getValue('team_leaders_location_reached')}</span> (<span className="percentage-value">{getValue('percentage_tl_location_reached')}</span>) 
-            locations were reached on the day.</p>
-          </div>
-          
-          <div className="highlight">
-            <p><span className="number-value">{getValue('branches_tl_count_no_planned_location')}</span> branches had no planned location visited by a TL. 
-            ({getValue('branches_tl_no_planned_location')})</p>
-            <p><span className="number-value">{getValue('branches_tl_count_no_assigned_activites')}</span> branches had not assigned any activities or locations to their TLs. 
-            ({getValue('branches_tl_no_assigned_activities')})</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today : {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('todays_tls_location_planned')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('todays_tls_assigned_activities')}</span> (90%) TLs have been assigned activities.</p>
-            <p>Average locations to be visited per TL is <span className="number-value">{getValue('average_location_visited_by_tl')}</span>.</p>
-          </div>
-          
-          {parsedData.teamLeaderSummary && parsedData.teamLeaderSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">Team Leader Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.teamLeaderSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <Subheader>Leads</Subheader>
+      <Prose lines={leadLines} />
+      <LeadsTable metrics={metrics} />
 
-    </div>
-  );
+      <Subheader>Sales Agents</Subheader>
+      <Prose lines={agentLines} />
+      <TodayBlock date={todayDate} lines={agentToday} />
+      <GradedTable summary={parsedData.agentSummary} />
 
-  const renderLBFContent = () => (
-    <div className="crm-analysis-container">
-      <div className="crm-section">
-        <h2 className="section-title">📈 LEADS SUMMARY</h2>
-        <div className="content">
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('lead')}</span> leads were generated in the system across all LBF branches.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="percentage-value">{getValue('percentage_consented_lead')}</span> (<span className="number-value">{getValue('number_consented_lead')}</span>) of leads generated were consented, 
-              <span className="percentage-value"> {getValue('percentage_not_provided_lead')}</span> (<span className="number-value">{getValue('not_provided_lead')}</span>) were not provided and 
-              <span className="percentage-value"> {getValue('percentage_rejected_lead')}</span> (<span className="number-value">{getValue('rejected_lead')}</span>) were rejected.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('lead')}</span> leads, <span className="number-value">{getValue('prospect_lead')}</span> is a prospect.</p>
-          </div>
-          
-          {/* Lead Trend Chart */}
-          {leadTrendData.length > 0 && (
-            <div className="chart-section">
-              <h4 className="chart-title">Leads Generated Trend</h4>
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={leadTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#2E75B6" strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-          
-          {parsedData.leadsSummary && parsedData.leadsSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">📋 Detailed LBF Leads Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.leadsSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <Subheader>Team Leaders</Subheader>
+      <Prose lines={tlLines} />
+      <TodayBlock date={todayDate} lines={tlToday} />
+      <GradedTable summary={parsedData.teamLeaderSummary} />
 
-      <div className="crm-section">
-        <h2 className="section-title">🎯 MARKETING ACTIVITIES SUMMARY</h2>
-        
-        <div className="subsection-title">👥 Sales Agents</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of agents in CRM stood at <span className="number-value">{getValue('total_count_agent')}</span>, 
-            and only <span className="number-value">{getValue('logged_in_agent')}</span> logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('agent_assigned_activities')}</span> agents assigned activities for the day, 
-              <span className="number-value"> {getValue('agents_completed_at_location')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location')}</span>) 
-            agents completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('agents_location_planned')}</span> locations were planned for the day. 
-            Only <span className="number-value">{getValue('agents_location_reached')}</span> (<span className="percentage-value">{getValue('percentage_agents_location_reached')}</span>) 
-            locations were reached on the day.</p>
-          </div>
-          
-          <div className="highlight">
-            <p><span className="number-value">{getValue('agents_no_assigned_location')}</span> had no assigned activity or planned location to their sales agents.</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('agents_todays_location_planned')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('todays_agents_assigned_activities')}</span> 
-            have been assigned activities.</p>
-            <p>Average locations to be visited per agent is <span className="number-value">{getValue('todays_average_location_visited_by_agents')}</span>.</p>
-          </div>
-          
-          {parsedData.agentSummary && parsedData.agentSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">👤 Detailed LBF Agent Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.agentSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="subsection-title">👨‍💼 Team Leaders</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of TLs in CRM stood at <span className="number-value">{getValue('total_count_team_leaders')}</span>, 
-            and only <span className="number-value">{getValue('logged_in_team_leaders')}</span> TLs logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('team_leaders_assigned_activities')}</span> TLs assigned activities for the day, 
-              <span className="number-value"> {getValue('tl_completed_activities_at_location')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_at_location')}</span>) 
-            TLs completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('tl_location_planned')}</span> locations were planned for the day. 
-            Only <span className="number-value">{getValue('tl_location_reached')}</span> (<span className="percentage-value">{getValue('percentage_tl_location_reached')}</span>) 
-            locations were reached on the day.</p>
-          </div>
-          
-          <div className="highlight">
-            <p><span className="number-value">{getValue('tl_planned_visited_location')}</span> had no planned location visited by a TL.</p>
-            <p><span className="number-value">{getValue('tl_no_assigned_planned_location')}</span> had not assigned activities or planned locations to be visited by a TL.</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('today_tl_location_planned')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('today_tl_assigned_activities')}</span> (<span className="percentage-value">{getValue('percentage_today_tl_assigned_activities')}</span>) TLs have been assigned activities.</p>
-            <p>Average locations to be visited per TL is <span className="number-value">{getValue('today_average_location_visited')}</span>.</p>
-          </div>
-          
-          {parsedData.teamLeaderSummary && parsedData.teamLeaderSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">👨‍💼 Detailed LBF Team Leader Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.teamLeaderSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-    </div>
-  );
-
-  const renderSMEContent = () => (
-    <div className="crm-analysis-container">
-      <div className="crm-section">
-        <h2 className="section-title">📈 LEADS SUMMARY</h2>
-        <div className="content">
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('count_leads', '0')}</span> leads were generated in the system across all SME branches.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="percentage-value">{getValue('percentage_accepted_lead', '0%')}</span> were accepted, 
-              <span className="percentage-value"> {getValue('percentage_not_provided_lead', '0%')}</span> (<span className="number-value">{getValue('not_provided_leads', '0')}</span>) were not provided with consent and 
-              <span className="percentage-value"> {getValue('percentage_rejected_leads', '0%')}</span> were rejected.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('count_leads', '0')}</span> leads, <span className="number-value">{getValue('prospect_lead', '0') === '0' ? 'none' : getValue('prospect_lead', '0')}</span> is a prospect.</p>
-          </div>
-          
-          {/* Lead Trend Chart */}
-          {leadTrendData.length > 0 && (
-            <div className="chart-section">
-              <h4 className="chart-title">Leads Generated Trend</h4>
-              <div className="chart-container">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={leadTrendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#2E75B6" strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
-          
-          {parsedData.leadsSummary && parsedData.leadsSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">📋 Detailed SME Leads Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.leadsSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.leadsSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="crm-section">
-        <h2 className="section-title">🎯 MARKETING ACTIVITIES SUMMARY</h2>
-        
-        <div className="subsection-title">👥 Sales Agents</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of agents in CRM stood at <span className="number-value">{getValue('total_count_agent', '0')}</span>, 
-            and only <span className="number-value">{getValue('logged_in_agents', '0')}</span> agents logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('agent_assigned_activities', '0')}</span> agents assigned activities for the day, 
-              <span className="number-value"> {getValue('agent_completed_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_completed_at_location', '0%')}</span>) 
-            agents completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('agent_location_planned', '0')}</span> locations were planned for the day. 
-            Only <span className="number-value">{getValue('agent_location_reached', '0')}</span> (<span className="percentage-value">{(() => {
-              const reached = parseFloat(getValue('agent_location_reached', '0')) || 0;
-              const planned = parseFloat(getValue('agent_location_planned', '0')) || 0;
-              return planned > 0 ? `${((reached / planned) * 100).toFixed(0)}%` : '0%';
-            })()}</span>) 
-            locations were reached.</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('today_location_planned', '0')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('today_agent_assigned_activities', '0')}</span> (<span className="percentage-value">{getValue('percentage_today_agent_assigned_activities', '0%')}</span>) 
-            of total agents (<span className="number-value">{getValue('today_total_agents', '0')}</span>) have been assigned activities.</p>
-            <p>Average locations to be visited per agent is <span className="number-value">{getValue('average_location_to_be_visited', '0')}</span>.</p>
-          </div>
-          
-          {parsedData.agentSummary && parsedData.agentSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">👤 Detailed SME Agent Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.agentSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.agentSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="subsection-title">👨‍💼 Team Leaders</div>
-        <div className="content">
-          <div className="stat-box">
-            <p>Total count of TLs in CRM stood at <span className="number-value">{getValue('total_count_team_leaders', '0')}</span>, 
-            only <span className="number-value">{getValue('logged_in_team_leaders', '0')}</span> logged in for the day.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p>Out of <span className="number-value">{getValue('tl_assigned_activities', '0')}</span> TLs assigned activities, 
-              <span className="number-value"> {getValue('tl_completed_activities_at_location', '0')}</span> (<span className="percentage-value">{getValue('percentage_tl_completed_activities_at_location', '0%')}</span>) 
-            completed at least one activity at the assigned location.</p>
-          </div>
-          
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('tl_location_planned', '0')}</span> locations were planned for the day, 
-              <span className="number-value"> {getValue('tl_location_reached', '0')}</span> (<span className="percentage-value">{(() => {
-                const reached = parseFloat(getValue('tl_location_reached', '0')) || 0;
-                const planned = parseFloat(getValue('tl_location_planned', '0')) || 0;
-                return planned > 0 ? `${((reached / planned) * 100).toFixed(0)}%` : '0%';
-              })()}</span>) were reached.</p>
-          </div>
-          
-          <div className="highlight">
-            <p><span className="number-value">{getValue('tl_no_planned_visited_location', 'None')}</span> had no planned location visited by a TL.</p>
-          </div>
-          
-          <div className="subsection-title">📅 For today {currentDate}</div>
-          <div className="stat-box">
-            <p><span className="number-value">{getValue('today_tl_location_planned', '0')}</span> locations have been planned.</p>
-            <p><span className="number-value">{getValue('today_tl_assigned_activities', '0')}</span> (<span className="percentage-value">{getValue('percentage_tl_assigned_activities', '0%')}</span>) of total TLs have been assigned activities.</p>
-            <p>Average locations to be visited per TL is <span className="number-value">{getValue('today_average_location_visited', '0')}</span>.</p>
-          </div>
-          
-          {parsedData.teamLeaderSummary && parsedData.teamLeaderSummary.length > 0 && (
-            <div className="image-container">
-              <div className="image-title">👨‍💼 Detailed SME Team Leader Summary</div>
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                        <th key={key}>{key.startsWith('Column_') ? '' : key}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsedData.teamLeaderSummary.map((row, idx) => (
-                      <tr key={idx}>
-                        {Object.keys(parsedData.teamLeaderSummary[0] || {}).map(key => (
-                          <td key={key}>{row[key] !== null && row[key] !== undefined ? String(row[key]) : ''}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="crm-footer">
+      <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 28, paddingTop: 10, textAlign: 'center' }}>
+        <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+          Automated CRM report &nbsp;&bull;&nbsp; Platinum Credit Limited
+        </p>
       </div>
     </div>
   );
-
-  // Render based on department
-  if (department === 'CS') {
-    return renderCSContent();
-  } else if (department === 'LBF') {
-    return renderLBFContent();
-  } else if (department === 'SME') {
-    return renderSMEContent();
-  }
-
-  return null;
 };
 
 export default CRMAnalysis;

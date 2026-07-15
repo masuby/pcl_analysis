@@ -6,8 +6,10 @@
  */
 export function buildEATripEmailHTML(summary, monthsInData) {
   const {
-    totalAgents, qualified, notQualified,
-    qualifiedTLs, qualifiedRegions,
+    totalManagers = 0, qualifiedManagers = 0,
+    lbfMgrs = { total: 0, qualified: 0 },
+    csMgrs  = { total: 0, qualified: 0 },
+    smeMgrs = { total: 0, qualified: 0 },
     totalLoans, totalAmount, byProduct,
   } = summary;
 
@@ -34,8 +36,8 @@ export function buildEATripEmailHTML(summary, monthsInData) {
       return `
         <tr style="background:${bg};">
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;font-weight:600;color:#1f3864;">${PRODUCT_LABELS[p] ?? p}</td>
-          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${b.agents}</td>
-          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#166534;font-weight:600;">${b.qualified}</td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${b.managers ?? 0}</td>
+          <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;color:#166534;font-weight:600;">${b.qualified ?? 0}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.totalLoans)}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.totalAmount)}</td>
           <td style="padding:10px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;">${fmt(b.target)}</td>
@@ -146,12 +148,12 @@ export function buildEATripEmailHTML(summary, monthsInData) {
           <td style="padding:24px 32px 12px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
               <tr>
-                ${metricCard('Total Agents',    totalAgents,                    '#1f3864')}
-                ${metricCard('Qualified Reps',  qualified,                      '#166534')}
-                ${metricCard('Not Qualified',   notQualified,                   '#991b1b')}
-                ${metricCard('Qualified TLs',   qualifiedTLs   ?? 0,            '#166534')}
-                ${metricCard('Qualified Regions', qualifiedRegions ?? 0,        '#166534')}
-                ${metricCard('Total Loans',     fmt(totalLoans),                '#1f3864')}
+                ${metricCard('Total Managers',   totalManagers,                              '#1f3864')}
+                ${metricCard('Qualified Mgrs',   qualifiedManagers,                          '#166534')}
+                ${metricCard('LBF Branch Mgrs',  `${lbfMgrs.qualified} / ${lbfMgrs.total}`,  '#166534')}
+                ${metricCard('CS Regional Mgrs', `${csMgrs.qualified} / ${csMgrs.total}`,    '#166534')}
+                ${metricCard('SME Regional Mgrs',`${smeMgrs.qualified} / ${smeMgrs.total}`,  '#166534')}
+                ${metricCard('Total Loans',      fmt(totalLoans),                            '#1f3864')}
               </tr>
             </table>
             <div style="margin-top:10px;text-align:center;">
@@ -169,8 +171,8 @@ export function buildEATripEmailHTML(summary, monthsInData) {
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
               <tr style="background:#1f3864;">
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;">PRODUCT</td>
-                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">AGENTS</td>
-                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">QUALIFIED</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">MANAGERS</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">QUAL. MGRS</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">LOANS</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">DISBURSED (TZS)</td>
                 <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">TARGET (TZS)</td>

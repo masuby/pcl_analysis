@@ -52,7 +52,13 @@ const ReportManagement = () => {
   const [loadingProcedure, setLoadingProcedure] = useState(false);
   const [procedureError, setProcedureError] = useState(null);
   const [parsingReports, setParsingReports] = useState(false);
-  
+  const [equalizing, setEqualizing] = useState(false);
+
+  // The Equalize button (pull production reports into the local DB) is a local
+  // development tool only — shown solely when running on localhost.
+  const isLocalEnv = typeof window !== 'undefined'
+    && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
   const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
   const departments = ['CS', 'SME', 'LBF'];
 
@@ -185,6 +191,29 @@ const ReportManagement = () => {
       showToast('error', err.message || 'Failed to parse reports');
     } finally {
       setParsingReports(false);
+    }
+  };
+
+  const handleEqualizeReports = async () => {
+    setEqualizing(true);
+    try {
+      const result = await adminAPI.equalizeReports();
+      if (result.success) {
+        const d = result.details || {};
+        showToast('success',
+          `Equalized: ${d.new_reports || 0} new, ${d.repaired_reports || 0} repaired, ` +
+          `${d.report_data_rows || 0} data rows, ${d.files_pulled || 0} files pulled. ` +
+          `Reloading reports…`
+        );
+        await fetchReports();
+        triggerRefresh();
+      } else {
+        showToast('error', result.error || 'Failed to equalize reports');
+      }
+    } catch (err) {
+      showToast('error', err.message || 'Failed to equalize reports');
+    } finally {
+      setEqualizing(false);
     }
   };
 
@@ -391,16 +420,29 @@ const ReportManagement = () => {
           </div>
           {activeView === 'reports' && (
             <div className="report-actions">
-              <button 
-                className="parse-reports-button"
-                onClick={handleParseReports}
-                disabled={parsingReports || reports.length === 0}
-                aria-label="Parse all reports for Dashboard"
-                title="Parse Excel files to populate Dashboard analytics"
-              >
-                <span className="button-icon">{parsingReports ? '⏳' : '🔄'}</span>
-                <span className="button-text">{parsingReports ? 'Parsing...' : 'Parse Reports'}</span>
-              </button>
+              {isLocalEnv ? (
+                <button
+                  className="parse-reports-button"
+                  onClick={handleEqualizeReports}
+                  disabled={equalizing}
+                  aria-label="Equalize local reports with production"
+                  title="Pull every report missing locally from the production database (local development only)"
+                >
+                  <span className="button-icon">{equalizing ? '⏳' : '🔃'}</span>
+                  <span className="button-text">{equalizing ? 'Equalizing...' : 'Equalize Reports'}</span>
+                </button>
+              ) : (
+                <button
+                  className="parse-reports-button"
+                  onClick={handleParseReports}
+                  disabled={parsingReports || reports.length === 0}
+                  aria-label="Parse all reports for Dashboard"
+                  title="Parse Excel files to populate Dashboard analytics"
+                >
+                  <span className="button-icon">{parsingReports ? '⏳' : '🔄'}</span>
+                  <span className="button-text">{parsingReports ? 'Parsing...' : 'Parse Reports'}</span>
+                </button>
+              )}
               <button 
                 className="add-report-button"
                 onClick={handleAddReport}

@@ -126,6 +126,8 @@
 
 .eatr-btn--upload  { background: var(--primary, #4f46e5); color: #fff; }
 .eatr-btn--replace { background: var(--bg-subtle, #f3f4f6); color: var(--text-primary, #374151); border: 1px solid var(--border, #d1d5db); }
+.eatr-btn--refresh  { background: #e0f2fe; color: #0369a1; }
+.eatr-btn--download { background: #dcfce7; color: #15803d; }
 .eatr-btn--delete  { background: #fee2e2; color: #dc2626; }
 .eatr-btn--gen     { background: #1e40af; color: #fff; }
 .eatr-btn--dl      { background: #0f766e; color: #fff; }

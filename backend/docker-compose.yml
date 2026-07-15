@@ -67,6 +67,14 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - EMAIL_SENDER=${EMAIL_SENDER:-}
       - EMAIL_APP_PASSWORD=${EMAIL_APP_PASSWORD:-}
+      # Equalize Reports (LOCAL DEV ONLY). Values come from backend/.env
+      # (gitignored), so no secrets live in this committed file. Production's
+      # deploy/docker-compose.yml sets none of these, so equalize stays disabled.
+      - EQUALIZE_ENABLED=${EQUALIZE_ENABLED:-}
+      - EQUALIZE_SSH_HOST=${EQUALIZE_SSH_HOST:-}
+      - EQUALIZE_SSH_PORT=${EQUALIZE_SSH_PORT:-}
+      - EQUALIZE_SSH_USER=${EQUALIZE_SSH_USER:-}
+      - EQUALIZE_SSH_PASSWORD=${EQUALIZE_SSH_PASSWORD:-}
     volumes:
       - ./uploads:/var/reports
     ports:

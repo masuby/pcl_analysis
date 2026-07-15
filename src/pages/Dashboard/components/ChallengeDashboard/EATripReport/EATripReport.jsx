@@ -18,6 +18,8 @@ import {
 } from './utils/eaTripExport';
 import { Toast, ConfirmDialog } from '../../../../../components/feedback/Feedback';
 import CriteriaFileManager from '../shared/CriteriaFileManager';
+import { fetchCriteriaAttachment } from '../shared/criteriaAttachment';
+import { refreshSalesFileFromMTD } from '../shared/salesFileBuilder';
 import './EATripReport.css';
 
 const EATR_RECIPIENTS_KEY = 'eatr_email_recipients';
@@ -124,8 +126,11 @@ function EmailModal({ processedData, onClose }) {
       const { buffer, fileName } = buildEATripReportBuffer(processedData);
       const base64   = bufferToBase64(buffer);
       const htmlBody = buildEATripEmailHTML(summary, monthsInData);
+      const attachments = [{ base64, name: fileName }];
+      const criteria = await fetchCriteriaAttachment('EA_TRIP_CRITERIA');
+      if (criteria) attachments.push(criteria);
       const result   = await sendScoreCardEmail(recipients, subject, htmlBody, {
-        mode: 'REPORT', attachmentBase64: base64, attachmentName: fileName,
+        mode: 'REPORT', attachments,
       });
       const status = result.success ? 'success' : 'failed';
       const errMsg = result.success ? null : (result.error || 'Failed to send');
@@ -239,6 +244,7 @@ function EmailModal({ processedData, onClose }) {
             <div className="eatr-modal-note">
               📎 <strong>EA_Trip_Report_{new Date().toISOString().slice(0, 10)}.xlsx</strong>
               <br />Includes: Summary · All Agents · Qualified · Not Qualified sheets.
+              <br />Plus the criteria memo (PDF), when one has been uploaded.
             </div>
 
             {err && <div className="eatr-error">{err}</div>}
@@ -266,6 +272,8 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
   const inputRef                  = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [deleting,  setDeleting]  = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [err,       setErr]       = useState('');
 
@@ -312,6 +320,54 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
     }
   }, [fileRecord, typeDef.kind, typeDef.label, onDeleted, showToast]);
 
+  const handleDownload = useCallback(async () => {
+    if (!fileRecord) return;
+    setDownloading(true); setErr('');
+    try {
+      const buffer = await localTripAPI.downloadFileBuffer(fileRecord.id);
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileRecord.fileName || `${typeDef.kind}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (ex) {
+      const msg = ex?.message || 'Download failed';
+      setErr(msg);
+      showToast?.({ type: 'error', title: 'Download failed', message: msg });
+    } finally {
+      setDownloading(false);
+    }
+  }, [fileRecord, typeDef.kind, showToast]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true); setErr('');
+    try {
+      const { record, stats } = await refreshSalesFileFromMTD({
+        existingFileId: fileRecord?.id ?? null,
+        onProgress: (m) => showToast?.({ type: 'info', title: 'Refreshing Sales File', message: m }),
+      });
+      onUploaded(record);
+      const skip = stats.skipped.length ? ` Skipped: ${stats.skipped.join(', ')}.` : '';
+      showToast?.({
+        type: 'success',
+        title: 'Sales File refreshed from MTD',
+        message: `${stats.total} rows · ${stats.monthsLabel} (CS ${stats.byDept.CS}, LBF ${stats.byDept.LBF}, SME ${stats.byDept.SME}) · ${stats.targetsFilled}/${stats.noTarget} missing targets filled from MTD${stats.stillMissing ? `, ${stats.stillMissing} unresolved` : ""}.${skip}`,
+      });
+    } catch (ex) {
+      const msg = ex?.message || 'Refresh failed';
+      setErr(msg);
+      showToast?.({ type: 'error', title: 'Refresh failed', message: msg });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fileRecord, onUploaded, showToast]);
+
   const hasFile = Boolean(fileRecord);
 
   return (
@@ -334,17 +390,30 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
       </div>
 
       <div className="eatr-btn-group">
+        {typeDef.kind === 'SALES' && (
+          <button
+            className="eatr-btn eatr-btn--refresh"
+            onClick={handleRefresh}
+            disabled={uploading || deleting || downloading || refreshing}
+            title="Rebuild the Sales file from the latest MTD reports (CS, LBF, SME)"
+          >
+            {refreshing ? '…' : '🔄'}
+          </button>
+        )}
         {hasFile ? (
           <>
-            <button className="eatr-btn eatr-btn--replace" onClick={() => inputRef.current?.click()} disabled={uploading || deleting}>
+            <button className="eatr-btn eatr-btn--replace" onClick={() => inputRef.current?.click()} disabled={uploading || deleting || downloading || refreshing}>
               {uploading ? 'Uploading…' : '↩ Replace'}
             </button>
-            <button className="eatr-btn eatr-btn--delete" onClick={() => setConfirmOpen(true)} disabled={uploading || deleting}>
+            <button className="eatr-btn eatr-btn--download" onClick={handleDownload} disabled={uploading || deleting || downloading || refreshing} title="Download this file">
+              {downloading ? '…' : '⬇'}
+            </button>
+            <button className="eatr-btn eatr-btn--delete" onClick={() => setConfirmOpen(true)} disabled={uploading || deleting || downloading || refreshing}>
               {deleting ? '…' : '🗑'}
             </button>
           </>
         ) : (
-          <button className="eatr-btn eatr-btn--upload" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <button className="eatr-btn eatr-btn--upload" onClick={() => inputRef.current?.click()} disabled={uploading || refreshing}>
             {uploading ? 'Uploading…' : '⬆ Upload'}
           </button>
         )}
@@ -631,7 +700,7 @@ function SummaryStats({ summary }) {
               </span>
             )}
           </div>
-          <div className="eatr-stat-label">{p} · {b.qualified ?? 0} qualified</div>
+          <div className="eatr-stat-label">{p} · {b.qualified ?? 0}/{b.managers ?? 0} mgrs qual.</div>
         </div>
       ))}
     </div>

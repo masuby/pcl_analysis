@@ -8,6 +8,7 @@ import {
   bufferToBase64,
 } from './utils/socialMediaExport';
 import { buildSocialMediaEmailHTML } from './utils/socialMediaEmailTemplate';
+import { buildCallCenterAggregate, parseMonthFromPeriod, hasCallCenterData } from './utils/socialMediaCallCenter';
 import { Toast, ConfirmDialog } from '../../../../../../components/feedback/Feedback';
 import './SocialMediaAnalysis.css';
 
@@ -15,7 +16,7 @@ const SMA_RECIPIENTS_KEY = 'sma_email_recipients';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ── Email modal ──────────────────────────────────────────────────────────────
-function EmailModal({ processedData, onClose, showToast }) {
+function EmailModal({ processedData, callCenter, onClose, showToast }) {
   const [recipients, setRecipients] = useState(() => {
     try { return JSON.parse(localStorage.getItem(SMA_RECIPIENTS_KEY) || '[]'); } catch { return []; }
   });
@@ -58,7 +59,7 @@ function EmailModal({ processedData, onClose, showToast }) {
     setSending(true); setErr('');
     setProgress(recipients.map((email) => ({ email, status: 'sending' })));
     try {
-      const { buffer, fileName } = buildSocialMediaReportBuffer(processedData);
+      const { buffer, fileName } = buildSocialMediaReportBuffer(processedData, { mode: 'weekly', callCenter });
       const base64   = bufferToBase64(buffer);
       const htmlBody = buildSocialMediaEmailHTML(processedData);
       const result   = await sendScoreCardEmail(recipients, subject, htmlBody, {
@@ -75,7 +76,7 @@ function EmailModal({ processedData, onClose, showToast }) {
       setProgress((prev) => prev.map((p) => ({ ...p, status: 'failed', error: msg })));
       showToast?.({ type: 'error', title: 'Send failed', message: msg });
     } finally { setSending(false); }
-  }, [recipients, subject, processedData, showToast]);
+  }, [recipients, subject, processedData, callCenter, showToast]);
 
   const allDone    = progress && !sending;
   const allSuccess = allDone && progress.every((p) => p.status === 'success');
@@ -180,17 +181,25 @@ const SocialMediaAnalysis = ({ autoGenerate = false }) => {
   const [err,           setErr]           = useState('');
   const [showEmail,     setShowEmail]     = useState(false);
   const [toast,         setToast]         = useState(null);
+  const [callCenter,    setCallCenter]    = useState(null);   // Call Centre call aggregate
+  const [ccLoading,     setCcLoading]     = useState(false);
+  const [months,        setMonths]        = useState([]);     // [{ value:'2026-06', label:'JUNE 2026' }]
+  const [selectedMonth, setSelectedMonth] = useState('');     // 'YYYY-MM' (empty => latest)
   const showToast = useCallback((t) => setToast({ ...t, _id: Date.now() }), []);
 
-  const handleGenerate = useCallback(async () => {
-    setLoading(true); setErr(''); setProcessedData(null);
+  // Fetch a specific month's sheets and run the analysis. Pass an explicit
+  // month ('YYYY-MM') to override the currently-selected one (used while the
+  // dropdown's state update is still in flight).
+  const handleGenerate = useCallback(async (monthArg) => {
+    const month = monthArg !== undefined ? monthArg : selectedMonth;
+    setLoading(true); setErr(''); setProcessedData(null); setCallCenter(null);
     try {
-      const api = await socialMediaAPI.getData();
-      const result = processSocialMediaData(api, api.period || 'MAY 2026');
+      const api = await socialMediaAPI.getData(month);
+      const result = processSocialMediaData(api, api.period || 'SOCIAL MEDIA');
       setProcessedData(result);
       showToast({
         type: 'success',
-        title: 'Report generated',
+        title: `Report generated — ${result.monthLabel}`,
         message: `${result.total.toLocaleString()} leads, ${result.agentCount} agents, ${Math.round(result.qualityRate*100)}% quality.`,
       });
     } catch (e) {
@@ -200,21 +209,65 @@ const SocialMediaAnalysis = ({ autoGenerate = false }) => {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [selectedMonth, showToast]);
 
-  // When this component is mounted by <ReportShell> (autoGenerate=true),
-  // fire the API fetch immediately so the user doesn't have to click a
-  // second Generate button inside the section.
+  // On mount: load the list of available months, default to the latest, and
+  // (when mounted via <ReportShell>) auto-run that month's analysis.
   useEffect(() => {
-    if (autoGenerate) handleGenerate();
+    let stop = false;
+    (async () => {
+      try {
+        const res = await socialMediaAPI.getMonths();
+        const list = res?.months || [];
+        if (stop) return;
+        setMonths(list);
+        const def = list[0]?.value || '';
+        setSelectedMonth(def);
+        if (autoGenerate) handleGenerate(def);
+      } catch {
+        if (!stop && autoGenerate) handleGenerate('');  // fall back to latest tab
+      }
+    })();
+    return () => { stop = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDownload = useCallback(() => {
+  // Switch month from the dropdown → fetch + analyse that month immediately.
+  const handleMonthChange = useCallback((value) => {
+    setSelectedMonth(value);
+    handleGenerate(value);
+  }, [handleGenerate]);
+
+  // Once the social-media data is ready, pull the Call Centre call volumes for
+  // the same month (best-effort) so the Agent Performance sheet shows real
+  // calls. The report still downloads without it (graceful fallback).
+  useEffect(() => {
+    if (!processedData) { setCallCenter(null); return; }
+    let stop = false;
+    setCcLoading(true);
+    (async () => {
+      try {
+        const target = parseMonthFromPeriod(processedData.period);
+        const cc = await buildCallCenterAggregate(target);
+        if (!stop) setCallCenter(hasCallCenterData(cc) ? cc : null);
+      } catch {
+        if (!stop) setCallCenter(null);
+      } finally {
+        if (!stop) setCcLoading(false);
+      }
+    })();
+    return () => { stop = true; };
+  }, [processedData]);
+
+  const handleDownload = useCallback((mode) => {
     if (!processedData) return;
-    downloadSocialMediaReport(processedData);
-    showToast({ type: 'success', title: 'Excel downloaded', message: 'Check your downloads folder.' });
-  }, [processedData, showToast]);
+    downloadSocialMediaReport(processedData, { mode, callCenter });
+    showToast({
+      type: 'success',
+      title: `${mode === 'cumulative' ? 'Cumulative' : 'Weekly'} Excel downloaded`,
+      message: callCenter ? 'Includes Call Centre call volumes.' : 'Check your downloads folder.',
+    });
+  }, [processedData, callCenter, showToast]);
 
   const fmt = (n) => Math.round(n ?? 0).toLocaleString();
   const pct = (r) => `${Math.round((r ?? 0) * 100)}%`;
@@ -224,17 +277,43 @@ const SocialMediaAnalysis = ({ autoGenerate = false }) => {
       <div className="pen-header-bar">
         <h2 className="pen-header-title">SOCIAL MEDIA ANALYSIS</h2>
         <div className="pen-header-controls">
-          <button type="button" className="pen-btn" onClick={handleGenerate} disabled={loading}>
+          <label className="sma-month-picker" title="Choose the month to analyse">
+            <span className="sma-month-label">Month:</span>
+            <select
+              className="sma-month-select"
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              disabled={loading || !months.length}
+            >
+              {!months.length && <option value="">Loading…</option>}
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="pen-btn" onClick={() => handleGenerate()} disabled={loading}>
             <span>🔄</span>{loading ? 'Refreshing…' : 'Refresh'}
           </button>
           {processedData && (
             <>
-              <button type="button" className="pen-btn sma-btn-dl" onClick={handleDownload}>
-                <span>📥</span>Download XLSX
+              <button type="button" className="pen-btn sma-btn-dl" onClick={() => handleDownload('weekly')}
+                      disabled={ccLoading}
+                      title={ccLoading ? 'Loading Call Centre calls…' : 'Each week shown on its own'}>
+                <span>📥</span>Download Weekly
               </button>
-              <button type="button" className="pen-btn sma-btn-email" onClick={() => setShowEmail(true)}>
+              <button type="button" className="pen-btn sma-btn-dl" onClick={() => handleDownload('cumulative')}
+                      disabled={ccLoading}
+                      title={ccLoading ? 'Loading Call Centre calls…' : 'Week N = weeks 1…N combined'}>
+                <span>📈</span>Download Cumulative
+              </button>
+              <button type="button" className="pen-btn sma-btn-email" onClick={() => setShowEmail(true)} disabled={ccLoading}>
                 <span>✉</span>Send Email
               </button>
+              {ccLoading && (
+                <span className="sma-cc-hint" style={{ fontSize: '0.72rem', color: '#6b7280', alignSelf: 'center' }}>
+                  loading call-centre calls…
+                </span>
+              )}
             </>
           )}
         </div>
@@ -465,7 +544,7 @@ const SocialMediaAnalysis = ({ autoGenerate = false }) => {
       )}
 
       {showEmail && processedData && (
-        <EmailModal processedData={processedData} onClose={() => setShowEmail(false)} showToast={showToast} />
+        <EmailModal processedData={processedData} callCenter={callCenter} onClose={() => setShowEmail(false)} showToast={showToast} />
       )}
 
       <Toast

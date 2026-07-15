@@ -35,8 +35,9 @@ export const useCallCenterData = (department, selectedDate = null) => {
       for (const report of result.data || []) {
         const fileName = report.fileName || report.file_name || report.title || 'Unknown';
         
-        // Check if file name contains FINAL_CDR_CALL_REPORT
-        if (fileName.includes('FINAL_CDR_CALL_REPORT')) {
+        // Match the call-centre report by the common substring so BOTH the old
+        // (FINAL_CDR_CALL_REPORT_*) and new (CALL_REPORT_*) naming are picked up.
+        if (fileName.includes('CALL_REPORT')) {
           let fileUrl = report.fileUrl || report.file_url;
           
           if (!fileUrl && (report.filePath || report.file_path)) {

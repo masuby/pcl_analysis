@@ -8,9 +8,36 @@
  */
 
 import XLSXStyle from 'xlsx-js-style';
+import { ccAgg, ccTotal } from './socialMediaCallCenter';
 
 const PRODUCTS    = ['CS', 'LBF', 'SME', 'OTHERS'];
 const METRICS     = ['Total', 'Quality', '% Quality', 'Converted', 'Conv Rate'];
+
+// ── Aggregation helpers (shared by weekly + cumulative modes) ───────────────
+const SM_FIELDS = ['total', 'quality', 'converted', 'newSales', 'repeatSales',
+  'loanAmount', 'newLoanAmount', 'repeatLoanAmount'];
+
+// Sum a list of social-media aggregators field-by-field (for cumulative weeks).
+function sumSMAggs(aggs) {
+  const out = Object.fromEntries(SM_FIELDS.map((k) => [k, 0]));
+  aggs.forEach((a) => { if (a) SM_FIELDS.forEach((k) => { out[k] += a[k] || 0; }); });
+  return out;
+}
+
+/**
+ * Resolve the social-media aggregate for a week column.
+ *   getAggForWeek(w) → aggregator for that single week
+ *   mode === 'cumulative' → sum of weeks ≤ w; otherwise the single week.
+ */
+function resolveWeekly(getAggForWeek, weeks, w, mode) {
+  if (mode !== 'cumulative') return getAggForWeek(w);
+  return sumSMAggs(weeks.filter((x) => x <= w).map(getAggForWeek));
+}
+
+// Column label for a week, reflecting weekly vs cumulative mode.
+function weekLabel(w, mode) {
+  return mode === 'cumulative' ? `≤ Wk ${w}` : `Week ${w}`;
+}
 
 const PAL = {
   headerBg:  '1F3864', headerFg: 'FFFFFF',
@@ -155,7 +182,7 @@ function applyFreeze(ws, ySplit, xSplit) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Sheet 1 — DATA  (per-platform × per-product, with weekly columns)
 // ═══════════════════════════════════════════════════════════════════════════
-function buildDataSheet(d) {
+function buildDataSheet(d, mode = 'weekly') {
   const ws = {};
   const weeks = d.weeksInData.length ? d.weeksInData : [1];
 
@@ -174,13 +201,15 @@ function buildDataSheet(d) {
   const COLS_PER_PROD = 1 + weeks.length;   // Total + N weeks
   const totalCols = 1 + PRODUCTS.length * COLS_PER_PROD;
 
+  const modeTag = mode === 'cumulative' ? 'CUMULATIVE' : 'WEEKLY';
   let r = 0;
   // Title
-  setRow(ws, r, [titleCell(`SOCIAL MEDIA ANALYSIS — DATA  •  ${d.monthLabel}`)]);
+  setRow(ws, r, [titleCell(`SOCIAL MEDIA ANALYSIS — DATA  •  ${d.monthLabel}  •  ${modeTag}`)]);
   mergeRng(ws, r, 0, r, totalCols - 1);
   r++;
   setRow(ws, r, [subtitleCell(
     `${d.total.toLocaleString()} total leads · ${d.quality.toLocaleString()} quality (${Math.round(d.qualityRate*100)}%) · ${d.converted.toLocaleString()} converted (${Math.round(d.convRate*100)}%)`
+    + (mode === 'cumulative' ? '  ·  weekly columns are cumulative (week N = weeks 1…N)' : '')
   )]);
   mergeRng(ws, r, 0, r, totalCols - 1);
   r += 2;
@@ -203,7 +232,7 @@ function buildDataSheet(d) {
   const subHdr = [hdrCell('METRIC')];
   PRODUCTS.forEach(() => {
     subHdr.push(subHdrCell(d.monthLabel));
-    weeks.forEach((w) => subHdr.push(subHdrCell(`Week ${w}`)));
+    weeks.forEach((w) => subHdr.push(subHdrCell(weekLabel(w, mode))));
   });
   setRow(ws, r, subHdr);
   r++;
@@ -235,8 +264,9 @@ function buildDataSheet(d) {
         const monthVal = computeMetric(metric, monthAgg);
         row.push(metricCell(metric, monthVal));
 
+        const getWk = (w) => plat.byWeek?.[w]?.byProduct?.[p] ?? { total: 0, quality: 0, converted: 0 };
         weeks.forEach((w) => {
-          const wkAgg = plat.byWeek?.[w]?.byProduct?.[p] ?? { total: 0, quality: 0, converted: 0 };
+          const wkAgg = resolveWeekly(getWk, weeks, w, mode);
           const wkVal = computeMetric(metric, wkAgg);
           row.push(metricCell(metric, wkVal));
         });
@@ -262,8 +292,9 @@ function buildDataSheet(d) {
       const monthVal = computeMetric(metric, monthAgg);
       row.push(metricCell(metric, monthVal));
 
+      const getWk = (w) => d.byWeek?.[w]?.byProduct?.[p] ?? { total: 0, quality: 0, converted: 0 };
       weeks.forEach((w) => {
-        const wkAgg = d.byWeek?.[w]?.byProduct?.[p] ?? { total: 0, quality: 0, converted: 0 };
+        const wkAgg = resolveWeekly(getWk, weeks, w, mode);
         const wkVal = computeMetric(metric, wkAgg);
         row.push(metricCell(metric, wkVal));
       });
@@ -348,13 +379,14 @@ const AP_OVERALL_METRICS = [
 
 const AP_PRODUCT_METRICS = [
   { key: 'agents',     label: 'No of agents'    },
+  { key: 'total',      label: 'Total calls made'},
   { key: 'quality',    label: 'Successful calls'},
   { key: 'cpa',        label: 'Calls per agent' },
   { key: 'converted',  label: 'Converted'       },
   { key: 'convPct',    label: 'Conversion rate' },
 ];
 
-function buildAgentPerformanceSheet(d) {
+function buildAgentPerformanceSheet(d, mode = 'weekly', callCenter = null) {
   const ws = {};
   // Per-week breakdown of the CURRENT month only (no Jan-Apr columns —
   // we're in May; previous months aren't in the source data).  We use the
@@ -363,14 +395,37 @@ function buildAgentPerformanceSheet(d) {
   const WEEKS = d.weeksInData?.length ? d.weeksInData : [1, 2, 3, 4];
   // 1 label col + N week cols + 1 monthly-total col
   const cols  = 1 + WEEKS.length + 1;
+  const modeTag = mode === 'cumulative' ? 'CUMULATIVE' : 'WEEKLY';
   let r = 0;
 
+  // ── Call-figure resolvers — ALWAYS from the Call Centre reports ──────────
+  // The social-media sheet's call numbers are not reliable, so Total calls
+  // made / Successful / Calls per agent / No of agents come exclusively from
+  // the Call Centre aggregate. Returns { totalCalls, successfulCalls, agents }
+  // or null (→ blank cell) when there's no call data for that slice.
+  const overallCallWeek  = (w)    => (callCenter ? ccAgg(callCenter.overall, WEEKS, w, mode) : null);
+  const overallCallTotal = ()     => (callCenter ? ccTotal(callCenter.overall) : null);
+  const prodCallWeek     = (p, w) => (callCenter ? ccAgg(callCenter.byProduct?.[p], WEEKS, w, mode) : null);
+  const prodCallTotal    = (p)    => (callCenter ? ccTotal(callCenter.byProduct?.[p]) : null);
+
+  // ── Conversion resolvers (always from the social-media sheet) ────────────
+  const convOverallWeek = (w) => resolveWeekly((x) => d.byWeek?.[x] ?? {}, WEEKS, w, mode);
+  const convProdWeek    = (p, w) => resolveWeekly((x) => d.byWeek?.[x]?.byProduct?.[p] ?? {}, WEEKS, w, mode);
+
   // ── Title row ────────────────────────────────────────────────────────────
-  setRow(ws, r, [titleCell(`AGENT PERFORMANCE  •  ${d.monthLabel}`)]);
+  const ccT = overallCallTotal();
+  setRow(ws, r, [titleCell(`AGENT PERFORMANCE  •  ${d.monthLabel}  •  ${modeTag}`)]);
   mergeRng(ws, r, 0, r, cols - 1);
   r++;
+  const subCalls   = ccT?.totalCalls ?? 0;
+  const subAgents  = ccT?.agents ?? 0;
+  const subCpa     = subAgents > 0 ? Math.round(subCalls / subAgents) : 0;
+  const subSuccess = subCalls > 0 ? (ccT?.successfulCalls ?? 0) / subCalls : 0;
   setRow(ws, r, [subtitleCell(
-    `${d.agentCount} agents · ${d.total.toLocaleString()} calls · ${d.callsPerAgent} calls/agent · ${Math.round(d.successRate*100)}% success rate`
+    (ccT
+      ? `${subAgents} agents · ${subCalls.toLocaleString()} calls · ${subCpa} calls/agent · ${Math.round(subSuccess*100)}% success rate · calls from Call Centre reports`
+      : 'Call Centre call data unavailable for this period')
+    + (mode === 'cumulative' ? '  ·  weekly columns are cumulative' : '')
   )]);
   mergeRng(ws, r, 0, r, cols - 1);
   r++;
@@ -378,16 +433,11 @@ function buildAgentPerformanceSheet(d) {
   // ── Column headers (Week 1–N + month total) ─────────────────────────────
   setRow(ws, r, [
     cell('', { bg: PAL.headerBg }),    // empty top-left
-    ...WEEKS.map((w) => hdrCell(`Week ${w}`)),
+    ...WEEKS.map((w) => hdrCell(weekLabel(w, mode))),
     hdrCell(d.monthLabel.toUpperCase() + ' TOTAL'),
   ]);
   const FREEZE_ROW = r + 1;
   r++;
-
-  // ── Helper: weekly value lookups ────────────────────────────────────────
-  const weekAgg     = (w) => d.byWeek?.[w] ?? { total: 0, quality: 0, converted: 0, agents: 0 };
-  const weekProdAgg = (w, p) =>
-    d.byWeek?.[w]?.byProduct?.[p] ?? { total: 0, quality: 0, converted: 0, agents: 0 };
 
   // Renders a single metric row given:
   //   label       — text in col A
@@ -436,32 +486,26 @@ function buildAgentPerformanceSheet(d) {
     r++;
   }
 
-  // ── OVERALL block ───────────────────────────────────────────────────────
-  AP_OVERALL_METRICS.forEach((m) => {
-    const weekValues = WEEKS.map((w) => {
-      const a = weekAgg(w);
-      switch (m.key) {
-        case 'agents':     return a.total > 0 ? { value: a.agents } : null;
-        case 'total':      return a.total > 0 ? { value: a.total }  : null;
-        case 'cpa':        return a.agents > 0
-                                  ? { value: Math.round(a.total / a.agents) }
-                                  : null;
-        case 'quality':    return a.total > 0 ? { value: a.quality } : null;
-        case 'successPct': return a.total > 0
-                                  ? { value: a.quality / a.total, format: 'pct' }
-                                  : null;
-        default: return null;
-      }
-    });
-    // Month total — uses the overall summary totals (d.*)
-    let monthValue = null;
-    switch (m.key) {
-      case 'agents':     monthValue = { value: d.agentCount }; break;
-      case 'total':      monthValue = { value: d.total };      break;
-      case 'cpa':        monthValue = { value: d.callsPerAgent }; break;
-      case 'quality':    monthValue = { value: d.quality };    break;
-      case 'successPct': monthValue = { value: d.successRate, format: 'pct' }; break;
+  // ── OVERALL block (call figures sourced from Call Centre) ────────────────
+  const callMetricVal = (m, c) => {
+    if (!c || !c.totalCalls) {
+      // 'agents' may exist without calls; show it, otherwise blank.
+      if (m.key === 'agents') return c && c.agents > 0 ? { value: c.agents } : null;
+      return null;
     }
+    switch (m.key) {
+      case 'agents':     return c.agents > 0 ? { value: c.agents } : null;
+      case 'total':      return { value: c.totalCalls };
+      case 'cpa':        return c.agents > 0 ? { value: Math.round(c.totalCalls / c.agents) } : null;
+      case 'quality':    return { value: c.successfulCalls };
+      case 'successPct': return { value: c.successfulCalls / c.totalCalls, format: 'pct' };
+      default: return null;
+    }
+  };
+
+  AP_OVERALL_METRICS.forEach((m) => {
+    const weekValues = WEEKS.map((w) => callMetricVal(m, overallCallWeek(w)));
+    const monthValue = callMetricVal(m, overallCallTotal());
     metricRow(m.label, weekValues, monthValue);
   });
 
@@ -478,33 +522,45 @@ function buildAgentPerformanceSheet(d) {
     bannerRow(p, { bg: palP.bg, fg: palP.fg, sz: 11 });
 
     AP_PRODUCT_METRICS.forEach((m) => {
+      // Call metrics (agents / total / quality / cpa) come from the Call Centre;
+      // conversion metrics (converted / convPct) come from the social sheet.
+      const isCallMetric = m.key === 'agents' || m.key === 'total' || m.key === 'quality' || m.key === 'cpa';
+
       const weekValues = WEEKS.map((w) => {
-        const a = weekProdAgg(w, p);
+        if (isCallMetric) {
+          const c = prodCallWeek(p, w);
+          if (!c) return null;
+          switch (m.key) {
+            case 'agents':  return c.agents > 0 ? { value: c.agents } : null;
+            case 'total':   return c.totalCalls > 0 ? { value: c.totalCalls } : null;
+            case 'quality': return c.totalCalls > 0 ? { value: c.successfulCalls } : null;
+            case 'cpa':     return c.agents > 0 ? { value: Math.round(c.totalCalls / c.agents) } : null;
+            default: return null;
+          }
+        }
+        const a = convProdWeek(p, w);
         switch (m.key) {
-          case 'agents':    return a.total > 0 ? { value: a.agents } : null;
-          case 'quality':   return a.total > 0 ? { value: a.quality } : null;
-          case 'cpa':       return a.agents > 0
-                                  ? { value: Math.round(a.total / a.agents) }
-                                  : null;
           case 'converted': return a.total > 0 ? { value: a.converted } : null;
-          case 'convPct':   return a.total > 0
-                                  ? { value: a.converted / a.total, format: 'pct' }
-                                  : null;
+          case 'convPct':   return a.total > 0 ? { value: a.converted / a.total, format: 'pct' } : null;
           default: return null;
         }
       });
-      const pAgg = d.byProduct[p] ?? { total: 0, quality: 0, converted: 0, agents: 0 };
+
       let monthValue = null;
-      switch (m.key) {
-        case 'agents':    monthValue = { value: pAgg.agents }; break;
-        case 'quality':   monthValue = { value: pAgg.quality }; break;
-        case 'cpa':       monthValue = pAgg.agents > 0
-                                  ? { value: Math.round(pAgg.total / pAgg.agents) }
-                                  : null; break;
-        case 'converted': monthValue = { value: pAgg.converted }; break;
-        case 'convPct':   monthValue = pAgg.total > 0
-                                  ? { value: pAgg.converted / pAgg.total, format: 'pct' }
-                                  : null; break;
+      if (isCallMetric) {
+        const c = prodCallTotal(p);
+        switch (m.key) {
+          case 'agents':  monthValue = c && c.agents > 0 ? { value: c.agents } : null; break;
+          case 'total':   monthValue = c && c.totalCalls > 0 ? { value: c.totalCalls } : null; break;
+          case 'quality': monthValue = c && c.totalCalls > 0 ? { value: c.successfulCalls } : null; break;
+          case 'cpa':     monthValue = c && c.agents > 0 ? { value: Math.round(c.totalCalls / c.agents) } : null; break;
+        }
+      } else {
+        const pAgg = d.byProduct[p] ?? { total: 0, converted: 0 };
+        switch (m.key) {
+          case 'converted': monthValue = { value: pAgg.converted }; break;
+          case 'convPct':   monthValue = pAgg.total > 0 ? { value: pAgg.converted / pAgg.total, format: 'pct' } : null; break;
+        }
       }
       metricRow(m.label, weekValues, monthValue);
     });
@@ -527,11 +583,11 @@ function buildAgentPerformanceSheet(d) {
                      : { value: `${fmtAmt(amt)} (${cnt})`, format: 'text' };
 
     const newWeek = WEEKS.map((w) => {
-      const a = weekProdAgg(w, p);
+      const a = convProdWeek(p, w);
       return fmtAC(a.newLoanAmount, a.newSales);
     });
     const repWeek = WEEKS.map((w) => {
-      const a = weekProdAgg(w, p);
+      const a = convProdWeek(p, w);
       return fmtAC(a.repeatLoanAmount, a.repeatSales);
     });
     const pAgg = d.byProduct[p] ?? {};
@@ -540,7 +596,7 @@ function buildAgentPerformanceSheet(d) {
 
     // Total loan amount per product (sum of all converted loan_amount values)
     const loanWeek = WEEKS.map((w) => {
-      const a = weekProdAgg(w, p);
+      const a = convProdWeek(p, w);
       return a.loanAmount > 0 ? { value: a.loanAmount } : null;
     });
     const pLoan = pAgg.loanAmount || 0;
@@ -551,7 +607,7 @@ function buildAgentPerformanceSheet(d) {
 
   // ── Total Sales (grand total of conversions across all products) ───────
   const totalSalesByWeek = WEEKS.map((w) => {
-    const a = weekAgg(w);
+    const a = convOverallWeek(w);
     return a.converted > 0 ? { value: a.converted } : null;
   });
   const totalSalesMonth = { value: d.converted };
@@ -682,20 +738,22 @@ function pickStatusFg(s) {
 // PUBLIC API
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function buildSocialMediaReportBuffer(processedData) {
+export function buildSocialMediaReportBuffer(processedData, options = {}) {
+  const { mode = 'weekly', callCenter = null } = options;
   const wb = XLSXStyle.utils.book_new();
-  XLSXStyle.utils.book_append_sheet(wb, buildDataSheet(processedData),              'Data');
-  XLSXStyle.utils.book_append_sheet(wb, buildAgentPerformanceSheet(processedData),  'Agent Performance');
-  XLSXStyle.utils.book_append_sheet(wb, buildDispositionsSheet(processedData),      'Dispositions');
+  XLSXStyle.utils.book_append_sheet(wb, buildDataSheet(processedData, mode),                          'Data');
+  XLSXStyle.utils.book_append_sheet(wb, buildAgentPerformanceSheet(processedData, mode, callCenter),  'Agent Performance');
+  XLSXStyle.utils.book_append_sheet(wb, buildDispositionsSheet(processedData),                        'Dispositions');
 
   const buffer  = XLSXStyle.write(wb, { type: 'array', bookType: 'xlsx' });
   const date    = new Date().toISOString().slice(0, 10);
-  const fileName = `Social_Media_Report_${date}.xlsx`;
+  const tag     = mode === 'cumulative' ? 'Cumulative' : 'Weekly';
+  const fileName = `Social_Media_Report_${tag}_${date}.xlsx`;
   return { buffer, fileName };
 }
 
-export function downloadSocialMediaReport(processedData) {
-  const { buffer, fileName } = buildSocialMediaReportBuffer(processedData);
+export function downloadSocialMediaReport(processedData, options = {}) {
+  const { buffer, fileName } = buildSocialMediaReportBuffer(processedData, options);
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

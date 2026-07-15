@@ -67,6 +67,9 @@ function weekOfMonth(d) {
 function normalizeProduct(productRaw, source) {
   const p = String(productRaw || '').toLowerCase();
   if (source === 'CS')        return 'CS';
+  // Rows from the dedicated SME workbook are all SME (its product column has
+  // a blank header so productRaw is usually empty).
+  if (source === 'SME')       return 'SME';
   if (p.includes('lbf'))      return 'LBF';
   if (p.includes('sme'))      return 'SME';
   if (p.includes('cs'))       return 'CS';
@@ -144,9 +147,27 @@ function normalizeClientType(v) {
   return '';
 }
 
+// Recognised data-column headers — used to decide whether a stray first column
+// is actually the (mislabelled) product column.
+const KNOWN_FIELDS = new Set([
+  'platform', 'platform/channel', 'channel', 'name', 'check_no', 'date',
+  'assigned_to', 'phone_no', 'phone_number', 'feedback', 'status', 'comment',
+  'is_converted?', 'is_converted', 'loan_amount', 'loan amount',
+  'client_type', 'client type',
+]);
+
 function normalizeRow(rawRow, header, source) {
+  // Find the product column. Some monthly tabs mislabel the first column with
+  // the product VALUE (e.g. header 'LBF' instead of 'Product') or leave it
+  // blank — in that case the first column IS the product, so fall back to it
+  // when its header isn't one of the known data fields.
+  let productIdx = indexOfHeader(header, 'Product', 'Products');
+  if (productIdx === -1) {
+    const first = String(header[0] || '').trim().toLowerCase();
+    if (!KNOWN_FIELDS.has(first)) productIdx = 0;
+  }
   const idx = {
-    product:     indexOfHeader(header, 'Product'),
+    product:     productIdx,
     platform:    indexOfHeader(header, 'Platform', 'Platform/Channel', 'Channel'),
     name:        indexOfHeader(header, 'name'),
     check_no:    indexOfHeader(header, 'check_no'),
@@ -197,14 +218,17 @@ function normalizeRow(rawRow, header, source) {
 export function processSocialMediaData(api, period = 'MAY 2026') {
   const lbfRows = api?.lbf ?? [];
   const csRows  = api?.cs  ?? [];
+  const smeRows = api?.sme ?? [];
 
   const lbfHeader = lbfRows[0] || [];
   const csHeader  = csRows[0]  || [];
+  const smeHeader = smeRows[0] || [];
 
   // Normalise every row
   const rows = [
     ...lbfRows.slice(1).map((r) => normalizeRow(r, lbfHeader, 'LBF')),
     ...csRows.slice(1) .map((r) => normalizeRow(r, csHeader,  'CS')),
+    ...smeRows.slice(1).map((r) => normalizeRow(r, smeHeader, 'SME')),
   ].filter((r) => r.platform && r.phone);   // drop empty rows
 
   const total       = rows.length;

@@ -97,8 +97,19 @@ node_modules
 *.dumb
 *.exe
 
-# Sensitive service-account exports
-src/pages/Dashboard/components/DepartmentalDashboard/components/SocialMediaAnalysis/sales-reps-status-*.json
+# Sensitive service-account exports (ANY location — private keys must never be pushed)
+**/sales-reps-status-*.json
+sales-reps-status-*.json
+*service-account*.json
+
+# Automation local outputs / caches (code only in git; data + binaries stay local)
+backend/Automation/**/NEW_FILES/
+backend/Automation/**/NEW_EXCEL/
+backend/Automation/**/OUTPUT/
+backend/Automation/**/ROW_FILES/
+backend/Automation/**/ROW_EXCEL/
+backend/Automation/**/split_supervisions*/
+backend/Automation/**/*.html
 
 # Build binaries / local worktrees
 backend/pcl-api

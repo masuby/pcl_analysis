@@ -44,15 +44,23 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
       roles: ['admin', 'SME', 'ALL'],
       description: 'Small & Medium Enterprise Reports'
     },
-    { 
-      path: '/administration', 
-      label: 'ADMINISTRATION', 
-      icon: '⚙️', 
+    {
+      path: '/administration',
+      label: 'ADMINISTRATION',
+      icon: '⚙️',
       roles: ['admin'],
       description: 'System Administration'
     },
-    { 
-      path: '/profile', 
+    {
+      path: '/automation',
+      label: 'AUTOMATION',
+      icon: '🤖',
+      roles: [], // hidden — visible only to the super admin email
+      superAdminOnly: true,
+      description: 'AI Automation Center'
+    },
+    {
+      path: '/profile',
       label: 'PROFILE', 
       icon: '👤', 
       roles: ['admin', 'CS', 'LBF', 'SME', 'ALL'],
@@ -107,26 +115,38 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
     triggerRefresh();
   };
 
+  // Is the logged-in user the super admin? (hidden Automation button)
+  const superAdminEmail = (import.meta.env.VITE_SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+  const isSuperAdmin =
+    !!superAdminEmail &&
+    !!userData?.email &&
+    userData.email.trim().toLowerCase() === superAdminEmail;
+
   // Get user's accessible menu items - FIXED VERSION
   const getAccessibleMenuItems = () => {
     if (!userData || !userData.role) return [];
-    
+
     const userRole = userData.role.toLowerCase(); // Convert to lowercase for consistency
-    
+
     // Admin gets all menu items
     if (userRole === 'admin') {
-      return allMenuItems;
+      // Super-admin-only items stay hidden unless the email matches
+      return allMenuItems.filter(item => !item.superAdminOnly || isSuperAdmin);
     }
-    
+
     // Filter based on user role - check if user role is in the item's roles array
     const filteredItems = allMenuItems.filter(item => {
+      // Super-admin-only items are gated purely by email, not role
+      if (item.superAdminOnly) {
+        return isSuperAdmin;
+      }
       // Convert all roles in the array to lowercase for comparison
       const itemRoles = item.roles.map(role => role.toLowerCase());
       const hasAccess = itemRoles.includes(userRole);
-      
+
       return hasAccess;
     });
-    
+
     return filteredItems;
   };
 

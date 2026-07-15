@@ -304,9 +304,12 @@ function buildSummarySheet(summary) {
   let r = 0;
   ws['!merges'] = [];
 
-  ws[XLSXStyle.utils.encode_cell({ r, c: 0 })] = titleCell('CONSENT INCENTIVE — SUMMARY');
+  ws[XLSXStyle.utils.encode_cell({ r, c: 0 })] = titleCell(
+    `CONSENT INCENTIVE REPORT — ${summary.period}${summary.product ? `  •  ${summary.product} ONLY` : ''}`);
   mergeRow(ws, r, COLS); r++;
-  subtitleRow(ws, r, COLS, summary.period); r += 2;
+  subtitleRow(ws, r, COLS,
+    summary.product ? `${PRODUCT_LABELS[summary.product] ?? summary.product} — ${summary.period}` : summary.period);
+  r += 2;
 
   addRow(ws, r, [
     hdr('PRODUCT'), hdr('AGENTS', 'right'), hdr('VERIFIED', 'right'),
@@ -707,15 +710,19 @@ function buildPricingSheet(agents, summary, topPerformers) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Sheet 7: CRITERIA
 // ═══════════════════════════════════════════════════════════════════════════
-function buildCriteriaSheet() {
+function buildCriteriaSheet(product = null) {
   const ws = {};
   const COLS = 6;
   let r = 0;
   ws['!merges'] = [];
 
-  ws[XLSXStyle.utils.encode_cell({ r, c: 0 })] = titleCell('CONSENT INCENTIVE — CRITERIA 2026');
+  ws[XLSXStyle.utils.encode_cell({ r, c: 0 })] = titleCell(
+    `CONSENT INCENTIVE — CRITERIA 2026${product ? `  •  ${product} ONLY` : ''}`);
   mergeRow(ws, r, COLS); r++;
-  subtitleRow(ws, r, COLS, 'Per-product incentive rates and qualification rules'); r += 2;
+  subtitleRow(ws, r, COLS,
+    product ? `${PRODUCT_LABELS[product] ?? product} incentive rates and qualification rules`
+            : 'Per-product incentive rates and qualification rules');
+  r += 2;
 
   // Per-product agent rates (no team column — drink-up is team-level, shown separately below)
   addRow(ws, r, [
@@ -724,11 +731,13 @@ function buildCriteriaSheet() {
   ]);
   r++;
 
-  const rows = [
+  const allRows = [
     { product: 'CS',  pal: PAL.cs,  v: 250,   u: 0, c: 750,  tb: '+TZS 100/consent', n: 'Civil Servant agents' },
     { product: 'LBF', pal: PAL.lbf, v: 1500,  u: 0, c: 3500, tb: '+TZS 500/consent', n: 'Log Book Finance agents' },
     { product: 'SME', pal: PAL.sme, v: 1500,  u: 0, c: 3500, tb: '+TZS 500/consent', n: 'SME agents' },
   ];
+  // Product-specific report → only that product's criteria row.
+  const rows = product ? allRows.filter((row) => row.product === product) : allRows;
   rows.forEach((row, i) => {
     const bg = i % 2 === 0 ? 'FFFFFF' : PAL.alt;
     addRow(ws, r, [
@@ -799,6 +808,7 @@ function buildCriteriaSheet() {
 
 export function buildConsentIncentiveReportBuffer(processedData) {
   const { summary, agents, teams, consents3m, consentsCurrent, converted, topPerformers, diagnostics } = processedData;
+  const product = summary.product || null;   // set when the report is product-scoped
 
   const from = summary.threeMonthsFrom?.toLocaleDateString('en-GB') ?? '—';
   const to   = summary.threeMonthsTo?.toLocaleDateString('en-GB')   ?? '—';
@@ -815,11 +825,12 @@ export function buildConsentIncentiveReportBuffer(processedData) {
     'Current-Month');
   XLSXStyle.utils.book_append_sheet(wb, buildConvertedSheet(converted, summary),     '3-Month Converted');
   XLSXStyle.utils.book_append_sheet(wb, buildPricingSheet(agents, summary, topPerformers), 'Pricing');
-  XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(),                        'Criteria');
+  XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(product),                 'Criteria');
 
   const buffer  = XLSXStyle.write(wb, { type: 'array', bookType: 'xlsx' });
   const dateStr = new Date().toISOString().slice(0, 10);
-  return { buffer, fileName: `Consent_Incentive_Report_${dateStr}.xlsx` };
+  const tag     = product ? `${product}_` : '';
+  return { buffer, fileName: `Consent_Incentive_Report_${tag}${dateStr}.xlsx` };
 }
 
 export function downloadConsentIncentiveReport(processedData) {

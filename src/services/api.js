@@ -543,6 +543,20 @@ export const localTripAPI = {
   },
 };
 
+// ========== LBF Call Centre Targets API ==========
+
+export const lbfCallCenterAPI = {
+  /**
+   * Fetch the LBF Call Centre monthly-target tabs (raw rows) for the given
+   * months. `months` is an array of 'YYYY-MM' strings; omit for all months.
+   * @returns {Promise<{ success: boolean, tabs: Record<string,{tab:string,values:any[][]}> }>}
+   */
+  async getTargets(months = []) {
+    const q = months.length ? `?months=${encodeURIComponent(months.join(','))}` : '';
+    return apiRequest(`/api/lbf-callcenter-targets${q}`);
+  },
+};
+
 // ========== Consent Incentive Report API ==========
 
 export const consentIncentiveAPI = {
@@ -667,13 +681,20 @@ export const consentIncentiveAPI = {
 
 export const socialMediaAPI = {
   /**
-   * Fetch the unified MAY 2026 SHEET data from BOTH the LBF/SME and CS
-   * Google Sheets via the backend (which uses the shared service account).
+   * Fetch a month's data from the LBF/SME, CS and SME Google Sheets via the
+   * backend (which uses the shared service account). Pass month as "YYYY-MM";
+   * omit it to get the latest available month.
    *
-   * Returns: { success, period, lbf: [[...header], ...rows], cs: [[...header], ...rows] }
+   * Returns: { success, period, month, lbf, cs, sme }
    */
-  async getData() {
-    return apiRequest('/api/social-media/data');
+  async getData(month = '') {
+    const qs = month ? `?month=${encodeURIComponent(month)}` : '';
+    return apiRequest(`/api/social-media/data${qs}`);
+  },
+
+  /** List months that have data tabs: { success, months: [{ value, label }] } */
+  async getMonths() {
+    return apiRequest('/api/social-media/months');
   },
 };
 
@@ -836,6 +857,16 @@ export const adminAPI = {
 
   async batchParseReports() {
     return apiRequest('/api/admin/batch-parse', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * LOCAL DEV ONLY — pull every report missing from the local DB out of
+   * production so the two are equalised. Backed by backend/scripts/equalize_reports.py.
+   */
+  async equalizeReports() {
+    return apiRequest('/api/admin/equalize-reports', {
       method: 'POST',
     });
   },

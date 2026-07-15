@@ -28,17 +28,20 @@
  *   RO : 2 (CE ≥ 90% · Retention ≥ 92% · PAR 30 < 1%)
  *   BO : 2 (MGM discretionary)
  * ─────────────────────────────────────────────────────────────────────────────
- * Cross-trip exclusion: if a staff member qualifies for the EA Trip
- * (managers report), they cannot also qualify here (memo disclaimer).
+ * Cross-trip exclusion: a staff member selected for the Kenya trip cannot
+ * also be selected for the Uganda trip (memo disclaimer). Kenya slots are
+ * filled first; Uganda picks from the remaining candidates.
  * ─────────────────────────────────────────────────────────────────────────────
- * Country detection:  Region / Supervision text containing "KENYA" → KE,
- *                     "UGANDA" → UG. Anything else → "TZ/Other" (kept for
- *                     reference but not eligible for KE or UG slots).
+ * IMPORTANT: KENYA / UGANDA are DESTINATIONS, not staff locations. All
+ * candidates come from the same (Tanzanian) staff pool; the memo's two tables
+ * allocate how many TZ staff travel to each event. Selection is role-based:
+ * agent-level slots rank individual reps, TL slots rank Branch/TL roll-ups,
+ * BM/RSM/Cluster slots rank Region roll-ups — each with its own ratio.
  *
- * NOTE: This engine applies the YTD % thresholds and ranks candidates. The
- * MGM-discretionary (BO) and special-metric (RO: CE/Retention/PAR<1%) slots
- * are surfaced but not auto-selected — those require manual MGM input that
- * lives outside the source xlsx files.
+ * NOTE: The MGM-discretionary (BO) and special-metric (RO: CE/Retention/
+ * PAR<1%) slots are surfaced but not auto-selected — those require manual MGM
+ * input that lives outside the source xlsx files. The UG LBF Cluster Manager
+ * slot ("90% of TLs on target") is computed as a status, not a named person.
  * ─────────────────────────────────────────────────────────────────────────────
  * IPF exclusion: Term contains "IPF" → skip for loan counts
  * Old / New / Zanzibar / tenure rules: same as Local Trip.
@@ -177,26 +180,9 @@ function qualifyAgent(agent, product, region, monthsCount) {
 }
 
 /**
- * Country detection from a region/supervision label.
- * Returns 'KE', 'UG', or 'OTHER' (TZ / unknown / out-of-scope).
- */
-function detectCountry(region) {
-  const r = norm(region);
-  if (r.includes('kenya') || /\bke\b/.test(r)) return 'KE';
-  if (r.includes('uganda') || /\bug\b/.test(r)) return 'UG';
-  return 'OTHER';
-}
-
-/**
- * EA Team Building leader-level YTD % thresholds per (country, product).
- *
- *   KE — LBF TL/BM 130/120 % · CS FSTL 150 % · CS RSM/CM 120 % · SME TL 120 %
- *        SME RSM 100 % · AGRI 130 %
- *   UG — LBF TL/BM 130/120 % · CS BLO 150 % · CS RSM 120 % · SME TL 120 %
- *        AGRI TL 120 %
- *
- * For the simplified branch/region rollup we use a single representative
- * ratio per (country, product). Unknown products fall back to 130 %.
+ * EA Team Building leader-level YTD % thresholds — used for the informational
+ * TL / Region verdicts shown on the All Agents sheet (the actual slot
+ * selection below uses the per-role ratios from the memo's KE/UG tables).
  */
 function leaderRatio(product, region /*, country */) {
   const p = String(product || '').toUpperCase();
@@ -207,13 +193,11 @@ function leaderRatio(product, region /*, country */) {
 }
 
 /**
- * EA Team Building AGENT-level YTD % threshold per (country, product, zone).
- * Used to filter the candidate pool before ranking for top-N selection.
- *   LBF Sales Agent  → 140 % YTD
- *   CS  Sales Agent (Mainland / KE / UG-Mainland) → 140 % YTD
- *   CS  Sales Agent  Zanzibar (UG only)           → 150 % YTD
- *   SME Sales Agent  → 130 % YTD
- *   AGRI Sales Agent → 130 % YTD
+ * EA Team Building AGENT minimum YTD % threshold (the memo's "Top performer
+ * (xxx% YTD)" line is the entry bar; ranking then picks the best among those
+ * that clear it).
+ *   LBF  → 140 % · CS Mainland → 140 % · CS Zanzibar → 150 %
+ *   SME / AGRI → 130 %
  */
 function agentTopRatio(product, region) {
   const p = String(product || '').toUpperCase();
@@ -223,15 +207,69 @@ function agentTopRatio(product, region) {
   return 1.40;
 }
 
+/** Classify a Users-file Title into the role families the memo's tables use. */
+function classifyTitle(t) {
+  const s = norm(t);
+  if (!s) return 'UNKNOWN';
+  if (s.includes('telesales') || s.includes('tele sales') || s.includes('tele-sales')
+    || s.includes('call centre agent') || s.includes('call center agent'))          return 'TELESALES';
+  if (s.includes('branch loan officer'))                                            return 'BLO';
+  if (s.includes('team leader') || s.includes('team sale leader'))                  return 'TL';
+  if (s.includes('cluster'))                                                        return 'CLUSTER';
+  if (s.includes('branch manager'))                                                 return 'BM';
+  if (s.includes('regional') || s === 'rsm' || s.includes('zonal'))                 return 'RSM';
+  if (s.includes('supervisor'))                                                     return 'SUPERVISOR';
+  if (s.includes('coordinator'))                                                    return 'COORDINATOR';
+  return 'AGENT'; // sales agents, loan officers, and anything agent-like
+}
+
 /**
- * EA Team Building per-country slot allocation table.
- * Slot counts are advisory — the engine flags top-N agents (per (country,
- * product)) as "selected"; finer role splits (FSTL vs RSM, BO/RO discretion)
- * are deferred to the export and surfaced for manual MGM review.
+ * EA Team Building slot tables — straight from the memo. These are DESTINATION
+ * allocations: all candidates come from the same (Tanzanian) staff pool; the
+ * KENYA trip slots are filled first, then the UGANDA slots from whoever is
+ * left (memo disclaimer: one person cannot qualify for both trips).
+ *
+ *   pool: 'agent'  → ranked from individual sales reps (role-filtered)
+ *         'branch' → ranked from Branch/TL roll-ups   (TLs / FSTLs)
+ *         'region' → ranked from Region roll-ups      (BM / RSM / Cluster)
+ *   ratio: minimum YTD % of cumulative target; mom: month-on-month activity
+ *   manual: slot needs data outside the sales files (BO/RO) — listed only.
+ *   special 'TL_ON_TARGET': UG LBF Cluster Manager — 90% of TLs on target YTD.
  */
-const EA_SLOTS = {
-  KE: { LBF: 4, CS: 4, SME: 3, AGRI: 1, RO: 1, BO: 2 },  // total 15
-  UG: { LBF: 6, CS: 5, SME: 3, AGRI: 2, RO: 2, BO: 2 },  // total 20
+const EA_SLOT_TABLE = {
+  KE: [
+    { product: 'LBF',  pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 1, ratio: 1.40, mom: true },
+    { product: 'LBF',  pool: 'agent',  role: 'TELESALES', label: 'Telesales',      slots: 1, ratio: 1.40, mom: true },
+    { product: 'LBF',  pool: 'branch',                    label: 'Team Leaders',   slots: 1, ratio: 1.30 },
+    { product: 'LBF',  pool: 'region',                    label: 'BM',             slots: 1, ratio: 1.20 },
+    { product: 'CS',   pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 1, ratio: 1.40 },
+    { product: 'CS',   pool: 'branch',                    label: 'FSTL',           slots: 1, ratio: 1.50 },
+    { product: 'CS',   pool: 'region',                    label: 'RSM',            slots: 1, ratio: 1.20 },
+    { product: 'CS',   pool: 'region',                    label: 'Cluster Manager',slots: 1, ratio: 1.20 },
+    { product: 'SME',  pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 1, ratio: 1.30 },
+    { product: 'SME',  pool: 'branch',                    label: 'Team Leaders',   slots: 1, ratio: 1.20 },
+    { product: 'SME',  pool: 'region',                    label: 'RSM',            slots: 1, ratio: 1.00 },
+    { product: 'AGRI', pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 1, ratio: 1.30 },
+    { product: 'BO',   manual: 'MGM Discretionary',       label: 'BO',             slots: 2 },
+    { product: 'RO',   manual: 'Top performer — CE ≥ 90% · Retention ≥ 92% · PAR 30 < 1%', label: 'RO', slots: 1 },
+  ],
+  UG: [
+    { product: 'LBF',  pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 2, ratio: 1.40, mom: true },
+    { product: 'LBF',  pool: 'agent',  role: 'TELESALES', label: 'Telesales',      slots: 1, ratio: 1.40, mom: true },
+    { product: 'LBF',  pool: 'branch',                    label: 'Team Leaders',   slots: 1, ratio: 1.30 },
+    { product: 'LBF',  pool: 'region',                    label: 'BM',             slots: 1, ratio: 1.20 },
+    { product: 'LBF',  special: 'TL_ON_TARGET',           label: 'Cluster Manager',slots: 1 },
+    { product: 'CS',   pool: 'agent',  role: 'AGENT', zone: 'Mainland', label: 'Sales Agents Mainland', slots: 2, ratio: 1.40 },
+    { product: 'CS',   pool: 'agent',  role: 'AGENT', zone: 'Zanzibar', label: 'Sales Agents ZNZ',      slots: 1, ratio: 1.50 },
+    { product: 'CS',   pool: 'agent',  role: 'BLO',       label: 'BLO',            slots: 1, ratio: 1.50 },
+    { product: 'CS',   pool: 'region',                    label: 'RSM',            slots: 1, ratio: 1.20 },
+    { product: 'SME',  pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 2, ratio: 1.30 },
+    { product: 'SME',  pool: 'branch',                    label: 'Team Leaders',   slots: 1, ratio: 1.20 },
+    { product: 'AGRI', pool: 'agent',  role: 'AGENT',     label: 'Sales Agents',   slots: 1, ratio: 1.30 },
+    { product: 'AGRI', pool: 'branch',                    label: 'Team Leaders',   slots: 1, ratio: 1.20 },
+    { product: 'RO',   manual: 'Top performer — CE ≥ 90% · Retention ≥ 92% · PAR 30 < 1%', label: 'RO', slots: 2 },
+    { product: 'BO',   manual: 'MGM Discretionary',       label: 'BO',             slots: 2 },
+  ],
 };
 
 /**
@@ -433,9 +471,9 @@ export function processEATeamBuildingReport(salesBuf, usersBuf, activitiesBuf, l
   // Enrich agents
   Object.values(agentMap).forEach((a) => {
     Object.assign(a, getJoinInfo(a.repName));
-    a.role     = getRole(a.repName);
-    a.title    = getTitle(a.repName);
-    a.country  = detectCountry(a.region);
+    a.role        = getRole(a.repName);
+    a.title       = getTitle(a.repName);
+    a.titleFamily = classifyTitle(a.title);
     const p    = getAgentPAR(a.repName);
     a.totalPrincipal = p.totalPrincipal;
     a.par30Principal = p.par30Principal;
@@ -531,34 +569,153 @@ export function processEATeamBuildingReport(salesBuf, usersBuf, activitiesBuf, l
     pObj.qualCount   = Object.values(pObj.regions).reduce((s, r) => s + r.qualCount,   0);
   });
 
-  // ── EA Team Building top-N selection ──────────────────────────────────────
-  // Override the cumulative-threshold `qualified` flag from qualifyAgent with
-  // the EA TB YTD-% threshold. Then, per (country, product), rank by % of
-  // cumulative target and mark the top-N as `selected = true` per EA_SLOTS.
+  // ── EA Team Building eligibility + destination-slot selection ─────────────
+  // Step A: per-agent eligibility — the memo's "Top performer (xxx% YTD)" bar:
+  //   YTD % of cumulative target ≥ ratio, PAR ≤ 4%, and (LBF only) active
+  //   month-on-month. This drives the Qualified / Not Qualified sheets.
+  const activeEveryMonth = (a) =>
+    monthsInData.length > 0 && monthsInData.every((m) => (a.monthly[m]?.loans || 0) > 0);
+
   Object.values(agentMap).forEach((a) => {
-    const ratio    = agentTopRatio(a.product, a.region);
+    const ratio     = agentTopRatio(a.product, a.region);
     const targetCum = (a.repsTarget || 0) * monthsCount;
     const pct       = targetCum > 0 ? a.totalAmount / targetCum : 0;
-    a.eaTopRatio    = ratio;
-    a.eaYtdPct      = pct;
+    const needsMoM  = String(a.product).toUpperCase() === 'LBF';
+    const momOk     = !needsMoM || activeEveryMonth(a);
+
+    a.eaTopRatio      = ratio;
+    a.eaYtdPct        = pct;
     a.eaThresholdPass = targetCum > 0 && pct >= ratio;
-    // Replace the standard `qualified` semantics with EA TB's:
-    //   eligible = passes YTD% threshold AND PAR ≤ 4% (sales-rep level)
-    a.qualified    = a.eaThresholdPass && (a.par30 || 0) <= PAR_LIMIT;
-    a.qualReason   = a.qualified
-      ? 'EA TB threshold met'
-      : `YTD ${Math.round(pct * 100)}% < ${Math.round(ratio * 100)}% (target ${targetCum.toLocaleString()})`;
-    a.selected     = false; // set in next pass
+    a.momActive       = activeEveryMonth(a);
+    a.qualified       = a.eaThresholdPass && (a.par30 || 0) <= PAR_LIMIT && momOk;
+    a.qualReason      = a.qualified ? 'EA TB threshold met'
+      : !a.eaThresholdPass ? `YTD ${Math.round(pct * 100)}% < ${Math.round(ratio * 100)}% (target ${targetCum.toLocaleString()})`
+      : (a.par30 || 0) > PAR_LIMIT ? `PAR>30 ${((a.par30 || 0) * 100).toFixed(1)}% > 4%`
+      : 'Not active every month (month-on-month sales required)';
+    a.selected    = false;
+    a.selectedFor = null;
   });
 
-  // Top-N selection per (country, product), descending by YTD %
-  Object.entries(EA_SLOTS).forEach(([country, perProduct]) => {
-    Object.entries(perProduct).forEach(([product, slots]) => {
-      if (!slots) return;
-      const pool = Object.values(agentMap)
-        .filter((a) => a.country === country && a.product === product && a.qualified)
-        .sort((a, b) => (b.eaYtdPct || 0) - (a.eaYtdPct || 0));
-      pool.slice(0, slots).forEach((a) => { a.selected = true; });
+  // Step B: candidate pools per slot definition.
+  const agentPool = (def) => Object.values(agentMap).filter((a) => {
+    if (String(a.product).toUpperCase() !== def.product) return false;
+    const fam = a.titleFamily === 'UNKNOWN' ? 'AGENT' : a.titleFamily;
+    if (fam !== def.role) return false;
+    if (def.zone === 'Mainland' && isZanzibar(a.region)) return false;
+    if (def.zone === 'Zanzibar' && !isZanzibar(a.region)) return false;
+    const targetCum = (a.repsTarget || 0) * monthsCount;
+    const pct       = targetCum > 0 ? a.totalAmount / targetCum : 0;
+    if (!(targetCum > 0 && pct >= def.ratio)) return false;
+    if ((a.par30 || 0) > PAR_LIMIT) return false;
+    if (def.mom && !activeEveryMonth(a)) return false;
+    return true;
+  }).map((a) => ({
+    key:   `A|${norm(a.repName)}`,
+    name:  a.repName,
+    detail:`${a.branch || a.region}`,
+    pct:   a.eaYtdPct,
+    par30: a.par30 || 0,
+    _agent: a,
+  }));
+
+  const branchPool = (def) => {
+    const ph = hierarchy[def.product];
+    if (!ph) return [];
+    const out = [];
+    Object.entries(ph.regions).forEach(([region, rObj]) => {
+      Object.entries(rObj.branches).forEach(([branch, bObj]) => {
+        if (!(bObj.target > 0)) return;
+        const pct = bObj.totalAmount / bObj.target;
+        if (pct < def.ratio) return;
+        if ((bObj.par30 || 0) > PAR_LIMIT) return;
+        out.push({
+          key:   `B|${normKey(branch)}`,
+          name:  bObj.tlName || branch,
+          detail: bObj.tlName && bObj.tlName !== branch ? branch : region,
+          pct,
+          par30: bObj.par30 || 0,
+        });
+      });
+    });
+    return out;
+  };
+
+  const regionPool = (def) => {
+    const ph = hierarchy[def.product];
+    if (!ph) return [];
+    const out = [];
+    Object.entries(ph.regions).forEach(([region, rObj]) => {
+      if (!(rObj.target > 0)) return;
+      const pct = rObj.totalAmount / rObj.target;
+      if (pct < def.ratio) return;
+      if ((rObj.par30 || 0) > PAR_LIMIT) return;
+      out.push({ key: `R|${normKey(region)}`, name: region, detail: 'Region', pct, par30: rObj.par30 || 0 });
+    });
+    return out;
+  };
+
+  // Special: UG LBF Cluster Manager — 90% of TLs must be on target YTD.
+  function tlOnTargetShare(product) {
+    const ph = hierarchy[product];
+    if (!ph) return { share: 0, onTarget: 0, total: 0 };
+    let total = 0, onTarget = 0;
+    Object.values(ph.regions).forEach((rObj) => {
+      Object.values(rObj.branches).forEach((bObj) => {
+        if (!(bObj.target > 0)) return;
+        total++;
+        if (bObj.totalAmount / bObj.target >= 1.0) onTarget++;
+      });
+    });
+    return { share: total > 0 ? onTarget / total : 0, onTarget, total };
+  }
+
+  // Step C: fill the slots — Kenya first, then Uganda from whoever is left
+  // (memo: qualifying for one trip removes eligibility for the other).
+  const taken = new Set();
+  const selection = { KE: [], UG: [] };
+
+  ['KE', 'UG'].forEach((country) => {
+    EA_SLOT_TABLE[country].forEach((def) => {
+      const entry = {
+        product: def.product,
+        label:   def.label,
+        slots:   def.slots,
+        ratio:   def.ratio ?? null,
+        manual:  def.manual ?? null,
+        selected: [],
+        candidateCount: 0,
+        note: '',
+      };
+
+      if (def.manual) {
+        entry.note = def.manual;
+      } else if (def.special === 'TL_ON_TARGET') {
+        const { share, onTarget, total } = tlOnTargetShare(def.product);
+        const met = total > 0 && share >= 0.9;
+        entry.note = total === 0
+          ? 'No TL targets available'
+          : `${Math.round(share * 100)}% of TLs on target (${onTarget}/${total}) — ${met ? 'criteria MET' : 'below the 90% bar'}`;
+        entry.criteriaMet = met;
+      } else {
+        const pool = (def.pool === 'agent' ? agentPool(def)
+          : def.pool === 'branch' ? branchPool(def)
+          : regionPool(def))
+          .sort((a, b) => b.pct - a.pct);
+        entry.candidateCount = pool.length;
+        for (const cand of pool) {
+          if (entry.selected.length >= def.slots) break;
+          if (taken.has(cand.key)) continue;
+          taken.add(cand.key);
+          entry.selected.push({ name: cand.name, detail: cand.detail, pct: cand.pct, par30: cand.par30 });
+          if (cand._agent) { cand._agent.selected = true; cand._agent.selectedFor = country; }
+        }
+        if (!entry.selected.length) {
+          entry.note = pool.length === 0
+            ? 'No candidate meets the threshold'
+            : 'All qualifying candidates already selected in another slot';
+        }
+      }
+      selection[country].push(entry);
     });
   });
 
@@ -576,6 +733,13 @@ export function processEATeamBuildingReport(salesBuf, usersBuf, activitiesBuf, l
     });
   });
 
+  // Selected count per product across BOTH trips (agents + TL/branch + region
+  // slots) — so the per-product breakdown's SELECTED column sums to the total.
+  const selByProduct = {};
+  ['KE', 'UG'].forEach((c) => selection[c].forEach((e) => {
+    selByProduct[e.product] = (selByProduct[e.product] || 0) + e.selected.length;
+  }));
+
   const summary = {
     totalAgents:     allAgents.length,
     totalAmount:     allAgents.reduce((s, a) => s + a.totalAmount, 0),
@@ -588,31 +752,32 @@ export function processEATeamBuildingReport(salesBuf, usersBuf, activitiesBuf, l
     newAgents:       allAgents.filter((a) => a.flag === 'No' && a.period !== 'Unknown').length,
     monthsInData,
     byProduct: Object.fromEntries(
-      products.map((p) => [p, {
-        target:      hierarchy[p].target,
-        totalAmount: hierarchy[p].totalAmount,
-        totalLoans:  hierarchy[p].totalLoans,
-        qualified:   hierarchy[p].qualCount,
-        agents:      Object.values(hierarchy[p].regions)
-          .flatMap((r) => Object.values(r.branches).flatMap((b) => b.agents)).length,
-      }]),
+      products.map((p) => {
+        const list = Object.values(hierarchy[p].regions)
+          .flatMap((r) => Object.values(r.branches).flatMap((b) => b.agents));
+        return [p, {
+          target:      hierarchy[p].target,
+          totalAmount: hierarchy[p].totalAmount,
+          totalLoans:  hierarchy[p].totalLoans,
+          // "qualified" here = ELIGIBLE (met the role's YTD top-performer bar),
+          // recomputed AFTER the EA-TB override so it sums to summary.qualified.
+          qualified:   list.filter((a) => a.qualified).length,
+          // SELECTED across both trips incl. TL/branch + region slots (not just
+          // individual agents), so it sums to selectedTotal.
+          selected:    selByProduct[p] || 0,
+          agents:      list.length,
+        }];
+      }),
     ),
-    // EA-specific roll-ups
-    selectedTotal: allAgents.filter((a) => a.selected).length,
-    selectedKE:    allAgents.filter((a) => a.selected && a.country === 'KE').length,
-    selectedUG:    allAgents.filter((a) => a.selected && a.country === 'UG').length,
-    eligibleKE:    allAgents.filter((a) => a.qualified && a.country === 'KE').length,
-    eligibleUG:    allAgents.filter((a) => a.qualified && a.country === 'UG').length,
-    byCountry: ['KE', 'UG', 'OTHER'].reduce((acc, c) => {
-      const list = allAgents.filter((a) => a.country === c);
-      acc[c] = {
-        total:    list.length,
-        eligible: list.filter((a) => a.qualified).length,
-        selected: list.filter((a) => a.selected).length,
-      };
-      return acc;
-    }, {}),
+    // EA-specific roll-ups (auto-selected slots — BO/RO manual slots excluded)
+    selectedKE: selection.KE.reduce((s, e) => s + e.selected.length, 0),
+    selectedUG: selection.UG.reduce((s, e) => s + e.selected.length, 0),
+    selectedTotal:
+      selection.KE.reduce((s, e) => s + e.selected.length, 0) +
+      selection.UG.reduce((s, e) => s + e.selected.length, 0),
+    slotsKE: EA_SLOT_TABLE.KE.reduce((s, e) => s + e.slots, 0),
+    slotsUG: EA_SLOT_TABLE.UG.reduce((s, e) => s + e.slots, 0),
   };
 
-  return { hierarchy, monthsInData, products, summary, slots: EA_SLOTS };
+  return { hierarchy, monthsInData, products, summary, selection };
 }
