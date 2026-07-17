@@ -114,3 +114,8 @@ backend/Automation/**/*.html
 # Build binaries / local worktrees
 backend/pcl-api
 .claude/worktrees/
+
+# Windows worker runtime artifacts (machine-specific / generated)
+backend/Automation/automation_service/worker.log
+backend/Automation/automation_service/worker.log.old
+backend/Automation/automation_service/run_worker_hidden.vbs

@@ -7,11 +7,13 @@
 .auto-offline { margin: 10px 0; padding: 11px 14px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 13px; }
 .auto-offline code { background: #ffedd5; padding: 1px 6px; border-radius: 4px; margin: 0 3px; }
 
-.auto-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; margin-top: 14px; align-items: start; }
+.auto-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; margin-top: 14px; align-items: stretch; }
 @media (max-width: 900px) { .auto-grid { grid-template-columns: 1fr; } }
 
 /* LEFT — logs (light by default, dark under .dark-mode) */
-.auto-logs-panel { border: 1px solid #cbd5e1; overflow: hidden; background: #ffffff; display: flex; flex-direction: column; height: 640px; }
+/* Logger stretches to match the button column's height (grid align-items: stretch),
+   with a floor so it never gets too short. */
+.auto-logs-panel { border: 1px solid #cbd5e1; overflow: hidden; background: #ffffff; display: flex; flex-direction: column; min-height: 640px; }
 .auto-logs-head { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; background: #f1f5f9; color: #1e293b; font-size: 13px; font-weight: 700; border-bottom: 1px solid #e2e8f0; }
 .auto-logs-head-right { display: flex; align-items: center; gap: 10px; }
 .auto-clear-btn { font-size: 11px; font-weight: 700; padding: 3px 12px; border: 1px solid #cbd5e1; background: #fff; color: #475569; cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px; }
@@ -23,7 +25,8 @@
 .auto-badge--error { color: #7f1d1d; background: #fecaca; }
 .auto-badge--stopped { color: #7c2d12; background: #fed7aa; }
 .auto-badge--idle { color: #475569; background: #e2e8f0; }
-.auto-logs-body { flex: 1; overflow-y: auto; padding: 12px 16px; font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; line-height: 1.55; color: #334155; }
+.auto-badge--queued { color: #7c2d12; background: #fed7aa; }
+.auto-logs-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 16px; font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; line-height: 1.55; color: #334155; }
 .auto-logs-empty { color: #94a3b8; font-style: italic; padding: 20px 0; text-align: center; }
 .auto-log-line { white-space: pre-wrap; word-break: break-word; }
 .auto-log-line.err  { color: #b91c1c; }
@@ -40,6 +43,7 @@
 .dark-mode .auto-badge--error { color: #450a0a; background: #f87171; }
 .dark-mode .auto-badge--stopped { color: #431407; background: #fb923c; }
 .dark-mode .auto-badge--idle { color: #cbd5e1; background: #334155; }
+.dark-mode .auto-badge--queued { color: #431407; background: #fb923c; }
 .dark-mode .auto-logs-body { color: #cbd5e1; }
 .dark-mode .auto-logs-empty { color: #64748b; }
 .dark-mode .auto-log-line.err  { color: #fca5a5; }
@@ -53,13 +57,24 @@
 .auto-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .auto-card-icon { font-size: 22px; }
 .auto-card-title { font-size: 15px; font-weight: 700; color: #1e3a8a; }
-.auto-run-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; margin-left: auto; animation: auto-pulse 1.1s infinite; }
+.auto-card-head-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.auto-run-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; animation: auto-pulse 1.1s infinite; }
+.auto-update-icon {
+  width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; border-radius: 6px;
+  font-size: 15px; line-height: 1; cursor: pointer; padding: 0;
+}
+.auto-update-icon:hover:not(:disabled) { background: #e2e8f0; color: #1e293b; }
+.auto-update-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+.dark-mode .auto-update-icon { background: #1e293b; border-color: #475569; color: #cbd5e1; }
+.dark-mode .auto-update-icon:hover:not(:disabled) { background: #263449; color: #f1f5f9; }
 @keyframes auto-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .auto-card-actions { display: flex; gap: 10px; }
 .auto-start, .auto-stop { flex: 1; padding: 9px 0; border: none; border-radius: 0; font-size: 13.5px; font-weight: 700; cursor: pointer; color: #fff; }
 .auto-start { background: #2563eb; }
 .auto-stop { background: #dc2626; }
 .auto-start:disabled, .auto-stop:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .auto-viewlogs { margin-top: 8px; background: none; border: none; color: #2563eb; font-size: 12px; cursor: pointer; padding: 0; }
 
 /* Modal wizard */
@@ -76,7 +91,40 @@
 .auto-filelist li { font-size: 12.5px; padding: 4px 8px; border-radius: 6px; }
 .auto-filelist li.ok { color: #166534; background: #ecfdf5; }
 .auto-filelist li.miss { color: #92400e; background: #fffbeb; }
-.auto-files-note { font-size: 11.5px; color: #6b7280; margin-top: 6px; }
+.auto-filelist li.opt { color: #1e40af; background: #eff6ff; }
+.auto-files-note { font-size: 11.5px; color: #6b7280; }
+.auto-filerow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.auto-files-toggle { border: none; background: none; padding: 0; cursor: pointer; font-weight: 700; text-decoration: underline; }
+.auto-files-toggle:hover { color: #1d4ed8; }
+.auto-files-manage { list-style: none; margin: 8px 0 0; padding: 6px; max-height: 190px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; }
+.auto-files-manage li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+.auto-files-manage li:hover { background: #eef2f7; }
+.auto-file-name { flex: 1; font-size: 11.5px; color: #334155; font-family: 'Cascadia Code', Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auto-file-del { border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; border-radius: 5px; width: 22px; height: 22px; line-height: 1; font-size: 12px; font-weight: 800; cursor: pointer; flex: none; padding: 0; }
+.auto-file-del:hover { background: #fee2e2; }
+.dark-mode .auto-files-manage { background: #0f172a; border-color: #334155; }
+.dark-mode .auto-files-manage li:hover { background: #1e293b; }
+.dark-mode .auto-file-name { color: #cbd5e1; }
+.dark-mode .auto-file-del { background: #3b1414; border-color: #7f1d1d; color: #fecaca; }
+.dark-mode .auto-file-del:hover { background: #4a1a1a; }
+.auto-download-rows { font-size: 12px; font-weight: 700; color: #1d4ed8; text-decoration: none; border: 1px solid #bfdbfe; background: #eff6ff; padding: 4px 12px; border-radius: 6px; white-space: nowrap; }
+.auto-download-rows:hover { background: #dbeafe; }
+.auto-autosource { font-size: 12px; color: #1e40af; background: #eff6ff; border: 1px solid #dbeafe; border-radius: 8px; padding: 8px 11px; margin-bottom: 10px; line-height: 1.5; }
+.auto-msg-preview { margin-top: 8px; font-size: 12.5px; color: #475569; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 9px 11px; line-height: 1.55; }
+.auto-msg-preview b { color: #1e3a8a; }
+.dark-mode .auto-msg-preview { color: #cbd5e1; background: #1e293b; border-color: #334155; }
+.dark-mode .auto-msg-preview b { color: #93c5fd; }
+.auto-recip-saverow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.auto-recip-ok { font-size: 12px; font-weight: 700; color: #166534; background: #dcfce7; padding: 3px 10px; border-radius: 20px; animation: auto-pop 0.2s ease-out; }
+.auto-recip-err { font-size: 12px; font-weight: 700; color: #991b1b; background: #fee2e2; padding: 3px 10px; border-radius: 20px; }
+@keyframes auto-pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.dark-mode .auto-recip-ok { color: #bbf7d0; background: #14311f; }
+.dark-mode .auto-recip-err { color: #fecaca; background: #3b1414; }
+
+.dark-mode .auto-filelist li.opt { color: #bfdbfe; background: #1e293b; }
+.dark-mode .auto-download-rows { color: #bfdbfe; background: #1e293b; border-color: #334155; }
+.dark-mode .auto-download-rows:hover { background: #263449; }
+.dark-mode .auto-autosource { color: #bfdbfe; background: #1e293b; border-color: #334155; }
 .auto-input { width: 100%; padding: 9px 11px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
 .auto-radios { display: flex; flex-direction: column; gap: 6px; }
 .auto-radios label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 7px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }

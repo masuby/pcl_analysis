@@ -9,11 +9,15 @@ Run:  uvicorn app.main:app --port 8091   (from backend/Automation/automation_ser
 """
 from __future__ import annotations
 
+import io
+import os
 import shutil
+import zipfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from . import config as C
@@ -63,6 +67,32 @@ def list_files(pid: str):
             "valid": ok, "missing": missing}
 
 
+class DeleteFile(BaseModel):
+    name: str
+
+
+@app.post("/pipelines/{pid}/files/delete")
+def delete_file(pid: str, body: DeleteFile):
+    """Remove one file from the pipeline's row folder (from the popup's file list)."""
+    if pid not in P.PIPELINES:
+        return {"error": "unknown pipeline"}
+    d = _upload_dir(pid)
+    name = Path(body.name).name          # strip any path — no traversal
+    target = d / name
+    if target.suffix.lower() == ".py":
+        return {"error": "refusing to delete a script"}
+    if not target.is_file():
+        return {"error": f"'{name}' not found"}
+    try:
+        target.unlink()
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"could not delete '{name}': {exc}"}
+    _UPLOADED.get(pid, set()).discard(name)
+    files = _data_files(d)
+    ok, missing = P.validate_uploads(pid, files)
+    return {"deleted": name, "files": files, "valid": ok, "missing": missing}
+
+
 @app.post("/pipelines/{pid}/upload")
 async def upload(pid: str, files: list[UploadFile] = File(...)):
     if pid not in P.PIPELINES:
@@ -106,6 +136,7 @@ class StartRequest(BaseModel):
     date: str = ""
     send: str = "no"
     db_update: bool = True     # CRM: also upload processed files to the live server
+    deadline: str = ""         # MTD: editable submission time shown in the email
 
 
 @app.post("/pipelines/{pid}/start")
@@ -119,10 +150,128 @@ def start(pid: str, req: StartRequest):
     ok, missing = P.validate_uploads(pid, _data_files(d))
     if not ok:
         return {"error": "missing_files", "missing": missing}
+    # Pipelines that need real Windows/Excel are queued for windows_worker.py
+    # running on the operator's PC; everything else runs here.
+    if P.PIPELINES[pid].get("runner") == "windows":
+        rid = manager.start_remote(pid, req.model_dump())
+        if not rid:
+            return {"state": "running", "detail": "already running"}
+        return {"state": "queued", "remote": True,
+                "detail": "Queued for the Windows worker on your PC."}
     steps = P.build_steps(pid, req.model_dump())
     # append the auto-clear as a final bookkeeping action handled by the runner:
     manager.start(pid, steps)
     return {"state": "running", "steps": [s["label"] for s in steps]}
+
+
+@app.post("/pipelines/{pid}/update-files")
+def update_files(pid: str):
+    """Run the pipeline's post-run housekeeping (CRM: update masters; Call
+    Center / Management: clean old row files). Streams to the same logs."""
+    if pid not in P.PIPELINES:
+        return {"error": "unknown pipeline"}
+    if not P.PIPELINES[pid].get("update_files"):
+        return {"error": "no update action for this pipeline"}
+    if manager.is_running(pid):
+        return {"state": "running", "detail": "already running"}
+    steps = P.build_update_steps(pid)
+    manager.start(pid, steps)
+    return {"state": "running", "steps": [s["label"] for s in steps]}
+
+
+# ── Windows worker API (outbound-polled by windows_worker.py on the PC) ──────
+# The PC only ever makes outbound HTTPS calls here — no inbound access needed.
+WORKER_TOKEN = os.getenv("PCL_WORKER_TOKEN", "")
+
+
+def _worker_auth(token: str):
+    if not WORKER_TOKEN or token != WORKER_TOKEN:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="bad worker token")
+
+
+class WorkerLog(BaseModel):
+    lines: list[str] = []
+
+
+class WorkerDone(BaseModel):
+    state: str = "done"
+
+
+@app.get("/worker/next")
+def worker_next(token: str = ""):
+    """Worker polls for the next queued job. Empty object = nothing to do."""
+    _worker_auth(token)
+    return manager.claim_next() or {}
+
+
+@app.post("/worker/{rid}/log")
+def worker_log(rid: str, body: WorkerLog, token: str = ""):
+    """Worker streams stdout back; response tells it whether Stop was pressed."""
+    _worker_auth(token)
+    manager.remote_log(rid, body.lines)
+    return {"cancel": manager.remote_cancelled(rid)}
+
+
+@app.post("/worker/{rid}/done")
+def worker_done(rid: str, body: WorkerDone, token: str = ""):
+    _worker_auth(token)
+    return {"ok": manager.remote_done(rid, body.state)}
+
+
+@app.get("/worker/{rid}/rows")
+def worker_rows(rid: str, token: str = ""):
+    """Zip of the row files the user uploaded on the site, for the PC to pull."""
+    _worker_auth(token)
+    job = manager.remote_job(rid)
+    if not job:
+        return {"error": "unknown job"}
+    return _zip_response(P.download_manifest(job.pid), f"{job.pid}_rows.zip")
+
+
+@app.post("/worker/{rid}/result")
+async def worker_result(rid: str, files: list[UploadFile] = File(...), token: str = ""):
+    """PC uploads the generated report back so the DB step + download button work."""
+    _worker_auth(token)
+    job = manager.remote_job(rid)
+    if not job:
+        return {"error": "unknown job"}
+    out_dir = C.MANAGEMENT_DIR / "OUTPUT"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    saved = []
+    for f in files:
+        name = Path(f.filename).name
+        with open(out_dir / name, "wb") as fh:
+            shutil.copyfileobj(f.file, fh)
+        saved.append(name)
+    job.log(f"⬆ Report uploaded back to the server: {', '.join(saved)}")
+    return {"saved": saved}
+
+
+def _zip_response(paths: list[str], filename: str) -> StreamingResponse:
+    """Stream the given files back as a zip archive."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        seen = set()
+        for p in paths:
+            if os.path.isfile(p):
+                arc = os.path.basename(p)
+                if arc in seen:
+                    arc = f"{len(seen)}_{arc}"
+                seen.add(arc)
+                zf.write(p, arc)
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+@app.get("/pipelines/{pid}/download-rows")
+def download_rows(pid: str):
+    """Zip the pipeline's current backend row files and return the archive."""
+    if pid not in P.PIPELINES:
+        return {"error": "unknown pipeline"}
+    return _zip_response(P.download_manifest(pid), f"{pid}_row_files.zip")
 
 
 @app.post("/pipelines/{pid}/stop")
@@ -156,5 +305,8 @@ class RecipientsUpdate(BaseModel):
 def put_recipients(pid: str, body: RecipientsUpdate):
     if not R.is_editable(pid):
         return {"error": "recipients not editable for this pipeline"}
-    count = R.set_(pid, body.department, body.emails, body.mode)
-    return {"saved": count, "recipients": R.all_(pid, body.mode)}
+    try:
+        count = R.set_(pid, body.department, body.emails, body.mode)
+        return {"saved": count, "recipients": R.all_(pid, body.mode)}
+    except Exception as exc:  # noqa: BLE001
+        return {"error": f"could not save {body.department}: {exc}"}

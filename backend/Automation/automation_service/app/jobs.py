@@ -17,10 +17,12 @@ from . import config as C
 @dataclass
 class Job:
     pid: str
-    state: str = "idle"            # idle | running | done | error | stopped
+    state: str = "idle"            # idle | queued | running | done | error | stopped
     logs: list[str] = field(default_factory=list)
     started_at: float = 0.0
     ended_at: float = 0.0
+    remote_id: str = ""            # set when dispatched to the Windows worker
+    params: dict = field(default_factory=dict)
     _proc: subprocess.Popen | None = None
     _stop: threading.Event = field(default_factory=threading.Event)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -39,6 +41,8 @@ class Job:
 class JobManager:
     def __init__(self):
         self._jobs: dict[str, Job] = {}
+        self._remote: dict[str, Job] = {}     # remote_id -> Job
+        self._queue: list[str] = []           # remote_ids waiting for a worker
         self._lock = threading.Lock()
 
     def get(self, pid: str) -> Job:
@@ -48,7 +52,71 @@ class JobManager:
             return self._jobs[pid]
 
     def is_running(self, pid: str) -> bool:
-        return self.get(pid).state == "running"
+        return self.get(pid).state in ("running", "queued")
+
+    # ── remote (Windows worker) jobs ─────────────────────────────────────────
+    def start_remote(self, pid: str, params: dict) -> str:
+        """Queue a job for the Windows worker instead of running it here."""
+        import uuid
+        job = self.get(pid)
+        with job._lock:
+            if job.state in ("running", "queued"):
+                return ""
+            job.state = "queued"
+            job.logs = []
+            job._stop = threading.Event()
+            job.started_at = time.time()
+            job.ended_at = 0.0
+            job.remote_id = uuid.uuid4().hex[:12]
+            job.params = dict(params or {})
+        job.log("⏳ Queued for the Windows worker — waiting for your PC to pick it up…")
+        with self._lock:
+            self._remote[job.remote_id] = job
+            self._queue.append(job.remote_id)
+        return job.remote_id
+
+    def claim_next(self) -> dict | None:
+        """Worker asks for work. Returns the next queued job, or None."""
+        with self._lock:
+            queue = list(self._queue)
+        for rid in queue:
+            job = self._remote.get(rid)
+            if job and job.state == "queued":
+                with self._lock:
+                    if rid in self._queue:
+                        self._queue.remove(rid)
+                job.state = "running"
+                job.log("▶ Picked up by the Windows worker.")
+                return {"id": rid, "pipeline": job.pid, "params": job.params}
+            with self._lock:
+                if rid in self._queue:
+                    self._queue.remove(rid)
+        return None
+
+    def remote_job(self, rid: str) -> Job | None:
+        return self._remote.get(rid)
+
+    def remote_log(self, rid: str, lines: list[str]) -> bool:
+        job = self._remote.get(rid)
+        if not job:
+            return False
+        for ln in lines:
+            job.log(ln)
+        return True
+
+    def remote_done(self, rid: str, state: str) -> bool:
+        job = self._remote.get(rid)
+        if not job:
+            return False
+        job.state = state if state in ("done", "error", "stopped") else "done"
+        job.ended_at = time.time()
+        job.log("\n✅ Pipeline finished." if job.state == "done"
+                else ("■ Stopped." if job.state == "stopped" else "✗ Pipeline failed."))
+        return True
+
+    def remote_cancelled(self, rid: str) -> bool:
+        job = self._remote.get(rid)
+        return bool(job and job._stop.is_set())
 
     def start(self, pid: str, steps: list[dict]) -> bool:
         job = self.get(pid)
@@ -65,13 +133,19 @@ class JobManager:
 
     def stop(self, pid: str) -> bool:
         job = self.get(pid)
-        if job.state != "running":
+        if job.state not in ("running", "queued"):
             return False
         job._stop.set()
+        if job.state == "queued":       # remote job not picked up yet
+            job.state = "stopped"
+            job.log("■ Cancelled before the Windows worker picked it up.")
+            job.ended_at = time.time()
+            return True
         job.log("■ STOP requested — terminating current step…")
         proc = job._proc
         if proc and proc.poll() is None:
-            _terminate_tree(proc)
+            _terminate_tree(proc)       # local job
+        # remote job: the worker sees `cancel` on its next log post and stops there
         return True
 
     def _run(self, job: Job, steps: list[dict]):

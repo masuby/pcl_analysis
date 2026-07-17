@@ -23,6 +23,19 @@ def _parse_ddmm(raw):
     return None
 
 
+def _send_choice() -> str:
+    """--send yes|no from the web orchestrator (default: no).
+    'no' = build the report but DO NOT run send_email_tz.exe (test run)."""
+    import argparse as _ap
+    _p = _ap.ArgumentParser(add_help=False)
+    _p.add_argument("--send", default="no")
+    _known, _ = _p.parse_known_args()
+    return "yes" if str(_known.send).strip().lower() in ("yes", "actual", "y") else "no"
+
+
+SEND_EMAILS = _send_choice()
+
+
 def _prompt_report_day():
     # Accept --date DD/MM (web orchestrator) or PCL_REPORT_DATE env; else prompt.
     import argparse as _ap
@@ -755,7 +768,11 @@ else:
             
             # Step 6.5: Run send_email_tz (1).exe
             print("\n--- Step 6.5: Running send_email_tz (1).exe ---")
-            if not os.path.exists(send_email_exe):
+            if SEND_EMAILS != "yes":
+                print("  ⏭  Test run (--send no) — SKIPPING the email send.")
+                print("     The report was still built and split; re-run with")
+                print("     'Yes (all recipients)' to actually send.")
+            elif not os.path.exists(send_email_exe):
                 print(f"  ❌ send_email_tz (1).exe not found at: {send_email_exe}")
             else:
                 try:
@@ -858,11 +875,15 @@ _UPLOAD_SCRIPT = os.path.join(
 print("\n" + "="*80)
 print("END PROCESS: uploading new report(s) to the live PCL system ...")
 print("="*80)
-try:
-    subprocess.run([sys.executable, _UPLOAD_SCRIPT, "--commit"], check=False)
-except Exception as _up_err:
-    print(f"  Upload step could not run: {_up_err}")
-    print(f'  You can upload manually:  python "{_UPLOAD_SCRIPT}" --commit')
+if SEND_EMAILS != "yes":
+    print("  ⏭  Test run (--send no) — SKIPPING the live DB upload.")
+    print(f'  To upload manually:  python "{_UPLOAD_SCRIPT}" --commit')
+else:
+    try:
+        subprocess.run([sys.executable, _UPLOAD_SCRIPT, "--commit"], check=False)
+    except Exception as _up_err:
+        print(f"  Upload step could not run: {_up_err}")
+        print(f'  You can upload manually:  python "{_UPLOAD_SCRIPT}" --commit')
 
 print("\n" + "="*80)
 print("PROCESS MANAGEMENT COMPLETED")

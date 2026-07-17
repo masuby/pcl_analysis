@@ -59,7 +59,18 @@ _SEED = {
 
 
 def _clean(emails: list[str]) -> list[str]:
-    return [e.strip() for e in emails if e and "@" in e]
+    """Accept a list OR a pasted blob; tolerate commas / semicolons / spaces /
+    trailing punctuation, extract valid addresses, dedupe (order kept)."""
+    import re
+    text = "\n".join(str(e) for e in (emails or []) if e is not None)
+    found = re.findall(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", text)
+    seen, out = set(), []
+    for e in found:
+        key = e.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(e)
+    return out
 
 
 # --------------------------------------------------------------------------- #

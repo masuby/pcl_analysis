@@ -863,7 +863,7 @@ def _crm_counts_from_file(path: str) -> Dict[str, int]:
         _CRM_COUNT_CACHE[path] = {}
         return {}
     role_l = df["Role"].astype(str).str.lower()
-    sub = df[role_l.apply(lambda s: any(k in s for k in CRM_ROLES))].copy()
+    sub = df[role_l.apply(lambda s: isinstance(s, str) and any(k in s for k in CRM_ROLES))].copy()
     name_col = "Name" if "Name" in sub.columns else None
     counts: Dict[str, int] = {}
     for prod, g in sub.groupby(sub["Product"].astype(str).str.strip().str.upper()):

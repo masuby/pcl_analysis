@@ -18,12 +18,18 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-def create_beautiful_email_html(subject, current_day=24, current_month=None, current_year=None):
+DEFAULT_DEADLINE = "SAA 8:00 Mchana"
+
+
+def create_beautiful_email_html(subject, current_day=24, current_month=None,
+                                current_year=None, deadline=DEFAULT_DEADLINE):
     """
     Create beautiful HTML email with blue theme.
     When current_month and current_year are provided (from row file date), use them;
     otherwise fall back to datetime.now().
+    `deadline` is the editable submission time shown as "... kabla ya <deadline>".
     """
+    deadline = (deadline or DEFAULT_DEADLINE).strip()
     now = datetime.now()
     current_month = current_month or now.strftime("%B").upper()
     current_year = current_year or now.strftime("%Y")
@@ -144,7 +150,7 @@ def create_beautiful_email_html(subject, current_day=24, current_month=None, cur
                 <div class="message">
                     Naomba mpitie malengo na mauzo yenu kama yako sawa 
                     <span class="period">KUANZIA TAREHE 1 HADI TAREHE {current_day} {month_sw} {current_year}</span> 
-                    kama kuna marekebisho usisite kuwasilisha kwa <span class="period">CREDIT/COORDINATOR</span> kabla ya <span class="period">SAA 8:00 Mchana. Ahsante</span>
+                    kama kuna marekebisho usisite kuwasilisha kwa <span class="period">CREDIT/COORDINATOR</span> kabla ya <span class="period">{deadline}. Ahsante</span>
                 </div>
                 
                 <div class="highlight-box">
@@ -291,7 +297,10 @@ def main():
     import argparse as _ap
     _p = _ap.ArgumentParser(add_help=False)
     _p.add_argument("--send", choices=["yes", "no"], default=None)
+    _p.add_argument("--deadline", default=DEFAULT_DEADLINE)
     _known, _ = _p.parse_known_args()
+    _deadline = (_known.deadline or DEFAULT_DEADLINE).strip()
+    print(f"Submission deadline in message: 'kabla ya {_deadline}'")
     if _known.send is not None:
         confirm = _known.send
     else:
@@ -349,7 +358,8 @@ def main():
             subject=file_info['email_info']['subject'],
             current_day=current_day,
             current_month=current_month,
-            current_year=current_year
+            current_year=current_year,
+            deadline=_deadline
         )
         
         # Send email

@@ -2,9 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import './Automation.css';
 
 // The automation orchestrator service (backend/Automation/automation_service).
-const API = import.meta.env.VITE_AUTOMATION_API_URL || 'http://localhost:8091';
+// Prod: same-origin path proxied by nginx to the automation container.
+// Dev:  the orchestrator running on localhost:8091.
+const API = import.meta.env.VITE_AUTOMATION_API_URL
+  || (import.meta.env.PROD ? '/automation-api' : 'http://localhost:8091');
 
-const EMPTY = { date: '', send: 'no', db_update: true };
+const EMPTY = { date: '', send: 'no', db_update: true, deadline: '' };
 
 const Automation = () => {
   const [pipelines, setPipelines] = useState([]);
@@ -32,7 +35,8 @@ const Automation = () => {
       .then((d) => {
         if (d.lines?.length) { setLogs((prev) => [...prev, ...d.lines]); cursorRef.current = d.cursor; }
         setState((s) => ({ ...s, [pid]: d.state }));
-        if (d.state !== 'running' && pollRef.current) {
+        // keep polling while running OR queued (waiting for the Windows worker)
+        if (d.state !== 'running' && d.state !== 'queued' && pollRef.current) {
           clearInterval(pollRef.current); pollRef.current = null;
           if (d.state === 'done') maybeClear(pid);
         }
@@ -71,7 +75,8 @@ const Automation = () => {
       .then((d) => {
         if (d.error === 'missing_files') { alert(`Missing files:\n• ${d.missing.join('\n• ')}`); return; }
         if (d.error) { alert(d.error); return; }
-        setState((s) => ({ ...s, [pid]: 'running' }));
+        // 'queued' = handed to the Windows worker on the PC
+        setState((s) => ({ ...s, [pid]: d.state === 'queued' ? 'queued' : 'running' }));
         watch(pid);
       })
       .catch((e) => alert(`Could not start: ${e.message}`));
@@ -81,7 +86,20 @@ const Automation = () => {
     fetch(`${API}/pipelines/${pid}/stop`, { method: 'POST' }).catch(() => {});
   };
 
-  const isRunning = (pid) => state[pid] === 'running';
+  // Post-run housekeeping: CRM updates masters; Call Center/Management clean row files.
+  const updateFiles = (pid) => {
+    fetch(`${API}/pipelines/${pid}/update-files`, { method: 'POST' })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) { alert(d.error); return; }
+        setState((s) => ({ ...s, [pid]: 'running' }));
+        watch(pid);
+      })
+      .catch((e) => alert(`Could not update files: ${e.message}`));
+  };
+
+  // 'queued' = waiting for the Windows worker to pick it up — still "busy".
+  const isRunning = (pid) => state[pid] === 'running' || state[pid] === 'queued';
 
   return (
     <div className="auto-page">
@@ -123,7 +141,17 @@ const Automation = () => {
               <div className="auto-card-head">
                 <span className="auto-card-icon">{p.icon}</span>
                 <span className="auto-card-title">{p.label}</span>
-                {isRunning(p.id) && <span className="auto-run-dot" />}
+                <span className="auto-card-head-right">
+                  {isRunning(p.id) && <span className="auto-run-dot" />}
+                  {p.update_files && (
+                    <button className="auto-update-icon" disabled={isRunning(p.id) || !online}
+                            title={`${p.update_files.label || 'Update files'} — ${p.update_files.desc || ''}`}
+                            aria-label={p.update_files.label || 'Update files'}
+                            onClick={() => updateFiles(p.id)}>
+                      ↻
+                    </button>
+                  )}
+                </span>
               </div>
               <div className="auto-card-actions">
                 <button className="auto-start" disabled={isRunning(p.id) || !online}
@@ -170,12 +198,17 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
   const [params, setParams] = useState(modal.params);
   const [recips, setRecips] = useState(null);
   const [recipDept, setRecipDept] = useState((spec.recipients?.departments || ['CS'])[0]);
+  const [showFiles, setShowFiles] = useState(false);
 
   const refresh = useCallback(() => {
     fetch(`${api}/pipelines/${pid}/files`).then((r) => r.json())
       .then((d) => { setFiles(d.files || []); setValid(d.valid); setMissing(d.missing || []); });
   }, [api, pid]);
   useEffect(() => { refresh(); }, [refresh]);
+  // Pre-fill the editable message value (e.g. MTD deadline) with its default.
+  useEffect(() => {
+    if (spec.message && !params.deadline) setParams((p) => ({ ...p, deadline: spec.message.default }));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const upload = (fileList) => {
     if (!fileList.length) return;
@@ -188,16 +221,32 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
       .finally(() => setBusy(false));
   };
 
+  const removeFile = (name) => {
+    fetch(`${api}/pipelines/${pid}/files/delete`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) { alert(d.error); return; }
+        setFiles(d.files || []); setValid(d.valid); setMissing(d.missing || []);
+      })
+      .catch((e) => alert(`Could not remove: ${e.message}`));
+  };
+
   const loadRecipients = (mode) => {
     fetch(`${api}/pipelines/${pid}/recipients?mode=${mode}`).then((r) => r.json())
       .then((d) => setRecips(d.recipients || {}));
   };
 
   const saveRecipients = (mode, dept, emails) => {
-    fetch(`${api}/pipelines/${pid}/recipients`, {
+    return fetch(`${api}/pipelines/${pid}/recipients`, {
       method: 'PUT', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ mode, department: dept, emails }),
-    }).then((r) => r.json()).then((d) => setRecips(d.recipients || {}));
+    }).then((r) => r.json()).then((d) => {
+      if (d.recipients) setRecips(d.recipients);
+      return d;   // { saved, recipients } or { error }
+    });
   };
 
   const close = () => setModal(null);
@@ -216,18 +265,45 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
 
         {/* Step 1: uploads */}
         <div className="auto-modal-section">
-          <h4>1 · Upload required files</h4>
+          <h4>1 · {spec.auto_source ? 'Source files' : 'Upload required files'}</h4>
+          {spec.auto_source && <div className="auto-autosource">↻ {spec.auto_source}</div>}
           <label className="auto-drop">
             <input type="file" multiple onChange={(e) => upload(e.target.files)} disabled={busy} />
-            <span>{busy ? 'Uploading…' : 'Click to choose files (multiple)'}</span>
+            <span>{busy ? 'Uploading…' : spec.auto_source ? 'Optional: choose files to override' : 'Click to choose files (multiple)'}</span>
           </label>
           <ul className="auto-filelist">
             {spec.uploads.map((u) => {
+              const required = u.required !== false;
               const present = !missing.includes(u.label);
-              return <li key={u.key} className={present ? 'ok' : 'miss'}>{present ? '✓' : '○'} {u.label}</li>;
+              const cls = !required ? 'opt' : present ? 'ok' : 'miss';
+              const mark = !required ? '↻' : present ? '✓' : '○';
+              return <li key={u.key} className={cls}>{mark} {u.label}{!required ? ' (auto)' : ''}</li>;
             })}
           </ul>
-          {files.length > 0 && <div className="auto-files-note">{files.length} file(s) in the folder</div>}
+          <div className="auto-filerow">
+            {files.length > 0 && (
+              <button className="auto-files-note auto-files-toggle"
+                      onClick={() => setShowFiles((s) => !s)}
+                      title="Click to view / remove the files in the folder">
+                {showFiles ? '▾' : '▸'} {files.length} file(s) in the folder
+              </button>
+            )}
+            {spec.download_rows && (
+              <a className="auto-download-rows" href={`${api}/pipelines/${pid}/download-rows`}
+                 target="_blank" rel="noreferrer">⬇ Download row files (zip)</a>
+            )}
+          </div>
+          {showFiles && files.length > 0 && (
+            <ul className="auto-files-manage">
+              {files.map((f) => (
+                <li key={f}>
+                  <span className="auto-file-name" title={f}>{f}</span>
+                  <button className="auto-file-del" title={`Remove ${f}`}
+                          onClick={() => removeFile(f)}>✕</button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Step 2: date */}
@@ -285,6 +361,21 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
           </div>
         )}
 
+        {/* MTD: editable message time (deadline) */}
+        {spec.message && params.send !== 'no' && (
+          <div className="auto-modal-section">
+            <h4>{needsDate ? '4' : '3'} · {spec.message.label}</h4>
+            <input className="auto-input" value={params.deadline}
+                   placeholder={spec.message.default}
+                   onChange={(e) => setParams({ ...params, deadline: e.target.value })} />
+            <div className="auto-msg-preview">
+              {spec.message.before}
+              <b>{(params.deadline || '').trim() || spec.message.default}</b>
+              {spec.message.after}
+            </div>
+          </div>
+        )}
+
         <div className="auto-modal-foot">
           {!valid && <span className="auto-warn">Missing: {missing.join(', ')}</span>}
           <button className="auto-run-btn" disabled={!valid || (needsDate && !params.date)}
@@ -297,9 +388,34 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
   );
 };
 
+// Extract valid email tokens from any blob — one-per-line, comma / semicolon /
+// space separated, trailing commas, or a pasted mixture. Dedupes, order kept.
+const parseEmails = (raw) => {
+  const found = (raw || '').match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || [];
+  return [...new Set(found.map((e) => e.trim()))];
+};
+
 const RecipientEditor = ({ recips, dept, setDept, departments, onSave }) => {
   const [text, setText] = useState((recips[dept] || []).join('\n'));
-  useEffect(() => { setText((recips[dept] || []).join('\n')); }, [dept, recips]);
+  const [msg, setMsg] = useState(null);   // { ok, text }
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setText((recips[dept] || []).join('\n')); setMsg(null); }, [dept, recips]);
+
+  const save = () => {
+    const emails = parseEmails(text);
+    setSaving(true); setMsg(null);
+    Promise.resolve(onSave(emails))
+      .then((d) => {
+        if (d && d.error) setMsg({ ok: false, text: `✕ ${d.error}` });
+        else {
+          const n = d && typeof d.saved === 'number' ? d.saved : emails.length;
+          setMsg({ ok: true, text: `✓ Saved ${n} ${dept} recipient${n === 1 ? '' : 's'}` });
+        }
+      })
+      .catch(() => setMsg({ ok: false, text: '✕ Save failed — is the service reachable?' }))
+      .finally(() => { setSaving(false); setTimeout(() => setMsg(null), 3500); });
+  };
+
   return (
     <div className="auto-recip-editor">
       <div className="auto-recip-tabs">
@@ -308,11 +424,13 @@ const RecipientEditor = ({ recips, dept, setDept, departments, onSave }) => {
         ))}
       </div>
       <textarea className="auto-recip-area" value={text} onChange={(e) => setText(e.target.value)}
-                rows={6} placeholder="one email per line" />
-      <button className="auto-recip-save"
-              onClick={() => onSave(text.split('\n').map((s) => s.trim()).filter((s) => s.includes('@')))}>
-        save {dept} recipients
-      </button>
+                rows={6} placeholder="One per line, or comma / space separated — pasting a block is fine." />
+      <div className="auto-recip-saverow">
+        <button className="auto-recip-save" disabled={saving} onClick={save}>
+          {saving ? 'saving…' : `save ${dept} recipients`}
+        </button>
+        {msg && <span className={msg.ok ? 'auto-recip-ok' : 'auto-recip-err'}>{msg.text}</span>}
+      </div>
     </div>
   );
 };

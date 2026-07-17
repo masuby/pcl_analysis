@@ -46,6 +46,8 @@ PIPELINES = {
         "email": {"modes": EMAIL_MODES_CRM},
         "recipients": {"editable": True, "departments": ["CS", "LBF", "SME"]},
         "db_upload": True, "db_update_toggle": True,
+        "update_files": {"label": "Update master files", "desc": "Replace ROW_EXCEL masters with the latest generated CS/LBF/SME reports and drop the old uploads."},
+        "download_rows": True,
     },
     "call_center": {
         "label": "Call Center Report", "icon": "📞", "color": "#0891b2",
@@ -59,6 +61,8 @@ PIPELINES = {
         "email": {"modes": EMAIL_MODES_YESNO},
         "recipients": {"editable": True, "departments": ["CS", "LBF", "RO"]},
         "db_upload": True,
+        "update_files": {"label": "Update row files", "desc": "Remove the old uploaded Loan / CDR row files (masters & references kept)."},
+        "download_rows": True,
     },
     "management": {
         "label": "Management Report", "icon": "📊", "color": "#7c3aed",
@@ -71,6 +75,11 @@ PIPELINES = {
         "email": {"modes": EMAIL_MODES_YESNO},
         "recipients": {"editable": False},
         "db_upload": True,
+        "update_files": {"label": "Clean row files", "desc": "Remove the old uploaded Loan / Users / Clientstz / Settlements row files."},
+        "download_rows": True,
+        # Needs real Excel (xlwings) + Windows .exe helpers, so it can't run in the
+        # Linux container. Jobs are queued and executed by windows_worker.py on the PC.
+        "runner": "windows",
     },
     "mtd": {
         "label": "MTD Report", "icon": "📈", "color": "#16a34a",
@@ -83,19 +92,29 @@ PIPELINES = {
         "email": {"modes": EMAIL_MODES_YESNO},
         "recipients": {"editable": True, "departments": ["CS", "LBF"]},
         "db_upload": True,
+        "update_files": {"label": "Clean row files", "desc": "Remove the uploaded CS / LBF MTD source files (masters kept)."},
+        "download_rows": True,
+        "message": {
+            "key": "deadline", "default": "SAA 8:00 Mchana",
+            "label": "Submission deadline (message time)",
+            "before": "…kama kuna marekebisho usisite kuwasilisha kwa CREDIT/COORDINATOR kabla ya ",
+            "after": ". Ahsante",
+        },
     },
     "reps": {
         "label": "Reps Monthly Status", "icon": "🧑‍💼", "color": "#ea580c",
         "upload_dir": str(C.REPS_UPLOAD_DIR),
         "clear_uploads_after": True,
         "uploads": [
-            {"key": "loan", "label": "Loan.xlsx (Loan Accounts)", "match": r"^loan", "required": True},
-            {"key": "users", "label": "Users.xlsx (product_mapping)", "match": r"^users", "required": True},
+            {"key": "loan", "label": "Loan.xlsx (Loan Accounts)", "match": r"^loan", "required": False},
+            {"key": "users", "label": "Users.xlsx (product_mapping)", "match": r"^users", "required": False},
         ],
         "inputs": [{"key": "date", "type": "month", "label": "Month / year (mm/yyyy)", "required": True}],
         "email": {"modes": EMAIL_MODES_YESNO},
         "recipients": {"editable": True, "departments": ["Managers"]},
         "db_upload": False,
+        "auto_source": "Loan & Users are auto-sourced from the latest backend files (Management / Call Center), and the CS CRM file from CRM/CS/NEW_EXCEL. Upload only to override.",
+        "download_rows": True,
     },
 }
 
@@ -110,8 +129,70 @@ def public_registry() -> list[dict]:
             "email": spec["email"], "recipients": spec["recipients"],
             "db_upload": spec.get("db_upload", False),
             "db_update_toggle": spec.get("db_update_toggle", False),
+            "update_files": spec.get("update_files", None),
+            "download_rows": spec.get("download_rows", False),
+            "auto_source": spec.get("auto_source", None),
+            "message": spec.get("message", None),
+            "runner": spec.get("runner", "local"),
         })
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Download-rows manifest (files to zip for the "download row files" button)
+# --------------------------------------------------------------------------- #
+_DATA_EXT = {".xlsx", ".xls", ".xlsm", ".xlsb", ".csv"}
+
+
+def _data_files_in(folder) -> list[str]:
+    d = Path(folder)
+    if not d.exists():
+        return []
+    return [str(f) for f in sorted(d.iterdir())
+            if f.is_file() and f.suffix.lower() in _DATA_EXT]
+
+
+def _latest_match(dirs, pattern: str):
+    """First directory (by priority order) with a match wins; newest within it."""
+    for d in dirs:
+        d = Path(d)
+        if not d.exists():
+            continue
+        matches = [f for f in d.iterdir()
+                   if f.is_file() and f.suffix.lower() in _DATA_EXT and re.search(pattern, f.name.lower())]
+        if matches:
+            return max(matches, key=lambda f: f.stat().st_mtime)
+    return None
+
+
+def _resolve_match(dirs_with_exclude, pattern: str):
+    for d, exc in dirs_with_exclude:
+        d = Path(d)
+        if not d.exists():
+            continue
+        ms = [f for f in d.iterdir()
+              if f.is_file() and f.suffix.lower() in _DATA_EXT
+              and re.search(pattern, f.name.lower()) and f.name.lower() not in exc]
+        if ms:
+            return max(ms, key=lambda f: f.stat().st_mtime)
+    return None
+
+
+def download_manifest(pid: str) -> list[str]:
+    """Absolute paths of the row files to include in the download zip."""
+    if pid == "reps":
+        out = []
+        loan = _resolve_match([(C.REPS_UPLOAD_DIR, {"loan.xlsx"}),
+                               (C.MANAGEMENT_UPLOAD_DIR, set()),
+                               (C.CALL_CENTER_UPLOAD_DIR, set())], r"loan")
+        users = _resolve_match([(C.REPS_UPLOAD_DIR, {"users.xlsx"}),
+                                (C.MANAGEMENT_UPLOAD_DIR, set())], r"users")
+        cscrm = _latest_match([C.CRM_CS_NEW_EXCEL_DIR], r"cs_crm")
+        for f in (loan, users, cscrm):
+            if f:
+                out.append(str(f))
+        return out
+    return _data_files_in(PIPELINES[pid]["upload_dir"])
 
 
 # --------------------------------------------------------------------------- #
@@ -144,6 +225,29 @@ def _db_upload_step(commit: bool) -> dict:
     if commit:
         argv.append("--commit")
     return {"label": "Upload processed files to live DB", "argv": argv, "cwd": str(C.CRM_DIR)}
+
+
+def build_update_steps(pid: str) -> list[dict]:
+    """Steps for the 'Update / clean row files' button (post-run housekeeping)."""
+    if pid == "crm":
+        # Replaces ROW_EXCEL masters with the latest CS/LBF/SME reports and drops
+        # the old uploads (deletes every xlsx in ROW_EXCEL, copies latest NEW_EXCEL).
+        script = str(C.CRM_UPLOAD_DIR / "update_master_crm_files.py")
+        return [{"label": "Update CRM master files", "argv": [C.PYTHON, script],
+                 "cwd": str(C.CRM_UPLOAD_DIR)}]
+    if pid == "call_center":
+        script = str(C.CALL_CENTER_DIR / "update_row_files.py")
+        return [{"label": "Update Call Center row files", "argv": [C.PYTHON, script],
+                 "cwd": str(C.CALL_CENTER_DIR)}]
+    if pid == "management":
+        script = str(C.MANAGEMENT_DIR / "update_row_files.py")
+        return [{"label": "Clean Management row files", "argv": [C.PYTHON, script],
+                 "cwd": str(C.MANAGEMENT_DIR)}]
+    if pid == "mtd":
+        script = str(C.MTD_DIR / "update_row_files.py")
+        return [{"label": "Clean MTD row files", "argv": [C.PYTHON, script],
+                 "cwd": str(C.MTD_DIR)}]
+    raise ValueError(f"pipeline '{pid}' has no update-files action")
 
 
 def build_steps(pid: str, params: dict) -> list[dict]:
@@ -179,10 +283,13 @@ def build_steps(pid: str, params: dict) -> list[dict]:
 
     if pid == "reps":
         cwd = str(C.REPS_DIR)
+        prepare = str(C.REPS_DIR / "prepare_inputs.py")
         cleanup = str(C.REPS_DIR / "crm_cleanup_inactive.py")
         monthly = str(C.REPS_DIR / "sales_rep_monthly_status_report.py")
         month = date  # mm/yyyy
         return [
+            {"label": "Auto-source latest Loan / Users from backend", "cwd": cwd,
+             "argv": [C.PYTHON, prepare]},
             {"label": "Clean up inactive CRM reps", "cwd": cwd,
              "argv": [C.PYTHON, cleanup, str(C.CRM_CS_NEW_EXCEL_DIR)]},
             {"label": "Build Reps Monthly Status report + email", "cwd": cwd,
@@ -194,10 +301,12 @@ def build_steps(pid: str, params: dict) -> list[dict]:
         cs = str(C.MTD_DIR / "CS_MTD" / "cs_mtd_processor.py")
         lbf = str(C.MTD_DIR / "LBF_MTD" / "lbf_mtd_processor.py")
         email = str(C.MTD_DIR / "EMAIL_MTD" / "send_email_mtd.py")
+        deadline = (params.get("deadline") or "").strip() or "SAA 8:00 Mchana"
+        email_argv = [C.PYTHON, email, "--send", send, "--deadline", deadline]
         return [
             {"label": "CS MTD processor", "argv": [C.PYTHON, cs], "cwd": str(C.MTD_DIR / "CS_MTD")},
             {"label": "LBF MTD processor", "argv": [C.PYTHON, lbf], "cwd": str(C.MTD_DIR / "LBF_MTD")},
-            {"label": "Send MTD emails", "argv": [C.PYTHON, email, "--send", send], "cwd": str(C.MTD_DIR / "EMAIL_MTD")},
+            {"label": "Send MTD emails", "argv": email_argv, "cwd": str(C.MTD_DIR / "EMAIL_MTD")},
         ]
 
     raise ValueError(f"unknown pipeline: {pid}")
