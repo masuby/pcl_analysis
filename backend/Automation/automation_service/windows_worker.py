@@ -166,17 +166,42 @@ def _watch_cancel(rid: str, proc: subprocess.Popen, stop_evt: threading.Event,
         done_evt.wait(2.0)
 
 
+_ROW_EXT = {".xlsx", ".xls", ".xlsm", ".csv", ".zip"}
+_ROW_KEEP = ("master_", "zone and cluster")
+
+
 def _download_rows(rid: str, pid: str) -> None:
-    """Pull the row files uploaded on the website into this PC's upload dir."""
+    """Pull the row files uploaded on the website into this PC's upload dir.
+
+    The folder is CLEARED first so it mirrors the server exactly. Without this,
+    files left from an earlier run — and the files derived from them — stay
+    behind and get picked up as inputs (e.g. combined_management_processor.py
+    sees 4 Loan_Accounts instead of 2 and dies renaming the second one onto an
+    existing target). Masters/references are kept.
+    """
     dest = Path(P.PIPELINES[pid]["upload_dir"])
     dest.mkdir(parents=True, exist_ok=True)
+
+    stale = 0
+    for f in list(dest.iterdir()):
+        if not f.is_file() or f.suffix.lower() not in _ROW_EXT:
+            continue
+        if any(f.name.lower().startswith(k) for k in _ROW_KEEP):
+            continue
+        try:
+            f.unlink()
+            stale += 1
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [warn] could not clear {f.name}: {exc}")
+
     r = _S.get(_url(f"/worker/{rid}/rows"), params={"token": TOKEN},
                timeout=300, verify=VERIFY)
     r.raise_for_status()
     with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
         names = zf.namelist()
         zf.extractall(dest)
-    _post_logs(rid, [f"⬇ Pulled {len(names)} row file(s) from the server -> {dest}"]
+    _post_logs(rid, [f"🧹 Cleared {stale} stale row file(s) from {dest}",
+                     f"⬇ Pulled {len(names)} row file(s) from the server"]
                     + [f"   • {n}" for n in names])
 
 
