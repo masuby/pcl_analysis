@@ -26,6 +26,7 @@ import io
 import os
 import subprocess
 import sys
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -107,17 +108,62 @@ def _url(path: str) -> str:
     return f"{SERVER}{path}"
 
 
+_PENDING: list[str] = []          # lines that failed to post — retried next flush
+
+
 def _post_logs(rid: str, lines: list[str]) -> bool:
-    """Send log lines; returns True when the server says Stop was pressed."""
-    if not lines:
+    """Send log lines (retrying anything a previous post failed to deliver).
+    Returns True when the server says Stop was pressed."""
+    global _PENDING
+    batch = _PENDING + list(lines)
+    if not batch:
         return False
     try:
         r = _S.post(_url(f"/worker/{rid}/log"), params={"token": TOKEN},
-                    json={"lines": lines}, timeout=30, verify=VERIFY)
-        return bool(r.json().get("cancel"))
+                    json={"lines": batch}, timeout=30, verify=VERIFY)
+        data = r.json()
+        _PENDING = []
+        return bool(data.get("cancel"))
     except Exception as exc:  # noqa: BLE001
-        print(f"  [warn] could not post logs: {exc}")
+        # keep the lines so a blip (or a server restart) doesn't lose output
+        _PENDING = batch[-500:]
+        print(f"  [warn] could not post logs, will retry: {exc}")
         return False
+
+
+def _watch_cancel(rid: str, proc: subprocess.Popen, stop_evt: threading.Event,
+                  done_evt: threading.Event):
+    """Poll the server while a step runs so Stop works even when the script is
+    quiet, and abort if the server no longer knows about this job.
+
+    The watcher kills the process tree ITSELF: the reader thread is blocked on
+    proc.stdout.readline() and would not notice the flag until the next line —
+    which may never come (Excel/.exe steps can be silent for minutes).
+    """
+    misses = 0
+    while not done_evt.is_set():
+        try:
+            r = _S.get(_url(f"/worker/{rid}/status"), params={"token": TOKEN},
+                       timeout=15, verify=VERIFY)
+            d = r.json()
+            reason = ""
+            if d.get("cancel"):
+                reason = "STOP received from the server"
+            elif not d.get("exists"):
+                misses += 1
+                if misses >= 3:     # ~6s of "job unknown" -> the server lost it
+                    reason = "server no longer knows this job"
+            else:
+                misses = 0
+            if reason:
+                print(f"  [watch] {reason} — terminating the running step now")
+                stop_evt.set()
+                if proc.poll() is None:
+                    _terminate_tree(proc)
+                return
+        except Exception:
+            pass                    # transient network/restart: keep waiting
+        done_evt.wait(2.0)
 
 
 def _download_rows(rid: str, pid: str) -> None:
@@ -170,25 +216,36 @@ def _run_step(rid: str, step: dict, env: dict) -> tuple[int, bool]:
         _post_logs(rid, [f"✗ Could not launch: {exc}"])
         return 1, False
 
+    # Watch for Stop independently of stdout — a step can be silent for minutes
+    # (Excel/exe), and Stop must still kill it promptly.
+    stop_evt, done_evt = threading.Event(), threading.Event()
+    watcher = threading.Thread(target=_watch_cancel, args=(rid, proc, stop_evt, done_evt),
+                               daemon=True)
+    watcher.start()
+
     buf: list[str] = []
     last = time.time()
-    cancelled = False
-    for line in proc.stdout:
-        buf.append(line.rstrip("\n"))
-        print(line, end="")
-        # flush at most ~1x/sec (or every 40 lines) to keep the UI live
-        if len(buf) >= 40 or (time.time() - last) > 1.0:
-            if _post_logs(rid, buf):
-                cancelled = True
-            buf, last = [], time.time()
-            if cancelled:
+    try:
+        for line in proc.stdout:
+            buf.append(line.rstrip("\n"))
+            print(line, end="")
+            # flush at most ~1x/sec (or every 40 lines) to keep the UI live
+            if len(buf) >= 40 or (time.time() - last) > 1.0:
+                if _post_logs(rid, buf):
+                    stop_evt.set()
+                buf, last = [], time.time()
+            if stop_evt.is_set():
                 _terminate_tree(proc)
                 break
+    finally:
+        done_evt.set()
     if buf:
         if _post_logs(rid, buf):
-            cancelled = True
+            stop_evt.set()
+    if stop_evt.is_set() and proc.poll() is None:
+        _terminate_tree(proc)
     proc.wait()
-    return (proc.returncode if proc.returncode is not None else 1), cancelled
+    return (proc.returncode if proc.returncode is not None else 1), stop_evt.is_set()
 
 
 def run_job(job: dict) -> None:

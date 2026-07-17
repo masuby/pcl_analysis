@@ -205,12 +205,23 @@ def worker_next(token: str = ""):
     return manager.claim_next() or {}
 
 
+@app.get("/worker/{rid}/status")
+def worker_status(rid: str, token: str = ""):
+    """Heartbeat the worker polls while a step runs, so Stop is honoured even
+    when the script is quiet. `exists:false` means the server lost the job
+    (e.g. a restart) — the worker must abort rather than run on blind."""
+    _worker_auth(token)
+    job = manager.remote_job(rid)
+    return {"exists": bool(job), "cancel": manager.remote_cancelled(rid),
+            "state": job.state if job else "gone"}
+
+
 @app.post("/worker/{rid}/log")
 def worker_log(rid: str, body: WorkerLog, token: str = ""):
     """Worker streams stdout back; response tells it whether Stop was pressed."""
     _worker_auth(token)
-    manager.remote_log(rid, body.lines)
-    return {"cancel": manager.remote_cancelled(rid)}
+    known = manager.remote_log(rid, body.lines)
+    return {"cancel": manager.remote_cancelled(rid), "exists": known}
 
 
 @app.post("/worker/{rid}/done")
