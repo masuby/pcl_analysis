@@ -10,6 +10,7 @@ All processes run sequentially in order.
 """
 
 import os
+import sys
 import zipfile
 from datetime import datetime, time
 import pandas as pd
@@ -99,6 +100,29 @@ for file in os.listdir(folder):
 print("\nValid Loan_Accounts files detected:")
 for f in loan_account_files:
     print(" -", os.path.basename(f))
+
+# ----------------------------------------------------------
+# Guard: STEP 2 sorts these into exactly TWO buckets (Closed +
+# Active_In_Arrears) and renames each onto a fixed name. With more than two,
+# the second file to land in a bucket hits an existing target and dies with a
+# cryptic FileExistsError (WinError 183); with fewer, later steps get no data.
+# Fail fast with something readable instead.
+# ----------------------------------------------------------
+if len(loan_account_files) != 2:
+    print("\n" + "=" * 80)
+    print(f"ERROR: found {len(loan_account_files)} valid Loan_Accounts file(s) - expected exactly 2.")
+    print("=" * 80)
+    print("  This step needs exactly two: the CLOSED export and the ACTIVE/IN-ARREARS export.")
+    if len(loan_account_files) > 2:
+        print("\n  Remove the extra one(s) from ROW_FILES (open the file list in the")
+        print("  Start popup and click the X, or use 'Clean row files'), then run again:")
+        for f in loan_account_files:
+            print(f"    - {os.path.basename(f)}")
+    else:
+        print("\n  Upload the missing Loan_Accounts export(s) and run again.")
+        print("  Note: a file only counts when it is a complete .xlsx AND has an")
+        print("  'Activation Date' column - partial downloads are skipped above.")
+    sys.exit(1)
 
 closed_file_path = None
 active_file_path = None

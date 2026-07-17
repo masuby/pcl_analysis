@@ -168,6 +168,8 @@ def _watch_cancel(rid: str, proc: subprocess.Popen, stop_evt: threading.Event,
 
 _ROW_EXT = {".xlsx", ".xls", ".xlsm", ".csv", ".zip"}
 _ROW_KEEP = ("master_", "zone and cluster")
+# Master workbooks that must survive a clear (Management's four).
+_ROW_KEEP_NAMES = {"loan.xlsx", "clientstz.xlsx", "settlements.xlsx", "users.xlsx"}
 
 
 def _download_rows(rid: str, pid: str) -> None:
@@ -186,7 +188,8 @@ def _download_rows(rid: str, pid: str) -> None:
     for f in list(dest.iterdir()):
         if not f.is_file() or f.suffix.lower() not in _ROW_EXT:
             continue
-        if any(f.name.lower().startswith(k) for k in _ROW_KEEP):
+        if (f.name.lower() in _ROW_KEEP_NAMES
+                or any(f.name.lower().startswith(k) for k in _ROW_KEEP)):
             continue
         try:
             f.unlink()
