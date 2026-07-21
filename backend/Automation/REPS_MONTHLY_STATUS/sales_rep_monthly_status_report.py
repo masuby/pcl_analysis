@@ -1580,6 +1580,8 @@ def main() -> None:
     _p = _ap.ArgumentParser(add_help=False)
     _p.add_argument("--month", default=os.environ.get("PCL_REPORT_MONTH"))
     _p.add_argument("--send", choices=["yes", "no"], default=None)
+    _p.add_argument("--loan", default=None)    # explicit fresh Loan file (web)
+    _p.add_argument("--users", default=None)   # explicit fresh Users file (web)
     _cli, _ = _p.parse_known_args()
     if _cli.month:
         raw = _cli.month.strip()
@@ -1591,8 +1593,10 @@ def main() -> None:
     year, month = _parse_month_year(raw)
     today = date.today()
 
-    loan_path = DEFAULT_LOAN_PATH
-    users_path = DEFAULT_USERS_PATH
+    # The web orchestrator resolves the freshest Loan/Users and passes them in;
+    # standalone runs fall back to the ROW_FILES defaults.
+    loan_path = _cli.loan or DEFAULT_LOAN_PATH
+    users_path = _cli.users or DEFAULT_USERS_PATH
     zone_path = DEFAULT_ZONE_CLUSTER_PATH
     if not os.path.isfile(loan_path):
         raise FileNotFoundError(loan_path)
@@ -1600,6 +1604,8 @@ def main() -> None:
         raise FileNotFoundError(users_path)
     if not os.path.isfile(zone_path):
         raise FileNotFoundError(zone_path)
+    print(f"Loan file : {loan_path}")
+    print(f"Users file: {users_path}")
 
     out = _prepare_dataframe(loan_path, users_path, zone_path, year, month)
     display_base = out.drop(columns=["_cal_week", "_rep_key"], errors="ignore")

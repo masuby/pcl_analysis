@@ -283,18 +283,23 @@ def build_steps(pid: str, params: dict) -> list[dict]:
 
     if pid == "reps":
         cwd = str(C.REPS_DIR)
-        prepare = str(C.REPS_DIR / "prepare_inputs.py")
         cleanup = str(C.REPS_DIR / "crm_cleanup_inactive.py")
         monthly = str(C.REPS_DIR / "sales_rep_monthly_status_report.py")
         month = date  # mm/yyyy
+        # Freshest Loan/Users the user uploaded to the Reps pipeline win; if none
+        # were uploaded, fall back to the Management master (never a raw export,
+        # whose columns differ). CS CRM is picked by-date inside the report.
+        loan = _resolve_match([(C.REPS_UPLOAD_DIR, set())], r"loan") \
+            or (str(C.MANAGEMENT_UPLOAD_DIR / "Loan.xlsx"))
+        users = _resolve_match([(C.REPS_UPLOAD_DIR, set())], r"users") \
+            or (str(C.MANAGEMENT_UPLOAD_DIR / "Users.xlsx"))
         return [
-            {"label": "Auto-source latest Loan / Users from backend", "cwd": cwd,
-             "argv": [C.PYTHON, prepare]},
             {"label": "Clean up inactive CRM reps", "cwd": cwd,
              "argv": [C.PYTHON, cleanup, str(C.CRM_CS_NEW_EXCEL_DIR)]},
             {"label": "Build Reps Monthly Status report + email", "cwd": cwd,
              "argv": [C.PYTHON, monthly, "--month", month,
-                      "--send", "yes" if send in ("yes", "actual") else "no"]},
+                      "--send", "yes" if send in ("yes", "actual") else "no",
+                      "--loan", str(loan), "--users", str(users)]},
         ]
 
     if pid == "mtd":
