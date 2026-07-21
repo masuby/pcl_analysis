@@ -113,8 +113,11 @@ PIPELINES = {
         "email": {"modes": EMAIL_MODES_YESNO},
         "recipients": {"editable": True, "departments": ["Managers"]},
         "db_upload": False,
-        "auto_source": "Loan & Users are auto-sourced from the latest backend files (Management / Call Center), and the CS CRM file from CRM/CS/NEW_EXCEL. Upload only to override.",
+        "auto_source": "Loan & Users auto-sync from your PC's automation folder (Management/ROW_FILES) — no manual upload needed. The CS CRM file is read from CRM/CS/NEW_EXCEL. Upload here only to override for one run.",
         "download_rows": True,
+        # The Windows worker mirrors these files from the PC to this pipeline's
+        # folder (opening the popup triggers an immediate sync).
+        "pc_sync": {"files": ["Loan.xlsx", "Users.xlsx"], "from": "Management/ROW_FILES"},
     },
 }
 
@@ -134,6 +137,7 @@ def public_registry() -> list[dict]:
             "auto_source": spec.get("auto_source", None),
             "message": spec.get("message", None),
             "runner": spec.get("runner", "local"),
+            "pc_sync": spec.get("pc_sync", None),
         })
     return out
 

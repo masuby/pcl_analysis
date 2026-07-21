@@ -322,6 +322,59 @@ def _done(rid: str, state: str) -> None:
         print(f"  [warn] could not report done: {exc}")
 
 
+# ── PC-file sync ─────────────────────────────────────────────────────────────
+# Mirror files the operator keeps updated on THIS PC to a server pipeline folder,
+# so the report there always uses the freshest local copy — no manual upload.
+#   pipeline -> [(local source on the PC, name to save on the server)]
+SYNC_MAP = {
+    "reps": [
+        (C.MANAGEMENT_DIR / "ROW_FILES" / "Loan.xlsx", "Loan.xlsx"),
+        (C.MANAGEMENT_DIR / "ROW_FILES" / "Users.xlsx", "Users.xlsx"),
+    ],
+}
+_synced_mtime: dict[str, float] = {}   # str(source path) -> last uploaded mtime
+
+
+def _sync_pipeline(pid: str, force: bool = False) -> None:
+    for src, dest in SYNC_MAP.get(pid, []):
+        if not src.is_file():
+            continue
+        mtime = src.stat().st_mtime
+        if not force and _synced_mtime.get(str(src)) == mtime:
+            continue    # unchanged since last upload
+        try:
+            with open(src, "rb") as fh:
+                r = _S.post(_url("/worker/sync"), params={"token": TOKEN},
+                            data={"pipeline": pid},
+                            files={"files": (dest, fh)}, timeout=300, verify=VERIFY)
+            r.raise_for_status()
+            _synced_mtime[str(src)] = mtime
+            from datetime import datetime
+            print(f"  [sync] {pid}: pushed {src.name} -> server as {dest} "
+                  f"({datetime.fromtimestamp(mtime):%Y-%m-%d %H:%M})")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [sync] could not push {src} for {pid}: {exc}")
+
+
+def _sync_tick(last_periodic: float) -> float:
+    """Sync on request (popup opened) and, at most every ~20s, on file change."""
+    # immediate, forced sync for any pipeline whose popup was just opened
+    try:
+        r = _S.get(_url("/worker/sync-pending"), params={"token": TOKEN},
+                   timeout=15, verify=VERIFY)
+        for pid in r.json().get("pipelines", []):
+            _sync_pipeline(pid, force=True)
+    except Exception:
+        pass
+    # periodic change-detection so edits made while the popup is closed still ship
+    now = time.time()
+    if now - last_periodic >= 20:
+        for pid in SYNC_MAP:
+            _sync_pipeline(pid, force=False)
+        return now
+    return last_periodic
+
+
 def main() -> None:
     if not TOKEN:
         sys.exit("PCL_WORKER_TOKEN is not set — refusing to start.")
@@ -333,6 +386,7 @@ def main() -> None:
     print(f"  polling every {POLL_SECONDS}s — Ctrl+C to stop")
     print("=" * 60)
     idle_note = True
+    last_periodic = 0.0
     while True:
         try:
             r = _S.get(_url("/worker/next"), params={"token": TOKEN},
@@ -343,10 +397,11 @@ def main() -> None:
             if job.get("id"):
                 idle_note = True
                 run_job(job)
-            else:
-                if idle_note:
-                    print("waiting for jobs…")
-                    idle_note = False
+                continue    # check for more work immediately
+            if idle_note:
+                print("waiting for jobs…")
+                idle_note = False
+            last_periodic = _sync_tick(last_periodic)   # mirror PC files to server
         except KeyboardInterrupt:
             print("\nbye")
             return

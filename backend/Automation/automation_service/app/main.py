@@ -205,6 +205,46 @@ def worker_next(token: str = ""):
     return manager.claim_next() or {}
 
 
+# ── PC-file sync (worker mirrors the operator's PC files to a pipeline folder) ─
+_SYNC_REQ: set[str] = set()
+
+
+@app.post("/pipelines/{pid}/request-sync")
+def request_sync(pid: str):
+    """The popup calls this on open so the worker pushes the PC's files now."""
+    if pid in P.PIPELINES and P.PIPELINES[pid].get("pc_sync"):
+        _SYNC_REQ.add(pid)
+        return {"requested": True}
+    return {"requested": False}
+
+
+@app.get("/worker/sync-pending")
+def sync_pending(token: str = ""):
+    """Worker asks which pipelines were requested for an immediate PC-file sync."""
+    _worker_auth(token)
+    pend = sorted(_SYNC_REQ)
+    _SYNC_REQ.clear()
+    return {"pipelines": pend}
+
+
+@app.post("/worker/sync")
+async def worker_sync(pipeline: str = Form(...),
+                      files: list[UploadFile] = File(...), token: str = ""):
+    """Worker uploads the PC's copy of a file into the pipeline's folder."""
+    _worker_auth(token)
+    if pipeline not in P.PIPELINES:
+        return {"error": "unknown pipeline"}
+    d = _upload_dir(pipeline)
+    saved = []
+    for f in files:
+        name = Path(f.filename).name
+        with open(d / name, "wb") as fh:
+            shutil.copyfileobj(f.file, fh)
+        _UPLOADED.setdefault(pipeline, set()).add(name)
+        saved.append(name)
+    return {"synced": saved}
+
+
 @app.get("/worker/{rid}/status")
 def worker_status(rid: str, token: str = ""):
     """Heartbeat the worker polls while a step runs, so Stop is honoured even

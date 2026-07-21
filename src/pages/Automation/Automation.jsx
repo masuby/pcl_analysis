@@ -199,6 +199,7 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
   const [recips, setRecips] = useState(null);
   const [recipDept, setRecipDept] = useState((spec.recipients?.departments || ['CS'])[0]);
   const [showFiles, setShowFiles] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const refresh = useCallback(() => {
     fetch(`${api}/pipelines/${pid}/files`).then((r) => r.json())
@@ -209,6 +210,20 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
   useEffect(() => {
     if (spec.message && !params.deadline) setParams((p) => ({ ...p, deadline: spec.message.default }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On open, ask the Windows worker to push this PC's files to the server, then
+  // refresh the list a few times so the freshly-synced files appear.
+  useEffect(() => {
+    if (!spec.pc_sync) return;
+    setSyncing(true);
+    fetch(`${api}/pipelines/${pid}/request-sync`, { method: 'POST' }).catch(() => {});
+    let n = 0;
+    const t = setInterval(() => {
+      refresh();
+      if (++n >= 6) { clearInterval(t); setSyncing(false); }
+    }, 1500);
+    return () => clearInterval(t);
+  }, [api, pid, spec.pc_sync, refresh]);
 
   const upload = (fileList) => {
     if (!fileList.length) return;
@@ -267,6 +282,12 @@ const Wizard = ({ modal, setModal, api, onRun }) => {
         <div className="auto-modal-section">
           <h4>1 · {spec.auto_source ? 'Source files' : 'Upload required files'}</h4>
           {spec.auto_source && <div className="auto-autosource">↻ {spec.auto_source}</div>}
+          {spec.pc_sync && (
+            <div className={`auto-pcsync ${syncing ? 'busy' : ''}`}>
+              {syncing ? '🔄 Syncing the latest files from your PC…'
+                       : `🖥 Auto-synced from your PC (${spec.pc_sync.from})`}
+            </div>
+          )}
           <label className="auto-drop">
             <input type="file" multiple onChange={(e) => upload(e.target.files)} disabled={busy} />
             <span>{busy ? 'Uploading…' : spec.auto_source ? 'Optional: choose files to override' : 'Click to choose files (multiple)'}</span>
