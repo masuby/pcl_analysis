@@ -1180,6 +1180,41 @@
   color: #475569;
 }
 
+.sales-review-input-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.sales-review-input-label-row label {
+  margin-bottom: 0;
+}
+.sales-review-bulk-toggle {
+  background: none;
+  border: none;
+  color: #2a5298;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.sales-review-bulk-toggle:hover { text-decoration: underline; }
+.sales-review-bulk-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sales-review-bulk-box { display: flex; flex-direction: column; gap: 0.5rem; }
+.sales-review-bulk-area {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.sales-review-bulk-actions { display: flex; align-items: center; gap: 0.75rem; }
+.sales-review-bulk-note { font-size: 0.8rem; font-weight: 600; color: #15803d; }
+
 .sales-review-input-row {
   display: flex;
   gap: 0.5rem;

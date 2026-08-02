@@ -279,6 +279,9 @@ const SalesReviewReport = ({ userData }) => {
     }
   });
   const [newRecipient, setNewRecipient] = useState('');
+  const [bulkEmails, setBulkEmails] = useState('');
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkAdded, setBulkAdded] = useState(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [sendProgress, setSendProgress] = useState(null); // null = not started, or [{ email, status, error? }]
@@ -414,6 +417,23 @@ const SalesReviewReport = ({ userData }) => {
     if (recipients.includes(email)) return;
     setRecipients((prev) => [...prev, email]);
     setNewRecipient('');
+  };
+
+  // Paste a blob of emails (comma / newline / space / semicolon separated,
+  // trailing commas tolerated) and add them all at once, deduped.
+  const addRecipientsBulk = () => {
+    const found = (bulkEmails || '').match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+    const cleaned = found.map((e) => e.trim().toLowerCase());
+    if (!cleaned.length) return;
+    let added = 0;
+    setRecipients((prev) => {
+      const set = new Set(prev);
+      cleaned.forEach((e) => { if (!set.has(e)) added += 1; set.add(e); });
+      return Array.from(set);
+    });
+    setBulkAdded(added);
+    setTimeout(() => setBulkAdded(null), 2500);
+    setBulkEmails('');
   };
 
   const removeRecipient = (email) => {
@@ -1123,24 +1143,62 @@ const SalesReviewReport = ({ userData }) => {
             <div className="sales-review-modal-body">
               {/* Recipients input */}
               <div className="sales-review-input-group">
-                <label>Add Recipients:</label>
-                <div className="sales-review-input-row">
-                  <input
-                    type="email"
-                    placeholder="Enter email address"
-                    value={newRecipient}
-                    onChange={(e) => setNewRecipient(e.target.value)}
-                    onKeyPress={(e) => { if (e.key === 'Enter') addRecipient(); }}
-                    disabled={sending}
-                  />
+                <div className="sales-review-input-label-row">
+                  <label>Add Recipients:</label>
                   <button
-                    className="sales-review-add-btn"
-                    onClick={addRecipient}
+                    type="button"
+                    className="sales-review-bulk-toggle"
+                    onClick={() => setShowBulk((s) => !s)}
                     disabled={sending}
                   >
-                    Add
+                    {showBulk ? '– single email' : '+ paste multiple'}
                   </button>
                 </div>
+
+                {showBulk ? (
+                  <div className="sales-review-bulk-box">
+                    <textarea
+                      className="sales-review-bulk-area"
+                      rows={6}
+                      placeholder={'Paste emails here — comma, space or one per line.\ne.g.\ndaniel@platinumcredit.co.tz,\nsigfrid@platinumcredit.co.tz'}
+                      value={bulkEmails}
+                      onChange={(e) => setBulkEmails(e.target.value)}
+                      disabled={sending}
+                    />
+                    <div className="sales-review-bulk-actions">
+                      <button
+                        className="sales-review-add-btn"
+                        onClick={addRecipientsBulk}
+                        disabled={sending || !bulkEmails.trim()}
+                      >
+                        Add all
+                      </button>
+                      {bulkAdded != null && (
+                        <span className="sales-review-bulk-note">
+                          ✓ Added {bulkAdded} new email{bulkAdded === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="sales-review-input-row">
+                    <input
+                      type="email"
+                      placeholder="Enter email address"
+                      value={newRecipient}
+                      onChange={(e) => setNewRecipient(e.target.value)}
+                      onKeyPress={(e) => { if (e.key === 'Enter') addRecipient(); }}
+                      disabled={sending}
+                    />
+                    <button
+                      className="sales-review-add-btn"
+                      onClick={addRecipient}
+                      disabled={sending}
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Copy actions: list + message (always show so message can be copied without recipients) */}
