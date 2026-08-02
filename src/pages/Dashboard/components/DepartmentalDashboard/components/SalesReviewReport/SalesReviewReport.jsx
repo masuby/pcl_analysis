@@ -324,59 +324,55 @@ const SalesReviewReport = ({ userData }) => {
     gapAnalysisAPI.getActualReps(reportId).then((res) => setSmeActualRepsOverrides(res?.data ?? {})).catch(() => setSmeActualRepsOverrides({}));
   }, [mtdSME.reports, selectedMonth]);
 
+  // Only fetch + parse the LATEST CRM report of the SELECTED month per dept
+  // (not every month's report). Results merge into state so switching back to an
+  // already-loaded month costs nothing.
   useEffect(() => {
     let cancelled = false;
+    const targetMonth = selectedMonth;
     const toMonthKey = (dateLike) => {
       const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
       if (Number.isNaN(d.getTime())) return null;
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     };
-    const loadCrmActuals = async () => {
-      const out = { CS: {}, LBF: {}, SME: {} };
-      const outDates = { CS: {}, LBF: {}, SME: {} };
-      const summaryByMonth = { CS: {}, LBF: {}, SME: {} };
+    const loadCrmActualsForMonth = async () => {
       for (const dept of ['CS', 'LBF', 'SME']) {
+        if (cancelled) return;
         const pattern = dept === 'CS' ? 'CS_CRM' : dept === 'LBF' ? 'LBF_CRM' : 'SME_CRM';
         const res = await getReportsByDepartmentAndType(dept, 'CRM');
         if (!res?.success) continue;
-        const sorted = (res.data || [])
+        // Latest report that falls inside the selected month.
+        const report = (res.data || [])
           .map((r) => ({ ...r, _d: r.date instanceof Date ? r.date : new Date(r.date || r.createdAt || r.created_at || '') }))
           .filter((r) => !Number.isNaN(r._d.getTime()))
           .filter((r) => String(r.fileName || r.file_name || '').includes(pattern))
-          .sort((a, b) => b._d - a._d);
-        const latestPerMonth = {};
-        sorted.forEach((r) => {
-          const key = toMonthKey(r._d);
-          if (key && !latestPerMonth[key]) latestPerMonth[key] = r;
-        });
-        for (const [monthKey, report] of Object.entries(latestPerMonth)) {
-          try {
-            const url = report.fileUrl || report.file_url || ((report.filePath || report.file_path) ? await getReportFileUrl(report.filePath || report.file_path) : null);
-            if (!url) continue;
-            const fetched = await fetch(url);
-            if (!fetched.ok) continue;
-            const ab = await fetched.arrayBuffer();
-            const wb = XLSX.read(ab, { type: 'array', raw: false });
-            out[dept][monthKey] = extractCRMAgentCountFromWorkbook(wb);
-            const summaryRows = parseCrmSummaryActualAgents(ab);
-            if (summaryRows.length > 0) {
-              summaryByMonth[dept][monthKey] = summaryRows;
-            }
-            outDates[dept][monthKey] = report._d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-          } catch {
-            // ignore month if CRM file cannot be parsed
+          .filter((r) => toMonthKey(r._d) === targetMonth)
+          .sort((a, b) => b._d - a._d)[0];
+        if (!report) continue;
+        try {
+          const url = report.fileUrl || report.file_url || ((report.filePath || report.file_path) ? await getReportFileUrl(report.filePath || report.file_path) : null);
+          if (!url) continue;
+          const fetched = await fetch(url);
+          if (!fetched.ok) continue;
+          const ab = await fetched.arrayBuffer();
+          const wb = XLSX.read(ab, { type: 'array', raw: false });
+          const count = extractCRMAgentCountFromWorkbook(wb);
+          const summaryRows = parseCrmSummaryActualAgents(ab);
+          const dateStr = report._d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+          if (cancelled) return;
+          setCrmActualRepsByMonth((prev) => ({ ...prev, [dept]: { ...(prev[dept] || {}), [targetMonth]: count } }));
+          setCrmActualDateByMonth((prev) => ({ ...prev, [dept]: { ...(prev[dept] || {}), [targetMonth]: dateStr } }));
+          if (summaryRows.length > 0) {
+            setCrmSummaryByDeptMonth((prev) => ({ ...prev, [dept]: { ...(prev[dept] || {}), [targetMonth]: summaryRows } }));
           }
+        } catch {
+          // ignore this dept/month if the CRM file cannot be fetched/parsed
         }
       }
-      if (!cancelled) {
-        setCrmActualRepsByMonth(out);
-        setCrmActualDateByMonth(outDates);
-        setCrmSummaryByDeptMonth(summaryByMonth);
-      }
     };
-    loadCrmActuals();
+    loadCrmActualsForMonth();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedMonth]);
 
   const copyRecipientList = () => {
     if (recipients.length === 0) return;

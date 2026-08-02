@@ -42,6 +42,21 @@ function stripDeptPrefix(x) {
  * @param {ArrayBuffer} ab
  * @returns {{ branch: string, actual: number }[]}
  */
+const _isActualHeader = (h) =>
+  h === 'ACTUAL AGENTS' || h === 'ACTUAL AGENT' || h === 'ACTUAL'
+  || (h.includes('ACTUAL') && h.includes('AGENT'));
+const _isBranchHeader = (h) => h === 'BRANCH' || h === 'ZONE';
+
+/**
+ * Parse EVERY "SALES AGENTS" block in the Summary sheet (both "by ZONE" and
+ * "by BRANCH"), skipping the "TEAM LEADERS" / "BY TEAM LEADER" blocks. Returns
+ * one { branch, actual } per data row across all sales-agent blocks, so the
+ * lookup can match a supervision whether it is named by zone (CS) or by branch
+ * (LBF / SME \u2014 e.g. "LBF Kigamboni").
+ *
+ * @param {ArrayBuffer} ab
+ * @returns {{ branch: string, actual: number }[]}
+ */
 export function parseCrmSummaryActualAgents(ab) {
   if (!ab) return [];
   let wb;
@@ -56,50 +71,54 @@ export function parseCrmSummaryActualAgents(ab) {
   const allData = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
   if (!allData?.length) return [];
 
-  let headerRowIdx = -1;
+  const out = [];
+  const seen = new Set();
+  // Default true so older files that have no "SALES AGENTS" title still parse.
+  let inSalesBlock = true;
+  let reading = false;
   let branchCol = -1;
   let actualCol = -1;
 
-  const scanLimit = Math.min(allData.length, 30);
-  for (let r = 0; r < scanLimit; r++) {
+  for (let r = 0; r < allData.length; r++) {
     const row = allData[r] || [];
     const cells = row.map((c) => String(c ?? '').trim());
     const upper = cells.map((c) => c.toUpperCase());
+    const first = upper[0] || '';
+    const nonEmpty = cells.filter((c) => c !== '');
 
-    const branchIdx = upper.findIndex(
-      (h) => h === 'BRANCH' || h === 'ZONE' || (h.includes('BRANCH') && h.length < 40) || (h.includes('ZONE') && h.length < 40)
-    );
-    const actualIdx = upper.findIndex(
-      // New CRM structure renamed "Actual Agents" -> "Actual"; keep both.
-      (h) => h === 'ACTUAL AGENTS' || h === 'ACTUAL AGENT' || h === 'ACTUAL'
-        || (h.includes('ACTUAL') && h.includes('AGENT'))
-    );
-
-    if (branchIdx >= 0 && actualIdx >= 0) {
-      headerRowIdx = r;
-      branchCol = branchIdx;
-      actualCol = actualIdx;
-      break;
+    // Section-title line (one meaningful cell) toggles the block type.
+    if (cells[0] !== '' && nonEmpty.length <= 1) {
+      if (first.includes('SALES AGENT')) { inSalesBlock = true; reading = false; continue; }
+      if (first.includes('TEAM LEADER') || first.includes('BY TEAM')) { inSalesBlock = false; reading = false; continue; }
+      // any other lone-cell line: ignore (could be a data row with empty metrics)
     }
-  }
 
-  if (headerRowIdx < 0 || branchCol < 0 || actualCol < 0) return [];
+    // Header row: Branch/Zone col + Actual col.
+    const bIdx = upper.findIndex(_isBranchHeader);
+    const aIdx = upper.findIndex(_isActualHeader);
+    if (bIdx >= 0 && aIdx >= 0) {
+      if (inSalesBlock) { branchCol = bIdx; actualCol = aIdx; reading = true; }
+      else { reading = false; }
+      continue;
+    }
 
-  const out = [];
-  for (let r = headerRowIdx + 1; r < allData.length; r++) {
-    const row = allData[r] || [];
-    const branchRaw = row[branchCol];
-    const branch = branchRaw != null ? String(branchRaw).replace(/\u00a0/g, ' ').trim() : '';
-    if (!branch) continue;
+    // Data rows while reading a SALES AGENTS block.
+    if (reading && branchCol >= 0 && actualCol >= 0) {
+      const branchRaw = row[branchCol];
+      const branch = branchRaw != null ? String(branchRaw).replace(/\u00a0/g, ' ').trim() : '';
+      if (!branch) { reading = false; continue; }
+      const bLower = branch.toLowerCase();
+      if (bLower === 'total' || bLower === 'grand total' || bLower === 'sum') { reading = false; continue; }
 
-    const bLower = branch.toLowerCase();
-    if (bLower === 'total' || bLower === 'grand total' || bLower === 'sum') break;
+      const rawVal = row[actualCol];
+      const n = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal ?? '').replace(/,/g, ''));
+      if (!Number.isFinite(n)) continue;
 
-    const rawVal = row[actualCol];
-    const n = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal ?? '').replace(/,/g, ''));
-    if (!Number.isFinite(n)) continue;
-
-    out.push({ branch, actual: Math.round(n) });
+      const key = `${normKey(branch)}|${Math.round(n)}`;
+      if (seen.has(key)) continue;   // avoid exact dupes across blocks
+      seen.add(key);
+      out.push({ branch, actual: Math.round(n) });
+    }
   }
 
   return out;
