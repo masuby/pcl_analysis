@@ -109,6 +109,10 @@ export function parseCrmSummaryActualAgents(ab) {
       if (!branch) { reading = false; continue; }
       const bLower = branch.toLowerCase();
       if (bLower === 'total' || bLower === 'grand total' || bLower === 'sum') { reading = false; continue; }
+      // Skip bare dept-aggregate rows (a lone "LBF" / "CS" / "SME"): they are
+      // catch-alls, not real branches, and their large count would otherwise
+      // fuzzy-match every "LBF …" supervision name to the wrong number.
+      if (/^(cs|lbf|sme)$/i.test(branch)) continue;
 
       const rawVal = row[actualCol];
       const n = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal ?? '').replace(/,/g, ''));
