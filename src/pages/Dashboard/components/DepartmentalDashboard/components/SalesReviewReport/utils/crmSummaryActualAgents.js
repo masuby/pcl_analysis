@@ -70,7 +70,9 @@ export function parseCrmSummaryActualAgents(ab) {
       (h) => h === 'BRANCH' || h === 'ZONE' || (h.includes('BRANCH') && h.length < 40) || (h.includes('ZONE') && h.length < 40)
     );
     const actualIdx = upper.findIndex(
-      (h) => h === 'ACTUAL AGENTS' || h === 'ACTUAL AGENT' || (h.includes('ACTUAL') && h.includes('AGENT'))
+      // New CRM structure renamed "Actual Agents" -> "Actual"; keep both.
+      (h) => h === 'ACTUAL AGENTS' || h === 'ACTUAL AGENT' || h === 'ACTUAL'
+        || (h.includes('ACTUAL') && h.includes('AGENT'))
     );
 
     if (branchIdx >= 0 && actualIdx >= 0) {

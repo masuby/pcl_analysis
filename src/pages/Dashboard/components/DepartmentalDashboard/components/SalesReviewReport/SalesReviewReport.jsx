@@ -115,17 +115,46 @@ function countActiveRepsFromSupervision(supervision, columnMap, listingData) {
 }
 
 function extractCRMAgentCountFromWorkbook(wb) {
-  if (!wb?.SheetNames?.includes('Email')) return 0;
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets.Email, { defval: '' });
-  const map = {};
-  rows.forEach((r) => {
-    const k = String(r.Text ?? r.text ?? '').trim().toLowerCase();
-    if (k) map[k] = r.Value ?? r.value ?? '';
-  });
-  const keys = ['total_count_agent', 'total_agent', 'today_total_agents', 'count_agent'];
-  for (const k of keys) {
-    const n = Number(map[k]) || 0;
-    if (n > 0) return Math.round(n);
+  if (!wb?.SheetNames?.length) return 0;
+
+  // NEW CRM structure: "Email Summary" sheet, columns Section | Metric | Value,
+  // with the row  Sales Agents | Actual on CRM | <n>.
+  const esName = wb.SheetNames.find((n) => String(n).trim().toLowerCase() === 'email summary');
+  if (esName) {
+    const data = XLSX.utils.sheet_to_json(wb.Sheets[esName], { header: 1, defval: '' });
+    let hr = -1, metricCol = -1, valueCol = -1;
+    for (let r = 0; r < Math.min(data.length, 15); r++) {
+      const up = (data[r] || []).map((c) => String(c ?? '').trim().toLowerCase());
+      const m = up.indexOf('metric');
+      const v = up.indexOf('value');
+      if (m >= 0 && v >= 0) { hr = r; metricCol = m; valueCol = v; break; }
+    }
+    if (hr >= 0) {
+      for (let r = hr + 1; r < data.length; r++) {
+        const row = data[r] || [];
+        const metric = String(row[metricCol] ?? '').trim().toLowerCase();
+        if (metric === 'actual on crm' || metric === 'actual agents on crm'
+            || (metric.includes('actual') && metric.includes('crm'))) {
+          const n = Number(String(row[valueCol] ?? '').replace(/,/g, '')) || 0;
+          if (n > 0) return Math.round(n);
+        }
+      }
+    }
+  }
+
+  // OLD structure: "Email" sheet keyed by Text | Value.
+  if (wb.SheetNames.includes('Email')) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets.Email, { defval: '' });
+    const map = {};
+    rows.forEach((r) => {
+      const k = String(r.Text ?? r.text ?? '').trim().toLowerCase();
+      if (k) map[k] = r.Value ?? r.value ?? '';
+    });
+    const keys = ['total_count_agent', 'total_agent', 'today_total_agents', 'count_agent'];
+    for (const k of keys) {
+      const n = Number(map[k]) || 0;
+      if (n > 0) return Math.round(n);
+    }
   }
   return 0;
 }
