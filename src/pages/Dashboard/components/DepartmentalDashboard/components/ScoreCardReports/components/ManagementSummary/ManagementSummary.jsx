@@ -35,18 +35,50 @@ const deltaTextOrDash = (curr, prev, hasBase) => (hasBase ? deltaText(curr, prev
 const getPortfolio = (data = {}) => num(data.Portfolio ?? data.Portifolio ?? data['Outstanding Loan Book'] ?? data['Outstanding Portfolio'] ?? data['Loan Book'] ?? 0);
 const getDisbursement = (data = {}) => num(data['Disbursements This Month'] ?? data['Disbursement This Month'] ?? data['Disbursement this Month'] ?? 0);
 
+/**
+ * Actual reps on CRM for a department.
+ * New CRM structure: sheet "Email Summary" with columns Section | Metric | Value
+ * and the row  Sales Agents | Actual on CRM | <n>.
+ * Older files used an "Email" sheet keyed by Text | Value — kept as a fallback.
+ */
 const extractCRMAgentCount = (wb) => {
-  if (!wb?.SheetNames?.includes('Email')) return 0;
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets.Email, { defval: '' });
-  const map = {};
-  rows.forEach((r) => {
-    const k = String(r.Text ?? r.text ?? '').trim().toLowerCase();
-    if (k) map[k] = r.Value ?? r.value ?? '';
-  });
-  const keys = ['total_count_agent', 'total_agent', 'today_total_agents', 'count_agent'];
-  for (const k of keys) {
-    const x = num(map[k]);
-    if (x > 0) return x;
+  if (!wb?.SheetNames?.length) return 0;
+
+  const esName = wb.SheetNames.find((n) => String(n).trim().toLowerCase() === 'email summary');
+  if (esName) {
+    const data = XLSX.utils.sheet_to_json(wb.Sheets[esName], { header: 1, defval: '' });
+    let hr = -1, metricCol = -1, valueCol = -1;
+    for (let i = 0; i < Math.min(data.length, 15); i++) {
+      const up = (data[i] || []).map((c) => String(c ?? '').trim().toLowerCase());
+      const m = up.indexOf('metric');
+      const v = up.indexOf('value');
+      if (m >= 0 && v >= 0) { hr = i; metricCol = m; valueCol = v; break; }
+    }
+    if (hr >= 0) {
+      for (let i = hr + 1; i < data.length; i++) {
+        const row = data[i] || [];
+        const metric = String(row[metricCol] ?? '').trim().toLowerCase();
+        if (metric === 'actual on crm' || metric === 'actual agents on crm'
+            || (metric.includes('actual') && metric.includes('crm'))) {
+          const x = num(String(row[valueCol] ?? '').replace(/,/g, ''));
+          if (x > 0) return x;
+        }
+      }
+    }
+  }
+
+  if (wb.SheetNames.includes('Email')) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets.Email, { defval: '' });
+    const map = {};
+    rows.forEach((r) => {
+      const k = String(r.Text ?? r.text ?? '').trim().toLowerCase();
+      if (k) map[k] = r.Value ?? r.value ?? '';
+    });
+    const keys = ['total_count_agent', 'total_agent', 'today_total_agents', 'count_agent'];
+    for (const k of keys) {
+      const x = num(map[k]);
+      if (x > 0) return x;
+    }
   }
   return 0;
 };
