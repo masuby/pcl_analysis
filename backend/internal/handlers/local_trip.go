@@ -16,11 +16,12 @@ import (
 )
 
 var allowedLocalTripKinds = map[string]bool{
-	"LOCAL_TRIP": true,
-	"SALES":      true,
-	"USERS":      true,
-	"ACTIVITIES": true,
-	"LOAN":       true,
+	"LOCAL_TRIP":    true,
+	"SALES":         true,
+	"USERS":         true,
+	"ACTIVITIES":    true,
+	"LOAN":          true,
+	"ZONE_CLUSTERS": true, // Branch -> Cluster mapping (Team Building report)
 }
 
 // InitLocalTripHandlers creates the upload directories for each file kind.
@@ -54,7 +55,7 @@ func UploadLocalTripFile(c *gin.Context) {
 	if !allowedLocalTripKinds[kind] {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "kind must be one of: LOCAL_TRIP, SALES, USERS, ACTIVITIES, LOAN",
+			"error":   "kind must be one of: LOCAL_TRIP, SALES, USERS, ACTIVITIES, LOAN, ZONE_CLUSTERS",
 		})
 		return
 	}

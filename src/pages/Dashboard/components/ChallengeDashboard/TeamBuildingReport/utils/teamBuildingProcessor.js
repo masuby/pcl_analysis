@@ -32,6 +32,22 @@ const trim    = (s) => String(s ?? '').trim();
 const norm    = (s) => trim(s).toLowerCase();
 const normKey = (s) => trim(s).replace(/\s+/g, ' ').toLowerCase();
 
+/**
+ * Branch key for the Zone-and-Clusters VLOOKUP: case/space-insensitive and with
+ * the generic words Branch/Centre/Center removed, so "LBF TAZARA BRANCH",
+ * "LBF Tazara Branch" and "LBF Tazara" all resolve to the same cluster.
+ */
+const normBranchKey = (s) =>
+  trim(s)
+    .replace(/ /g, ' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\b(branch|centre|center)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+/** A Team Leader is identified by their Title (not Role) containing "TEAM LEADER". */
+const isTeamLeaderTitle = (title) => /team\s*leader/i.test(String(title ?? ''));
+
 const MONTH_ORDER = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
@@ -205,15 +221,44 @@ function qualifyRegion(rObj) {
   };
 }
 
+/**
+ * Qualify a Cluster.
+ * Target = sum of the targets of the branches that roll up into the cluster.
+ * Criteria: cluster actual ≥ cluster target  AND  cluster PAR>30 ≤ 4%
+ */
+function qualifyCluster(cObj) {
+  const passTarget = cObj.target > 0 && cObj.totalAmount >= cObj.target;
+  const passPAR    = cObj.par30 <= PAR_LIMIT;
+  const ok         = passTarget && passPAR;
+
+  const pct   = cObj.target > 0 ? Math.round((cObj.totalAmount / cObj.target) * 100) : 0;
+  const parts = [];
+  if (!passTarget) {
+    parts.push(cObj.target === 0 ? 'No target set' : `Achievement ${pct}% < 100%`);
+  }
+  if (!passPAR) parts.push(`PAR>30 ${(cObj.par30 * 100).toFixed(1)}% > 4%`);
+
+  return {
+    qualified:   ok,
+    reason:      ok ? 'Criteria met' : parts.join('; '),
+    achievement: cObj.target > 0 ? cObj.totalAmount / cObj.target : 0,
+    par30:       cObj.par30,
+  };
+}
+
 // ── main export ───────────────────────────────────────────────────────────────
 
 /**
  * @param {ArrayBuffer} salesBuf
  * @param {ArrayBuffer} usersBuf
  * @param {ArrayBuffer} activitiesBuf
- * @param {ArrayBuffer|null} loanBuf  — Loan Accounts file for PAR>30 calculation
+ * @param {ArrayBuffer|null} loanBuf          — Loan Accounts file for PAR>30
+ * @param {ArrayBuffer|null} zoneClustersBuf  — OPTIONAL "Zone and Clusters" file.
+ *        When supplied, every agent gets a Cluster (Branch → Cluster VLOOKUP on
+ *        the user's Branch) and the cluster tables are produced. When omitted the
+ *        report behaves exactly as before.
  */
-export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loanBuf) {
+export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loanBuf, zoneClustersBuf) {
 
   // ── parse sales file (2 sheets: Sales + Target) ──────────────────────────────
   const salesSheets = parseAllSheets(salesBuf);
@@ -261,6 +306,41 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     if (!key || key === 'branch/tl' || key === 'branch / tl' || key === 'target' || val === 0) return;
     targetMap[key] = val;
   });
+
+  // ── Zone & Clusters map (optional) ────────────────────────────────────────────
+  // normBranchKey(Branch) → { cluster, zone, product }
+  // Scans every sheet that carries Branch + Cluster columns, so the workbook's
+  // "Zone and cluster" summary tab and the per-product tabs all contribute.
+  const clusterMap = {};
+  let clusterFileLoaded = false;
+  if (zoneClustersBuf) {
+    try {
+      const zcSheets = parseAllSheets(zoneClustersBuf);
+      Object.values(zcSheets).forEach((sheetRows) => {
+        (sheetRows ?? []).forEach((row) => {
+          const branch  = trim(String(getField(row, 'Branch')  ?? ''));
+          const cluster = trim(String(getField(row, 'Cluster') ?? ''));
+          if (!branch || !cluster) return;
+          const key = normBranchKey(branch);
+          if (!key || clusterMap[key]) return;      // first definition wins
+          clusterMap[key] = {
+            cluster,
+            zone:    trim(String(getField(row, 'Zone')    ?? '')),
+            product: trim(String(getField(row, 'Product') ?? '')),
+          };
+        });
+      });
+      clusterFileLoaded = Object.keys(clusterMap).length > 0;
+    } catch {
+      // A malformed Zone & Clusters file must never break the whole report.
+      clusterFileLoaded = false;
+    }
+  }
+
+  function getCluster(branchName) {
+    if (!branchName) return null;
+    return clusterMap[normBranchKey(branchName)] ?? null;
+  }
 
   // ── users map: norm(displayName) → { title, role, branch } ───────────────────
   // We use TITLE (not Role) — Title is the precise job title (Independent TL,
@@ -353,6 +433,16 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     a.totalPrincipal = p.totalPrincipal;
     a.par30Principal = p.par30Principal;
     a.par30          = p.par30;
+
+    // Cluster: VLOOKUP on the user's Branch (the clean branch name), which
+    // matches Zone & Clusters far better than the "Branch / TL" team label.
+    a.userBranch = getUser(a.repName)?.branch ?? '';
+    const cl     = getCluster(a.userBranch) ?? getCluster(a.branch);
+    a.cluster    = cl?.cluster ?? '';
+    a.zone       = cl?.zone    ?? '';
+
+    // Team Leaders must not be counted as sales reps.
+    a.isTeamLeader = isTeamLeaderTitle(a.title);
   });
 
   const monthsInData = [...monthsSet].sort((x, y) => MONTH_ORDER.indexOf(x) - MONTH_ORDER.indexOf(y));
@@ -389,27 +479,49 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         // TL target: cumulative (monthly × months)
         bObj.target = (targetMap[normKey(branch)] ?? 0) * monthsCount;
 
-        // Step 1: qualify each agent (cumulative thresholds)
+        // Split the branch roster: Team Leaders are NOT sales reps. Their sales
+        // still count toward the branch total, but they are judged by the TL
+        // criteria (target + PAR) in the Team Leader table, not by rep thresholds.
+        bObj.salesAgents = bObj.agents.filter((a) => !a.isTeamLeader);
+        bObj.teamLeaders = bObj.agents.filter((a) =>  a.isTeamLeader);
+
+        // Step 1: qualify each SALES AGENT (cumulative thresholds)
         bObj.agents.forEach((agent) => {
+          agent.target = agent.repsTarget * monthsCount;
+          if (agent.isTeamLeader) {
+            agent.qualified  = false;
+            agent.qualReason = 'Team Leader — assessed in the Team Leader table';
+            agent.minLoans   = 0;
+            agent.minDisb    = 0;
+            return;
+          }
           const q           = qualifyAgent(agent, product, region, monthsCount);
           agent.qualified   = q.qualified;
           agent.qualReason  = q.reason;
           agent.minLoans    = q.minLoans;
           agent.minDisb     = q.minDisb;
-          agent.target      = agent.repsTarget * monthsCount;
         });
 
-        // Step 2: branch totals + PAR (aggregated across all agents)
+        // Step 2: branch totals + PAR (across the WHOLE roster, TLs included)
         bObj.totalAmount    = bObj.agents.reduce((s, a) => s + a.totalAmount, 0);
         bObj.totalLoans     = bObj.agents.reduce((s, a) => s + a.totalLoans,  0);
         bObj.totalPrincipal = bObj.agents.reduce((s, a) => s + a.totalPrincipal, 0);
         bObj.par30Principal = bObj.agents.reduce((s, a) => s + a.par30Principal, 0);
         bObj.par30          = bObj.totalPrincipal > 0 ? bObj.par30Principal / bObj.totalPrincipal : 0;
-        bObj.qualCount      = bObj.agents.filter((a) => a.qualified).length;
+        bObj.qualCount      = bObj.salesAgents.filter((a) => a.qualified).length;
 
-        // TL name from "Branch Name (TL Name)" pattern
+        // TL name: prefer the real person(s) found in the roster, else fall back
+        // to the "Branch Name (TL Name)" pattern used by the sales file.
         const tlMatch = trim(branch).match(/\(([^)]+)\)\s*$/);
-        bObj.tlName   = tlMatch ? trim(tlMatch[1]) : trim(branch);
+        bObj.tlName   = bObj.teamLeaders.length
+          ? bObj.teamLeaders.map((t) => t.repName).join(', ')
+          : (tlMatch ? trim(tlMatch[1]) : trim(branch));
+        bObj.tlTitle  = bObj.teamLeaders[0]?.title ?? '';
+
+        // Branch cluster = the cluster most of its roster belongs to.
+        const cCount = {};
+        bObj.agents.forEach((a) => { if (a.cluster) cCount[a.cluster] = (cCount[a.cluster] ?? 0) + 1; });
+        bObj.cluster = Object.entries(cCount).sort((x, y) => y[1] - x[1])[0]?.[0] ?? '';
 
         // Step 3: qualify TL (100% target + PAR ≤ 4%)
         const tlQual       = qualifyTL(bObj);
@@ -442,8 +554,61 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     pObj.qualCount   = Object.values(pObj.regions).reduce((s, r) => s + r.qualCount,   0);
   });
 
+  // ── clusters ──────────────────────────────────────────────────────────────────
+  // A cluster groups branches (Zone & Clusters file). Its target is the SUM of
+  // its member branches' targets, since the Target sheet carries no cluster rows.
+  const clusters = {};
+  if (clusterFileLoaded) {
+    products.forEach((product) => {
+      Object.entries(hierarchy[product].regions).forEach(([region, rObj]) => {
+        Object.entries(rObj.branches).forEach(([branch, bObj]) => {
+          const name = bObj.cluster;
+          if (!name) return;
+          if (!clusters[name]) {
+            clusters[name] = {
+              name,
+              zone:           bObj.agents.find((a) => a.zone)?.zone ?? '',
+              products:       new Set(),
+              regions:        new Set(),
+              branchCount:    0,
+              target:         0,
+              totalAmount:    0,
+              totalLoans:     0,
+              totalPrincipal: 0,
+              par30Principal: 0,
+              qualCount:      0,
+              agentCount:     0,
+            };
+          }
+          const c = clusters[name];
+          c.products.add(product);
+          c.regions.add(region);
+          c.branchCount    += 1;
+          c.target         += bObj.target      ?? 0;   // sum of branch targets
+          c.totalAmount    += bObj.totalAmount ?? 0;
+          c.totalLoans     += bObj.totalLoans  ?? 0;
+          c.totalPrincipal += bObj.totalPrincipal ?? 0;
+          c.par30Principal += bObj.par30Principal ?? 0;
+          c.qualCount      += bObj.qualCount   ?? 0;
+          c.agentCount     += bObj.salesAgents?.length ?? 0;
+        });
+      });
+    });
+
+    Object.values(clusters).forEach((c) => {
+      c.par30      = c.totalPrincipal > 0 ? c.par30Principal / c.totalPrincipal : 0;
+      const q      = qualifyCluster(c);
+      c.qualified  = q.qualified;
+      c.reason     = q.reason;
+      c.achievement = q.achievement;
+      c.productList = [...c.products].join(', ');
+      c.regionList  = [...c.regions].join(', ');
+    });
+  }
+
   // ── summary ───────────────────────────────────────────────────────────────────
   const allAgents = Object.values(agentMap);
+  const salesOnly = allAgents.filter((a) => !a.isTeamLeader);
 
   let qualifiedTLs = 0;
   let qualifiedRegions = 0;
@@ -456,16 +621,23 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     });
   });
 
+  const clusterList      = Object.values(clusters);
+  const qualifiedClusters = clusterList.filter((c) => c.qualified).length;
+
   const summary = {
-    totalAgents:     allAgents.length,
+    // Sales-rep figures EXCLUDE Team Leaders (they are judged as TLs instead).
+    totalAgents:     salesOnly.length,
     totalAmount:     allAgents.reduce((s, a) => s + a.totalAmount, 0),
     totalLoans:      allAgents.reduce((s, a) => s + a.totalLoans,  0),
-    qualified:       allAgents.filter((a) => a.qualified).length,
-    notQualified:    allAgents.filter((a) => !a.qualified).length,
+    qualified:       salesOnly.filter((a) => a.qualified).length,
+    notQualified:    salesOnly.filter((a) => !a.qualified).length,
+    teamLeaderCount: allAgents.filter((a) => a.isTeamLeader).length,
     qualifiedTLs,
     qualifiedRegions,
-    oldAgents:       allAgents.filter((a) => a.flag === 'Yes').length,
-    newAgents:       allAgents.filter((a) => a.flag === 'No' && a.period !== 'Unknown').length,
+    qualifiedClusters,
+    totalClusters:   clusterList.length,
+    oldAgents:       salesOnly.filter((a) => a.flag === 'Yes').length,
+    newAgents:       salesOnly.filter((a) => a.flag === 'No' && a.period !== 'Unknown').length,
     monthsInData,
     byProduct: Object.fromEntries(
       products.map((p) => [p, {
@@ -479,5 +651,12 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     ),
   };
 
-  return { hierarchy, monthsInData, products, summary };
+  return {
+    hierarchy,
+    monthsInData,
+    products,
+    summary,
+    clusters:          clusterList.sort((a, b) => b.totalAmount - a.totalAmount),
+    clusterFileLoaded,
+  };
 }

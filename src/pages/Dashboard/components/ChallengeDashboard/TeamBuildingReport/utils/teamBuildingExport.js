@@ -377,7 +377,7 @@ function buildAllAgentsSheet(hierarchy, monthsInData) {
 
 // ── Sheet: Qualified ─────────────────────────────────────────────────────────
 
-function buildQualifiedSheet(hierarchy, monthsInData) {
+function buildQualifiedSheet(hierarchy, monthsInData, clusters = []) {
   const months    = monthsInData;
   const monthCols = months.map((m) => m.slice(0, 3).toUpperCase());
 
@@ -411,20 +411,22 @@ function buildQualifiedSheet(hierarchy, monthsInData) {
   //  9..N : monthly                                      [MONTHLY DATA]    sep after last
   //  N+1.. : TOTAL LOANS, MIN, TOTAL AMOUNT, MIN, TARGET, %  [PERFORMANCE]
 
-  const T1_ID_END   = 4;   // sep col
-  const T1_INFO_END = 8;   // sep col
-  const T1_MONTH_S  = 9;
+  // CLUSTER is inserted after REGION, so identity runs #, PRODUCT, REGION,
+  // CLUSTER, BRANCH/TL, SALES REP.
+  const T1_ID_END   = 5;   // sep col
+  const T1_INFO_END = 9;   // sep col
+  const T1_MONTH_S  = 10;
   const T1_MONTH_E  = T1_MONTH_S + months.length - 1; // sep col
   const T1_RIGHT_S  = T1_MONTH_S + months.length;
 
   const T1_COLS = [
-    '#', 'PRODUCT', 'REGION', 'BRANCH / TL', 'SALES REP.',
+    '#', 'PRODUCT', 'REGION', 'CLUSTER', 'BRANCH / TL', 'SALES REP.',
     'TITLE', 'CATEGORY', 'PERIOD JOINED', 'FLAG JOINED DATE',
     ...monthCols,
     'TOTAL LOANS', 'MIN LOANS', 'TOTAL AMOUNT (TZS)', 'MIN AMOUNT (TZS)', 'TARGET (TZS)', '% ACHIEVED',
   ];
   const T1_LEN    = T1_COLS.length;
-  const T1_WIDTHS = [5, 20, 20, 26, 26, 18, 12, 16, 10, ...months.map(() => 22), 10, 11, 18, 18, 18, 11];
+  const T1_WIDTHS = [5, 20, 20, 18, 26, 26, 18, 12, 16, 10, ...months.map(() => 22), 10, 11, 18, 18, 18, 11];
 
   // Section header
   rows.push(sectionHdr('QUALIFIED SALES REPS', T1_LEN)); rowHeights[rowIdx] = 22;
@@ -459,12 +461,13 @@ function buildQualifiedSheet(hierarchy, monthsInData) {
   rowHeights[rowIdx++] = 28;
 
   // ── collect ALL qualified agents, sort globally by % achieved ────────────────
+  // Team Leaders are excluded here — they are judged in the Team Leader table.
   const allQualAgents = [];
   Object.entries(hierarchy).forEach(([product, pObj]) => {
     const pName = PRODUCT_LABELS[product] ?? product;
     Object.entries(pObj.regions).forEach(([region, rObj]) => {
       Object.entries(rObj.branches).forEach(([branch, bObj]) => {
-        bObj.agents.filter((a) => a.qualified).forEach((agent) => {
+        bObj.agents.filter((a) => a.qualified && !a.isTeamLeader).forEach((agent) => {
           allQualAgents.push({ pName, region, branch, agent });
         });
       });
@@ -478,12 +481,13 @@ function buildQualifiedSheet(hierarchy, monthsInData) {
     row[0] = numCell(idx + 1, alt);
     row[1] = agentCell(pName, alt);
     row[2] = agentCell(region, alt);
-    row[3] = agentCell(branch, alt);
-    row[4] = agentCell(agent.repName, alt, true, true); // sep
-    row[5] = agentCell(agent.title || agent.role || '—', alt);
-    row[6] = agentCell(agent.flag === 'Yes' ? 'Old Agent' : 'New Agent', alt);
-    row[7] = agentCell(agent.period || 'Unknown', alt);
-    row[8] = agentCell(agent.flag || '—', alt, false, true); // sep
+    row[3] = agentCell(agent.cluster || '—', alt);
+    row[4] = agentCell(branch, alt);
+    row[5] = agentCell(agent.repName, alt, true, true); // sep
+    row[6] = agentCell(agent.title || agent.role || '—', alt);
+    row[7] = agentCell(agent.flag === 'Yes' ? 'Old Agent' : 'New Agent', alt);
+    row[8] = agentCell(agent.period || 'Unknown', alt);
+    row[9] = agentCell(agent.flag || '—', alt, false, true); // sep
     months.forEach((m, mi) => {
       row[T1_MONTH_S + mi] = monthCell(agent.monthly[m], alt, mi === months.length - 1);
     });
@@ -613,6 +617,64 @@ function buildQualifiedSheet(hierarchy, monthsInData) {
     rows.push(row); rowHeights[rowIdx++] = 18;
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // TABLE 4 — QUALIFIED CLUSTERS   (only when the Zone & Clusters file was given)
+  // ════════════════════════════════════════════════════════════════════════════
+  if (clusters.length) {
+    for (let i = 0; i < 2; i++) {
+      rows.push(new Array(T1_LEN).fill({ v: '', t: 's', s: { border: {} } }));
+      rowHeights[rowIdx++] = 8;
+    }
+
+    const T4_COLS   = ['#', 'CLUSTER', 'ZONE', 'PRODUCT(S)', 'BRANCHES', 'SALES REPS', 'QUALIFIED REPS',
+      'CLUSTER TARGET (TZS)', 'CLUSTER ACTUAL (TZS)', '% ACHIEVED', 'PAR > 30'];
+    const T4_LEN    = T4_COLS.length;
+
+    rows.push(sectionHdr('QUALIFIED CLUSTERS', T4_LEN)); rowHeights[rowIdx] = 22;
+    merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: T4_LEN - 1 } }); rowIdx++;
+
+    {
+      const sh = new Array(T4_LEN).fill(null);
+      sh[0] = superHdrCell('IDENTITY', '1F3864');
+      for (let i = 1; i <= 3; i++) sh[i] = blankSuper('1F3864');
+      sh[3] = blankSuper('1F3864', true);
+      sh[4] = superHdrCell('COVERAGE', '2563EB');
+      for (let i = 5; i <= 6; i++) sh[i] = blankSuper('2563EB');
+      sh[6] = blankSuper('2563EB', true);
+      sh[7] = superHdrCell('PERFORMANCE (Target vs Actual + PAR)', '166534');
+      for (let i = 8; i < T4_LEN; i++) sh[i] = blankSuper('166534');
+      rows.push(sh); rowHeights[rowIdx] = 18;
+      merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: 3 } });
+      merges.push({ s: { r: rowIdx, c: 4 }, e: { r: rowIdx, c: 6 } });
+      merges.push({ s: { r: rowIdx, c: 7 }, e: { r: rowIdx, c: T4_LEN - 1 } });
+      rowIdx++;
+    }
+
+    rows.push(T4_COLS.map((h, i) => hdrCell(h, i === 3 || i === 6)));
+    rowHeights[rowIdx++] = 28;
+
+    const qualClusters = clusters
+      .filter((c) => c.qualified)
+      .sort((x, y) => cmpAchv(x.totalAmount, x.target, y.totalAmount, y.target));
+
+    qualClusters.forEach((c, idx) => {
+      const alt = idx % 2 === 1;
+      const row = new Array(T4_LEN).fill(null);
+      row[0]  = numCell(idx + 1, alt);
+      row[1]  = agentCell(c.name, alt);
+      row[2]  = agentCell(c.zone || '—', alt);
+      row[3]  = agentCell(c.productList || '—', alt, false, true); // sep
+      row[4]  = numCell(c.branchCount ?? 0, alt);
+      row[5]  = numCell(c.agentCount  ?? 0, alt);
+      row[6]  = numCell(c.qualCount   ?? 0, alt, '166534');
+      row[7]  = numCell(c.target      ?? 0, alt);
+      row[8]  = numCell(c.totalAmount ?? 0, alt);
+      row[9]  = pctCell(c.totalAmount ?? 0, c.target ?? 0, alt);
+      row[10] = parCell(c.par30 ?? 0, alt);
+      rows.push(row); rowHeights[rowIdx++] = 18;
+    });
+  }
+
   const ws = aoaToSheet(rows, T1_WIDTHS, rowHeights);
   ws['!merges'] = merges;
   ws['!freeze'] = { ySplit: 3 }; // section label + super-header + col header
@@ -621,20 +683,47 @@ function buildQualifiedSheet(hierarchy, monthsInData) {
 
 // ── Sheet: Not Qualified ──────────────────────────────────────────────────────
 
-function buildNotQualifiedSheet(hierarchy, monthsInData) {
-  const months = monthsInData;
+function buildNotQualifiedSheet(hierarchy, monthsInData, clusters = []) {
+  const months    = monthsInData;
+  const monthCols = months.map((m) => m.slice(0, 3).toUpperCase());
 
-  const monthCols  = months.map((m) => m.slice(0, 3).toUpperCase());
+  const rows       = [];
+  const rowHeights = {};
+  const merges     = [];
+  let rowIdx = 0;
 
-  // Col groups (same structure as T1 in Qualified)
-  const ID_END   = 4;
-  const INFO_END = 8;
-  const MONTH_S  = 9;
+  // section divider (red-tinted, matching the "not qualified" theme)
+  const sectionHdr = (title, cols) => {
+    const row = [];
+    row.push({
+      v: title, t: 's',
+      s: { font: F(true, '7F1D1D', 11), fill: FILL('FEE2E2'), alignment: A('left', false, 'center'), border: BORDER },
+    });
+    for (let i = 1; i < cols; i++) row.push({ v: '', t: 's', s: { fill: FILL('FEE2E2'), border: BORDER } });
+    return row;
+  };
+  const reasonCell = (txt, alt) => ({
+    v: txt || '—', t: 's',
+    s: { font: F(false, '9C0006', 9), fill: FILL(alt ? 'FEE2E2' : 'FFF5F5'), alignment: A('left', true), border: BORDER },
+  });
+  const spacer = (len) => {
+    for (let i = 0; i < 2; i++) {
+      rows.push(new Array(len).fill({ v: '', t: 's', s: { border: {} } }));
+      rowHeights[rowIdx++] = 8;
+    }
+  };
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TABLE 1 — NOT QUALIFIED SALES REPS   (Team Leaders excluded)
+  // ════════════════════════════════════════════════════════════════════════════
+  const ID_END   = 5;
+  const INFO_END = 9;
+  const MONTH_S  = 10;
   const MONTH_E  = MONTH_S + months.length - 1;
   const RIGHT_S  = MONTH_S + months.length;
 
   const hdrRow = [
-    '#', 'PRODUCT', 'REGION', 'BRANCH / TL', 'SALES REP.',
+    '#', 'PRODUCT', 'REGION', 'CLUSTER', 'BRANCH / TL', 'SALES REP.',
     'TITLE', 'CATEGORY', 'PERIOD JOINED', 'FLAG JOINED DATE',
     ...monthCols,
     'TOTAL LOANS', 'TOTAL AMOUNT (TZS)', 'TARGET (TZS)', '% ACHIEVED', 'REASON',
@@ -642,17 +731,14 @@ function buildNotQualifiedSheet(hierarchy, monthsInData) {
   const totalCols = hdrRow.length;
 
   const colWidths = [
-    5, 20, 20, 26, 26, 18, 12, 16, 10,
+    5, 20, 20, 18, 26, 26, 18, 12, 16, 10,
     ...months.map(() => 22),
     10, 18, 18, 11, 42,
   ];
 
-  const rows       = [];
-  const rowHeights = {};
-  const merges     = [];
-  let rowIdx = 0;
+  rows.push(sectionHdr('NOT QUALIFIED SALES REPS', totalCols)); rowHeights[rowIdx] = 22;
+  merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: totalCols - 1 } }); rowIdx++;
 
-  // ── Super-header ─────────────────────────────────────────────────────────────
   {
     const sh = new Array(totalCols).fill(null);
     const G1 = '1F3864', G2 = '2563EB', G3 = '155E75', G4 = '991B1B';
@@ -676,17 +762,15 @@ function buildNotQualifiedSheet(hierarchy, monthsInData) {
     rowIdx++;
   }
 
-  // ── Column header ─────────────────────────────────────────────────────────────
   rows.push(hdrRow.map((h, i) => hdrCell(h, [ID_END, INFO_END, MONTH_E].includes(i))));
   rowHeights[rowIdx++] = 28;
 
-  // ── collect ALL not-qualified agents, sort globally by % achieved ─────────────
   const allNotQual = [];
   Object.entries(hierarchy).forEach(([product, pObj]) => {
     const pName = PRODUCT_LABELS[product] ?? product;
     Object.entries(pObj.regions).forEach(([region, rObj]) => {
       Object.entries(rObj.branches).forEach(([branch, bObj]) => {
-        bObj.agents.filter((a) => !a.qualified).forEach((agent) => {
+        bObj.agents.filter((a) => !a.qualified && !a.isTeamLeader).forEach((agent) => {
           allNotQual.push({ pName, region, branch, agent });
         });
       });
@@ -700,12 +784,13 @@ function buildNotQualifiedSheet(hierarchy, monthsInData) {
     row[0] = numCell(idx + 1, alt);
     row[1] = agentCell(pName, alt);
     row[2] = agentCell(region, alt);
-    row[3] = agentCell(branch, alt);
-    row[4] = agentCell(agent.repName, alt, true, true); // sep
-    row[5] = agentCell(agent.title || agent.role || '—', alt);
-    row[6] = agentCell(agent.flag === 'Yes' ? 'Old Agent' : 'New Agent', alt);
-    row[7] = agentCell(agent.period || 'Unknown', alt);
-    row[8] = agentCell(agent.flag || '—', alt, false, true); // sep
+    row[3] = agentCell(agent.cluster || '—', alt);
+    row[4] = agentCell(branch, alt);
+    row[5] = agentCell(agent.repName, alt, true, true); // sep
+    row[6] = agentCell(agent.title || agent.role || '—', alt);
+    row[7] = agentCell(agent.flag === 'Yes' ? 'Old Agent' : 'New Agent', alt);
+    row[8] = agentCell(agent.period || 'Unknown', alt);
+    row[9] = agentCell(agent.flag || '—', alt, false, true); // sep
     months.forEach((m, mi) => {
       row[MONTH_S + mi] = monthCell(agent.monthly[m], alt, mi === months.length - 1);
     });
@@ -713,16 +798,169 @@ function buildNotQualifiedSheet(hierarchy, monthsInData) {
     row[RIGHT_S + 1] = numCell(agent.totalAmount, alt);
     row[RIGHT_S + 2] = numCell(agent.target ?? 0, alt);
     row[RIGHT_S + 3] = pctCell(agent.totalAmount, agent.target ?? 0, alt);
-    row[RIGHT_S + 4] = {
-      v: agent.qualReason || '—', t: 's',
-      s: { font: F(false, '9C0006', 9), fill: FILL(alt ? 'FEE2E2' : 'FFF5F5'), alignment: A('left', true), border: BORDER },
-    };
+    row[RIGHT_S + 4] = reasonCell(agent.qualReason, alt);
     rows.push(row); rowHeights[rowIdx++] = 18;
   });
 
+  // ════════════════════════════════════════════════════════════════════════════
+  // TABLE 2 — NOT QUALIFIED TEAM LEADERS
+  // ════════════════════════════════════════════════════════════════════════════
+  spacer(totalCols);
+
+  const T2_COLS = ['#', 'PRODUCT', 'REGION', 'CLUSTER', 'BRANCH / TL', 'TL NAME',
+    'BRANCH TARGET (TZS)', 'BRANCH ACTUAL (TZS)', '% ACHIEVED', 'PAR > 30', 'REASON'];
+  const T2_LEN = T2_COLS.length;
+
+  rows.push(sectionHdr('NOT QUALIFIED TEAM LEADERS', T2_LEN)); rowHeights[rowIdx] = 22;
+  merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: T2_LEN - 1 } }); rowIdx++;
+  {
+    const sh = new Array(T2_LEN).fill(null);
+    sh[0] = superHdrCell('IDENTITY', '1F3864');
+    for (let i = 1; i <= 5; i++) sh[i] = blankSuper('1F3864');
+    sh[5] = blankSuper('1F3864', true);
+    sh[6] = superHdrCell('PERFORMANCE & REASON', '991B1B');
+    for (let i = 7; i < T2_LEN; i++) sh[i] = blankSuper('991B1B');
+    rows.push(sh); rowHeights[rowIdx] = 18;
+    merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: 5 } });
+    merges.push({ s: { r: rowIdx, c: 6 }, e: { r: rowIdx, c: T2_LEN - 1 } });
+    rowIdx++;
+  }
+  rows.push(T2_COLS.map((h, i) => hdrCell(h, i === 5)));
+  rowHeights[rowIdx++] = 28;
+
+  const notQualTLs = [];
+  Object.entries(hierarchy).forEach(([product, pObj]) => {
+    const pName = PRODUCT_LABELS[product] ?? product;
+    Object.entries(pObj.regions).forEach(([region, rObj]) => {
+      Object.entries(rObj.branches).filter(([, b]) => !b.tlQualified).forEach(([branch, bObj]) => {
+        notQualTLs.push({ pName, region, branch, bObj });
+      });
+    });
+  });
+  notQualTLs.sort((x, y) => cmpAchv(x.bObj.totalAmount, x.bObj.target, y.bObj.totalAmount, y.bObj.target));
+
+  notQualTLs.forEach(({ pName, region, branch, bObj }, idx) => {
+    const alt = idx % 2 === 1;
+    const row = new Array(T2_LEN).fill(null);
+    row[0]  = numCell(idx + 1, alt);
+    row[1]  = agentCell(pName, alt);
+    row[2]  = agentCell(region, alt);
+    row[3]  = agentCell(bObj.cluster || '—', alt);
+    row[4]  = agentCell(branch, alt);
+    row[5]  = agentCell(bObj.tlName || '—', alt, true, true); // sep
+    row[6]  = numCell(bObj.target      ?? 0, alt);
+    row[7]  = numCell(bObj.totalAmount ?? 0, alt);
+    row[8]  = pctCell(bObj.totalAmount ?? 0, bObj.target ?? 0, alt);
+    row[9]  = parCell(bObj.tlPar30 ?? 0, alt);
+    row[10] = reasonCell(bObj.tlReason, alt);
+    rows.push(row); rowHeights[rowIdx++] = 18;
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TABLE 3 — NOT QUALIFIED REGIONS / BRANCH MANAGERS
+  // ════════════════════════════════════════════════════════════════════════════
+  spacer(totalCols);
+
+  const T3_COLS = ['#', 'PRODUCT', 'REGION',
+    'REGION TARGET (TZS)', 'REGION ACTUAL (TZS)', '% ACHIEVED', 'PAR > 30', 'REASON'];
+  const T3_LEN = T3_COLS.length;
+
+  rows.push(sectionHdr('NOT QUALIFIED REGIONS / BRANCH MANAGERS', T3_LEN)); rowHeights[rowIdx] = 22;
+  merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: T3_LEN - 1 } }); rowIdx++;
+  {
+    const sh = new Array(T3_LEN).fill(null);
+    sh[0] = superHdrCell('IDENTITY', '1F3864');
+    for (let i = 1; i <= 2; i++) sh[i] = blankSuper('1F3864');
+    sh[2] = blankSuper('1F3864', true);
+    sh[3] = superHdrCell('PERFORMANCE & REASON', '991B1B');
+    for (let i = 4; i < T3_LEN; i++) sh[i] = blankSuper('991B1B');
+    rows.push(sh); rowHeights[rowIdx] = 18;
+    merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: 2 } });
+    merges.push({ s: { r: rowIdx, c: 3 }, e: { r: rowIdx, c: T3_LEN - 1 } });
+    rowIdx++;
+  }
+  rows.push(T3_COLS.map((h, i) => hdrCell(h, i === 2)));
+  rowHeights[rowIdx++] = 28;
+
+  const notQualRegions = [];
+  Object.entries(hierarchy).forEach(([product, pObj]) => {
+    const pName = PRODUCT_LABELS[product] ?? product;
+    Object.entries(pObj.regions).filter(([, r]) => !r.regionQualified).forEach(([region, rObj]) => {
+      notQualRegions.push({ pName, region, rObj });
+    });
+  });
+  notQualRegions.sort((x, y) => cmpAchv(x.rObj.totalAmount, x.rObj.target, y.rObj.totalAmount, y.rObj.target));
+
+  notQualRegions.forEach(({ pName, region, rObj }, idx) => {
+    const alt = idx % 2 === 1;
+    const row = new Array(T3_LEN).fill(null);
+    row[0] = numCell(idx + 1, alt);
+    row[1] = agentCell(pName, alt);
+    row[2] = agentCell(region, alt, true, true); // sep
+    row[3] = numCell(rObj.target      ?? 0, alt);
+    row[4] = numCell(rObj.totalAmount ?? 0, alt);
+    row[5] = pctCell(rObj.totalAmount ?? 0, rObj.target ?? 0, alt);
+    row[6] = parCell(rObj.regionPar30 ?? 0, alt);
+    row[7] = reasonCell(rObj.regionReason, alt);
+    rows.push(row); rowHeights[rowIdx++] = 18;
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TABLE 4 — NOT QUALIFIED CLUSTERS  (only when Zone & Clusters was supplied)
+  // ════════════════════════════════════════════════════════════════════════════
+  if (clusters.length) {
+    spacer(totalCols);
+
+    const T4_COLS = ['#', 'CLUSTER', 'ZONE', 'PRODUCT(S)', 'BRANCHES', 'SALES REPS', 'QUALIFIED REPS',
+      'CLUSTER TARGET (TZS)', 'CLUSTER ACTUAL (TZS)', '% ACHIEVED', 'PAR > 30', 'REASON'];
+    const T4_LEN = T4_COLS.length;
+
+    rows.push(sectionHdr('NOT QUALIFIED CLUSTERS', T4_LEN)); rowHeights[rowIdx] = 22;
+    merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: T4_LEN - 1 } }); rowIdx++;
+    {
+      const sh = new Array(T4_LEN).fill(null);
+      sh[0] = superHdrCell('IDENTITY', '1F3864');
+      for (let i = 1; i <= 3; i++) sh[i] = blankSuper('1F3864');
+      sh[3] = blankSuper('1F3864', true);
+      sh[4] = superHdrCell('COVERAGE', '2563EB');
+      for (let i = 5; i <= 6; i++) sh[i] = blankSuper('2563EB');
+      sh[6] = blankSuper('2563EB', true);
+      sh[7] = superHdrCell('PERFORMANCE & REASON', '991B1B');
+      for (let i = 8; i < T4_LEN; i++) sh[i] = blankSuper('991B1B');
+      rows.push(sh); rowHeights[rowIdx] = 18;
+      merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: 3 } });
+      merges.push({ s: { r: rowIdx, c: 4 }, e: { r: rowIdx, c: 6 } });
+      merges.push({ s: { r: rowIdx, c: 7 }, e: { r: rowIdx, c: T4_LEN - 1 } });
+      rowIdx++;
+    }
+    rows.push(T4_COLS.map((h, i) => hdrCell(h, i === 3 || i === 6)));
+    rowHeights[rowIdx++] = 28;
+
+    clusters
+      .filter((c) => !c.qualified)
+      .sort((x, y) => cmpAchv(x.totalAmount, x.target, y.totalAmount, y.target))
+      .forEach((c, idx) => {
+        const alt = idx % 2 === 1;
+        const row = new Array(T4_LEN).fill(null);
+        row[0]  = numCell(idx + 1, alt);
+        row[1]  = agentCell(c.name, alt);
+        row[2]  = agentCell(c.zone || '—', alt);
+        row[3]  = agentCell(c.productList || '—', alt, false, true); // sep
+        row[4]  = numCell(c.branchCount ?? 0, alt);
+        row[5]  = numCell(c.agentCount  ?? 0, alt);
+        row[6]  = numCell(c.qualCount   ?? 0, alt, '166534');
+        row[7]  = numCell(c.target      ?? 0, alt);
+        row[8]  = numCell(c.totalAmount ?? 0, alt);
+        row[9]  = pctCell(c.totalAmount ?? 0, c.target ?? 0, alt);
+        row[10] = parCell(c.par30 ?? 0, alt);
+        row[11] = reasonCell(c.reason, alt);
+        rows.push(row); rowHeights[rowIdx++] = 18;
+      });
+  }
+
   const ws = aoaToSheet(rows, colWidths, rowHeights);
   ws['!merges'] = merges;
-  ws['!freeze'] = { ySplit: 2 };
+  ws['!freeze'] = { ySplit: 3 }; // section label + super-header + col header
   return ws;
 }
 
@@ -876,23 +1114,23 @@ function buildCriteriaSheet() {
 // ── public API ────────────────────────────────────────────────────────────────
 
 export function downloadTeamBuildingReport(processedData) {
-  const { hierarchy, monthsInData, summary } = processedData;
+  const { hierarchy, monthsInData, summary, clusters = [] } = processedData;
   const wb = XLSXStyle.utils.book_new();
   XLSXStyle.utils.book_append_sheet(wb, buildSummarySheet(summary, monthsInData),        'Summary');
   XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
-  XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData),    'Qualified');
-  XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData), 'Not Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData, clusters),    'Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData, clusters), 'Not Qualified');
   XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(),                            'Criteria');
   XLSXStyle.writeFile(wb, `Team_Building_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 export function buildTeamBuildingReportBuffer(processedData) {
-  const { hierarchy, monthsInData, summary } = processedData;
+  const { hierarchy, monthsInData, summary, clusters = [] } = processedData;
   const wb = XLSXStyle.utils.book_new();
   XLSXStyle.utils.book_append_sheet(wb, buildSummarySheet(summary, monthsInData),        'Summary');
   XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
-  XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData),    'Qualified');
-  XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData), 'Not Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData, clusters),    'Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData, clusters), 'Not Qualified');
   XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(),                            'Criteria');
   const date     = new Date().toISOString().slice(0, 10);
   const fileName = `Team_Building_Report_${date}.xlsx`;

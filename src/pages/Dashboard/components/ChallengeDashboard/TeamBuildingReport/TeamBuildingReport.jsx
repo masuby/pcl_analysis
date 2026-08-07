@@ -50,6 +50,13 @@ const FILE_TYPES = [
     label: 'Loan File',
     desc:  'Loan Accounts sheet — used to calculate PAR>30 for TL & Region qualification',
   },
+  {
+    kind:     'ZONE_CLUSTERS',
+    icon:     '🗺️',
+    label:    'Zone & Clusters File',
+    desc:     'Optional — Branch → Cluster mapping. Adds the Cluster column and the Qualified / Not Qualified Cluster tables',
+    optional: true,
+  },
 ];
 
 const PRODUCT_LABELS = {
@@ -743,15 +750,17 @@ const TeamBuildingReport = () => {
     setProcessedData(null);
   }, []);
 
-  const allReady   = FILE_TYPES.every((t) => files[t.kind]);
-  const readyCount = FILE_TYPES.filter((t) => files[t.kind]).length;
+  // Optional files (e.g. Zone & Clusters) never block Generate.
+  const REQUIRED   = FILE_TYPES.filter((t) => !t.optional);
+  const allReady   = REQUIRED.every((t) => files[t.kind]);
+  const readyCount = REQUIRED.filter((t) => files[t.kind]).length;
 
   const statusClass = allReady  ? 'tbr-status--ready'
     : readyCount > 0            ? 'tbr-status--partial'
     :                             'tbr-status--missing';
   const statusLabel = allReady
-    ? '✔ All files ready'
-    : `${readyCount} / ${FILE_TYPES.length} files uploaded`;
+    ? (files.ZONE_CLUSTERS ? '✔ All files ready (incl. clusters)' : '✔ Required files ready')
+    : `${readyCount} / ${REQUIRED.length} required files uploaded`;
 
   const handleGenerate = useCallback(async () => {
     if (!allReady) return;
@@ -759,13 +768,16 @@ const TeamBuildingReport = () => {
     setProcErr('');
     setProcessedData(null);
     try {
-      const [sBuf, uBuf, aBuf, lBuf] = await Promise.all([
+      const [sBuf, uBuf, aBuf, lBuf, zBuf] = await Promise.all([
         localTripAPI.downloadFileBuffer(files.SALES.id),
         localTripAPI.downloadFileBuffer(files.USERS.id),
         localTripAPI.downloadFileBuffer(files.ACTIVITIES.id),
         localTripAPI.downloadFileBuffer(files.LOAN.id),
+        files.ZONE_CLUSTERS
+          ? localTripAPI.downloadFileBuffer(files.ZONE_CLUSTERS.id)
+          : Promise.resolve(null),
       ]);
-      const result = processTeamBuildingReport(sBuf, uBuf, aBuf, lBuf);
+      const result = processTeamBuildingReport(sBuf, uBuf, aBuf, lBuf, zBuf);
       setProcessedData(result);
     } catch (e) {
       setProcErr(e?.message || 'Processing failed. Check the uploaded files.');
