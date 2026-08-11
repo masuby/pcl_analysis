@@ -180,6 +180,23 @@ func main() {
 			protected.GET("/social-media/data", handlers.GetSocialMediaData)
 			protected.GET("/social-media/months", handlers.GetSocialMediaMonths)
 
+			// DIGITAL DATA — cleaned lead warehouse + distribution
+			digital := protected.Group("/digital-data")
+			{
+				digital.POST("/ingest", handlers.IngestDigitalData)
+				digital.GET("/runs", handlers.GetDigitalIngestRuns)
+				digital.GET("/summary", handlers.GetDigitalDataSummary)
+				digital.GET("/quality", handlers.GetDigitalDataQuality)
+				digital.GET("/leads", handlers.GetDigitalLeads)
+				digital.GET("/filters", handlers.GetDigitalDataFilters)
+				digital.POST("/directory/sync", handlers.SyncDigitalDirectory)
+				digital.GET("/directory", handlers.GetDigitalDirectory)
+				digital.POST("/distribute", handlers.DistributeDigitalLeads)
+				digital.GET("/distributions", handlers.GetDigitalDistributions)
+				digital.POST("/send-distribution", handlers.SendDigitalDistribution)
+				digital.GET("/send-log", handlers.GetDigitalSendLog)
+			}
+
 			// LBF Call Centre monthly targets — reads the Performance Dashboard sheet
 			protected.GET("/lbf-callcenter-targets", handlers.GetLBFCallCenterTargets)
 

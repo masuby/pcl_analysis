@@ -1,0 +1,43 @@
+{
+  "name": "Digital Agent — Platinum Credit",
+  "short_name": "Digital Agent",
+  "description": "Lead collection, cleaning and distribution for Platinum Credit Tanzania.",
+  "id": "/",
+  "start_url": "/automation",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#1e3a8a",
+  "background_color": "#0f172a",
+  "lang": "en-TZ",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Digital Data",
+      "short_name": "Data",
+      "description": "Cleaned leads and distribution",
+      "url": "/automation"
+    }
+  ]
+}

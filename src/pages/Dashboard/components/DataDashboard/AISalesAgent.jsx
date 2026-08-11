@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import './AISalesManager.css';
+import './AISalesAgent.css';
 
 // The standalone FastAPI agent service (ai_sales_manager). Configurable so it
 // can point at localhost in dev or a proxied path in production.
@@ -88,41 +88,80 @@ const FlowDiagram = ({ running, statuses }) => (
   </div>
 );
 
-const LeadsTable = ({ leads }) => (
-  <table className="aism-table">
-    <thead>
-      <tr>
-        <th>#</th><th>Flag</th><th>Date</th><th>Seller / Vehicle</th><th>Location</th>
-        <th style={{ textAlign: 'right' }}>Est. Value</th><th>Phone</th>
-        <th style={{ textAlign: 'center' }}>Score</th>
-        <th style={{ textAlign: 'right' }}>Est. Loan</th><th>Source</th>
-      </tr>
-    </thead>
-    <tbody>
-      {leads.map((p, i) => (
-        <tr key={i}>
-          <td className="aism-idx">{i + 1}</td>
-          <td><FlagBadge flag={p.flag} /></td>
-          <td className="aism-date">{p.date_obtained || '—'}</td>
-          <td className="aism-name">
-            {[p.car_make, p.car_model, p.car_year].filter(Boolean).join(' ') || '—'}
-            {p.seller_name ? <span className="aism-biz"> · {p.seller_name}</span> : ''}
-          </td>
-          <td>{p.location || '—'}</td>
-          <td style={{ textAlign: 'right' }}>{p.price_text || p.est_value_tzs || '—'}</td>
-          <td>{p.phone || <span className="aism-muted">—</span>}</td>
-          <td style={{ textAlign: 'center' }}><ScoreBadge score={p.score} /></td>
-          <td style={{ textAlign: 'right' }}>{p.est_loan_tzs || '—'}</td>
-          <td>{p.source_url
-            ? <a href={p.source_url} target="_blank" rel="noreferrer">link ↗</a>
-            : <span className="aism-muted">—</span>}</td>
+/**
+ * One table, two shapes. An LBF row is about the CAR the loan would be secured
+ * on; an SME row is about the BUSINESS the loan would fund. Mixed results (when
+ * no product filter is set) show a Product column so the two never blur.
+ */
+const LeadsTable = ({ leads, product }) => {
+  const isSME = product === 'SME';
+  const mixed = !product;
+  return (
+    <table className="aism-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Flag</th>
+          {mixed && <th>Product</th>}
+          <th>Date</th>
+          <th>{isSME ? 'Business' : 'Seller / Vehicle'}</th>
+          <th>{isSME ? 'Sector' : 'Location'}</th>
+          <th style={{ textAlign: 'right' }}>{isSME ? 'Turnover / Price' : 'Est. Value'}</th>
+          <th>Phone</th>
+          <th style={{ textAlign: 'center' }}>Score</th>
+          <th style={{ textAlign: 'right' }}>Est. Loan</th>
+          <th>Source</th>
         </tr>
-      ))}
-    </tbody>
-  </table>
-);
+      </thead>
+      <tbody>
+        {leads.map((p, i) => {
+          const rowSME = (p.product || 'LBF') === 'SME';
+          return (
+            <tr key={i}>
+              <td className="aism-idx">{i + 1}</td>
+              <td><FlagBadge flag={p.flag} /></td>
+              {mixed && <td>{p.product || 'LBF'}</td>}
+              <td className="aism-date">{p.date_obtained || '—'}</td>
+              <td className="aism-name">
+                {rowSME
+                  ? (
+                    <>
+                      {p.business_name || p.business_type || '—'}
+                      {p.offering ? <span className="aism-biz"> · {p.offering}</span> : ''}
+                    </>
+                  )
+                  : (
+                    <>
+                      {[p.car_make, p.car_model, p.car_year].filter(Boolean).join(' ') || '—'}
+                      {p.seller_name ? <span className="aism-biz"> · {p.seller_name}</span> : ''}
+                    </>
+                  )}
+              </td>
+              <td>{rowSME ? (p.sector || p.location || '—') : (p.location || '—')}</td>
+              <td style={{ textAlign: 'right' }}>
+                {rowSME
+                  ? (p.est_monthly_revenue_tzs || p.price_text || '—')
+                  : (p.price_text || p.est_value_tzs || '—')}
+              </td>
+              <td>{p.phone || <span className="aism-muted">no phone</span>}</td>
+              <td style={{ textAlign: 'center' }}><ScoreBadge score={p.score} /></td>
+              <td style={{ textAlign: 'right' }}>{p.est_loan_tzs || '—'}</td>
+              <td>{p.source_url
+                ? <a href={p.source_url} target="_blank" rel="noreferrer">link ↗</a>
+                : <span className="aism-muted">—</span>}</td>
+            </tr>
+          );
+        })}
+        {leads.length === 0 && (
+          <tr><td colSpan={mixed ? 11 : 10} className="aism-muted" style={{ textAlign: 'center', padding: 18 }}>
+            No leads yet for this selection — run the agent above.
+          </td></tr>
+        )}
+      </tbody>
+    </table>
+  );
+};
 
-const AISalesManager = () => {
+const AISalesAgent = () => {
   const [health, setHealth] = useState(null);
   const [healthErr, setHealthErr] = useState('');
   const [product, setProduct] = useState('LBF');
@@ -142,6 +181,9 @@ const AISalesManager = () => {
   const [uniqueLeads, setUniqueLeads] = useState([]);
   const [uniqueTotal, setUniqueTotal] = useState(0);
   const [showAllUnique, setShowAllUnique] = useState(false);
+  const [sources, setSources] = useState([]);
+  const [pickedSources, setPickedSources] = useState([]);
+  const [byProduct, setByProduct] = useState([]);
 
   const checkHealth = useCallback(() => {
     setHealthErr('');
@@ -162,17 +204,34 @@ const AISalesManager = () => {
   }, []);
 
   const loadLeads = useCallback(() => {
-    fetch(`${API}/leads`)
+    const q = product ? `?product=${encodeURIComponent(product)}` : '';
+    fetch(`${API}/leads${q}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d) => { setAllLeads(d.leads || []); setDbTotal(d.total || 0); })
+      .then((d) => {
+        setAllLeads(d.leads || []);
+        setDbTotal(d.total || 0);
+        setByProduct(d.by_product || []);
+      })
       .catch(() => { /* offline banner covers this */ });
     fetch(`${API}/unique`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((d) => { setUniqueLeads(d.leads || []); setUniqueTotal(d.total || 0); })
       .catch(() => {});
+  }, [product]);
+
+  // Which sources serve the chosen product, and what robots.txt permitted.
+  const loadSources = useCallback(() => {
+    fetch(`${API}/sources`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => setSources(d.sources || []))
+      .catch(() => {});
   }, []);
 
-  useEffect(() => { checkHealth(); loadModels(); loadLeads(); }, [checkHealth, loadModels, loadLeads]);
+  useEffect(() => { checkHealth(); loadModels(); loadSources(); }, [checkHealth, loadModels, loadSources]);
+  useEffect(() => { loadLeads(); }, [loadLeads]);
+
+  // Changing product resets the source ticks to "all sources for that product".
+  useEffect(() => { setPickedSources([]); }, [product]);
 
   const run = useCallback(async () => {
     setRunning(true); setStopping(false); setError(''); setResult(null); setJobLog([]);
@@ -181,7 +240,13 @@ const AISalesManager = () => {
       const start = await fetch(`${API}/scrape`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ max_listings: Number(maxLeads) || 0, max_pages: 0, model }),
+        body: JSON.stringify({
+          max_listings: Number(maxLeads) || 0,
+          max_pages: 0,
+          model,
+          product,                       // LBF (cars) | SME (businesses)
+          sources: pickedSources,        // empty = every source for that product
+        }),
       });
       if (!start.ok) throw new Error(`Service returned ${start.status}`);
 
@@ -206,7 +271,7 @@ const AISalesManager = () => {
       checkHealth();
       loadLeads();
     }
-  }, [maxLeads, model, checkHealth, loadLeads]);
+  }, [maxLeads, model, product, pickedSources, checkHealth, loadLeads]);
 
   const stop = useCallback(async () => {
     setStopping(true);
@@ -233,12 +298,15 @@ const AISalesManager = () => {
   const uniqueCount = region ? uniqueView.length : uniqueTotal;
   const dbCount = region ? allView.length : dbTotal;
 
+  // Sources serving the chosen product ('' = both, so show everything).
+  const activeSources = product ? sources.filter((s) => s.product === product) : sources;
+
   return (
     <div className="aism-panel">
       {/* Header */}
       <div className="aism-header">
         <div>
-          <h2 className="aism-title">🤖 AI Sales Manager</h2>
+          <h2 className="aism-title">🤖 AI Sales Agent</h2>
           <p className="aism-sub">Scrapes cartanzania.com for car owners, AI-cleans &amp; de-dupes them (by link and phone), then writes LBF leads to your Google Sheet.</p>
         </div>
         <span className={`aism-status ${online ? 'aism-status--on' : 'aism-status--off'}`}>
@@ -278,7 +346,8 @@ const AISalesManager = () => {
           <span>Product</span>
           <select value={product} onChange={(e) => setProduct(e.target.value)} disabled={running}>
             <option value="LBF">LBF — car owners</option>
-            <option value="SME" disabled>SME — businesses (soon)</option>
+            <option value="SME">SME — business owners</option>
+            <option value="">Both</option>
           </select>
         </label>
         <label className="aism-field aism-field--grow">
@@ -311,6 +380,54 @@ const AISalesManager = () => {
           </button>
         )}
       </div>
+
+      {/* Where the agent will look. Unticked = every source for the product.
+          Each source shows the robots.txt basis it was added on. */}
+      {activeSources.length > 0 && (
+        <div className="aism-sources">
+          <div className="aism-sources-head">
+            <span>Sources</span>
+            <span className="aism-muted">
+              {pickedSources.length === 0
+                ? `all ${activeSources.length} for ${product || 'both products'}`
+                : `${pickedSources.length} selected`}
+              {pickedSources.length > 0 && (
+                <button className="aism-linkbtn" onClick={() => setPickedSources([])}>use all</button>
+              )}
+            </span>
+          </div>
+          <div className="aism-sources-list">
+            {activeSources.map((s) => (
+              <label
+                key={s.key}
+                className={`aism-source ${pickedSources.includes(s.key) ? 'is-on' : ''}`}
+                title={s.robots}
+              >
+                <input
+                  type="checkbox"
+                  disabled={running}
+                  checked={pickedSources.includes(s.key)}
+                  onChange={() => setPickedSources((p) =>
+                    p.includes(s.key) ? p.filter((x) => x !== s.key) : [...p, s.key])}
+                />
+                <span className="aism-source-main">
+                  <span className="aism-source-name">{s.label}</span>
+                  <span className="aism-source-meta">
+                    {s.product}
+                    {(() => {
+                      const stat = byProduct.find((b) => b.source === s.key);
+                      if (!stat) return ' · not crawled yet';
+                      const pct = stat.leads
+                        ? Math.round((stat.with_phone / stat.leads) * 100) : 0;
+                      return ` · ${stat.leads} leads · ${pct}% with phone`;
+                    })()}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {running && jobLog.length > 0 && (
         <div className="aism-live">🔄 {jobLog[jobLog.length - 1]}</div>
@@ -363,7 +480,7 @@ const AISalesManager = () => {
               or try a higher “Max new”.
             </div>
           ) : (
-            <div className="aism-table-wrap"><LeadsTable leads={leads} /></div>
+            <div className="aism-table-wrap"><LeadsTable leads={leads} product={product} /></div>
           )}
         </div>
       )}
@@ -377,7 +494,7 @@ const AISalesManager = () => {
             <button className="aism-db-refresh" onClick={loadLeads}>refresh</button>
           </div>
           <div className={`aism-db-wrap ${showAllUnique ? 'aism-db-wrap--all' : ''}`}>
-            <LeadsTable leads={showAllUnique ? uniqueView : uniqueView.slice(0, DB_PREVIEW)} />
+            <LeadsTable leads={showAllUnique ? uniqueView : uniqueView.slice(0, DB_PREVIEW)} product={product} />
           </div>
           {uniqueView.length > DB_PREVIEW && (
             <button className="aism-viewmore" onClick={() => setShowAllUnique((s) => !s)}>
@@ -396,7 +513,7 @@ const AISalesManager = () => {
             <button className="aism-db-refresh" onClick={loadLeads}>refresh</button>
           </div>
           <div className={`aism-db-wrap ${showAllDb ? 'aism-db-wrap--all' : ''}`}>
-            <LeadsTable leads={showAllDb ? allView : allView.slice(0, DB_PREVIEW)} />
+            <LeadsTable leads={showAllDb ? allView : allView.slice(0, DB_PREVIEW)} product={product} />
           </div>
           {allView.length > DB_PREVIEW && (
             <button className="aism-viewmore" onClick={() => setShowAllDb((s) => !s)}>
@@ -409,4 +526,4 @@ const AISalesManager = () => {
   );
 };
 
-export default AISalesManager;
+export default AISalesAgent;

@@ -16,8 +16,9 @@ from . import db
 from .config import settings
 from .llm import budget, available_models, default_model
 from .tools.sheets import service_account_email
+from scraper import sources as source_registry
 
-app = FastAPI(title="AI Sales Manager", version="0.2.0")
+app = FastAPI(title="Digital Agent", version="0.3.0")
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
@@ -32,14 +33,32 @@ def _startup():
 
 
 class ScrapeRequest(BaseModel):
-    max_listings: int = 0    # cap NEW listings this run (0 = all)
+    max_listings: int = 0    # cap NEW listings per source this run (0 = all)
     max_pages: int = 0       # cap index pages to crawl (0 = all)
     model: str = ""          # LLM id used for the cleaning step
+    product: str = ""        # 'LBF' | 'SME' | '' for every source
+    sources: list[str] = []  # explicit source keys; overrides product
 
 
 @app.get("/")
 def root():
-    return {"service": "AI Sales Manager", "phase": 1, "focus": "LBF (car owners)"}
+    return {
+        "service": "Digital Agent",
+        "products": {
+            "LBF": "people who own a car (loan secured on the car)",
+            "SME": "people who run a business (working capital)",
+        },
+        "sources": len(source_registry.SOURCES),
+    }
+
+
+@app.get("/sources")
+def sources(product: str = ""):
+    """Catalogue of places the agent looks, with the robots.txt basis for each."""
+    all_sources = source_registry.summary()
+    if product:
+        all_sources = [s for s in all_sources if s["product"] == product.upper()]
+    return {"sources": all_sources}
 
 
 @app.get("/health")
@@ -73,10 +92,13 @@ def migrate():
 
 
 @app.get("/leads")
-def leads(limit: int = 0):
-    """Every AI-cleaned lead (newest first) for the dashboard."""
-    rows = db.all_clean(limit=limit)
-    return {"leads": rows, "total": db.count_clean()}
+def leads(limit: int = 0, product: str = "", source: str = ""):
+    """AI-cleaned leads (newest first), optionally narrowed to a product/source."""
+    if product or source:
+        rows = db.all_clean_filtered(product=product.upper(), source=source, limit=limit)
+    else:
+        rows = db.all_clean(limit=limit)
+    return {"leads": rows, "total": db.count_clean(), "by_product": db.stats_by_product()}
 
 
 @app.get("/unique")
@@ -100,12 +122,14 @@ def _job_log(msg: str):
             del _JOB["log"][: len(_JOB["log"]) - _LOG_CAP]
 
 
-def _run_job(max_listings: int, max_pages: int, model: str):
+def _run_job(max_listings: int, max_pages: int, model: str,
+             product: str, sources_sel: list[str]):
     from scraper.run_pipeline import run
     try:
         summary = run(max_listings=max_listings, max_pages=max_pages, delay=0.6,
                       model=model, do_upload=True, log=_job_log,
-                      should_stop=_CANCEL.is_set)
+                      should_stop=_CANCEL.is_set,
+                      product=product, sources=sources_sel)
         summary["budget"] = budget.status()
         summary["model"] = model
         with _JOB_LOCK:
@@ -126,12 +150,15 @@ def scrape(req: ScrapeRequest):
         _JOB.update(state="running", log=[], summary=None)
     _CANCEL.clear()
     model = req.model or (default_model() or "")
+    product = (req.product or "").upper()
     threading.Thread(
         target=_run_job,
-        args=(max(0, min(5000, req.max_listings)), max(0, min(1000, req.max_pages)), model),
+        args=(max(0, min(5000, req.max_listings)), max(0, min(1000, req.max_pages)),
+              model, product, list(req.sources or [])),
         daemon=True,
     ).start()
-    return {"state": "running"}
+    return {"state": "running", "product": product or "ALL",
+            "sources": req.sources or [s.key for s in source_registry.for_product(product)]}
 
 
 @app.post("/scrape/stop")

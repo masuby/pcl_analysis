@@ -3,8 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="/Assets/pcl_logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>PCL Analysis</title>
+
+    <!-- PWA: installable as "Digital Agent" on phone/tablet home screens. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#1e3a8a" />
+    <meta name="application-name" content="Digital Agent" />
+    <meta name="description" content="Lead collection, cleaning and distribution for Platinum Credit Tanzania." />
+
+    <!-- iOS has no manifest support; it reads these instead. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Digital Agent" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   </head>
   <body>
     <div id="root"></div>

@@ -273,3 +273,85 @@
 .dark-mode .aism-db--unique .aism-db-wrap { border-color: #166534; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 .dark-mode .aism-db-count--unique { color: #bbf7d0; background: #14311f; }
 .dark-mode .aism-live { color: #bfdbfe; background: #1e293b; border-color: #334155; }
+
+/* ── Source picker ─────────────────────────────────────────────────────────
+   Where the agent looks. Unticked means "every source for this product".
+   Each row carries the robots.txt basis in its title attribute. */
+.aism-sources {
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.aism-sources-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.aism-sources-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 5px;
+}
+
+.aism-source {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.79rem;
+  background: #fff;
+}
+.aism-source:hover { border-color: #cbd5e1; }
+.aism-source.is-on { background: #eff6ff; border-color: #bfdbfe; }
+
+.aism-source-main { display: flex; flex-direction: column; min-width: 0; }
+.aism-source-name { font-weight: 600; color: #0f172a; }
+.aism-source-meta {
+  font-size: 0.7rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aism-linkbtn {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Dark mode for the source picker — same palette as .aism-controls above. */
+.dark-mode .aism-sources {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+.dark-mode .aism-sources-head { color: #e2e8f0; }
+.dark-mode .aism-source {
+  background: #1e293b;
+  border-color: transparent;
+}
+.dark-mode .aism-source:hover { border-color: #475569; }
+.dark-mode .aism-source.is-on {
+  background: #1e3a5f;
+  border-color: #3b82f6;
+}
+.dark-mode .aism-source-name { color: #e2e8f0; }
+.dark-mode .aism-source-meta { color: #94a3b8; }
+.dark-mode .aism-linkbtn { color: #60a5fa; }

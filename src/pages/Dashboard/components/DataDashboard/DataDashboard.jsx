@@ -2,14 +2,15 @@ import { useState } from 'react';
 // Reuse the Departmental dashboard's toggle-bar styling so DATA looks identical.
 import '../DepartmentalDashboard/DepartmentalDashboard.css';
 import './DataDashboard.css';
-import AISalesManager from './AISalesManager';
+import AISalesAgent from './AISalesAgent';
+import DigitalData from './DigitalData/DigitalData';
 
-// Data sources + the AI Sales Manager agent tab.
+// Data sources + the AI Sales Agent tab.
 const DATA_VIEWS = [
-  { key: 'MAMBU',  label: 'MAMBU DATA',        icon: '🏦' },
-  { key: 'CRM',    label: 'CRM DATA',          icon: '🗂' },
-  { key: 'SOCIAL', label: 'SOCIAL MEDIA DATA', icon: '📡' },
-  { key: 'AISM',   label: 'AI SALES MANAGER',  icon: '🤖' },
+  { key: 'MAMBU',   label: 'MAMBU DATA',     icon: '🏦' },
+  { key: 'CRM',     label: 'CRM DATA',       icon: '🗂' },
+  { key: 'DIGITAL', label: 'DIGITAL DATA',   icon: '📡' },
+  { key: 'AISA',    label: 'AI SALES AGENT', icon: '🤖' },
 ];
 
 const ComingSoon = ({ label, icon }) => (
@@ -42,9 +43,11 @@ const DataDashboard = () => {
       </div>
 
       <div className="dept-content">
-        {activeView === 'AISM'
-          ? <AISalesManager />
-          : <ComingSoon label={current.label} icon={current.icon} />}
+        {activeView === 'DIGITAL' && <DigitalData />}
+        {activeView === 'AISA'    && <AISalesAgent />}
+        {activeView !== 'DIGITAL' && activeView !== 'AISA' && (
+          <ComingSoon label={current.label} icon={current.icon} />
+        )}
       </div>
     </div>
   );

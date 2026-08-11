@@ -211,6 +211,44 @@ The root `.gitignore` MUST exclude:
 
 ---
 
+## UI Styling Conventions
+
+This is an internal business tool for analysts and managers. It should look like
+a plain, serious reporting system — not a landing page. **Restraint is the house
+style.** Confirmed by the user on 2026-08-10.
+
+### Do not use — these read as "vibe coded"
+
+- **Coloured left-accent stripes on cards/boxes** (`border-left: 3px solid orange`
+  and similar). This is the single worst offender — no decorative edge bars on
+  stat cards, issue cards, callouts, or panels. Use a plain 1px `--dd-line`
+  border on all four sides.
+- **Tinted card backgrounds used purely for mood** (`#fff7f7`, pastel fills).
+  White cards on a light grey page.
+- Gradient fills, glows, drop shadows beyond a soft `0 1px 2px`, animated
+  entrances, emoji used as decoration rather than as a label icon.
+- Rounded "pill" containers around whole sections; oversized display type.
+
+### Do use
+
+- Flat white cards, `1px solid` neutral border, `8-12px` radius.
+- **Severity belongs in the words, not the chrome.** Group items under an
+  explicit heading ("Blocking — these leads cannot be worked" vs "Gaps — worth
+  fixing at source") instead of colour-coding the container.
+- Colour only where it carries data: status pills, progress-bar fills, an
+  invalid-row highlight. Never colour as ornament.
+- Existing palette in `DigitalData.css` (`--dd-blue/ink/muted/line/bg`) — reuse
+  rather than inventing new hues.
+
+### Excel exports
+
+Same principle: solid header band, thin grey cell borders, subtle alternating
+row banding, no accent stripes or gradient fills. See
+`DataDashboard/DigitalData/utils/digitalDataExport.js` for the reference
+implementation.
+
+---
+
 ## Past Decisions / Gotchas
 
 - `google.golang.org/api` is pinned to **v0.205.0** in `backend/go.mod` because newer versions need Go ≥ 1.25 and the project is on Go 1.22.
