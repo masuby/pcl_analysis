@@ -127,7 +127,7 @@ func GetCRMUploads(c *gin.Context) {
 	rows, err := database.DB.Query(`
 		SELECT u.id, u.file_name, u.rows_read, u.rows_inserted, u.rows_updated,
 		       u.rows_skipped, u.bad_phones, u.status, COALESCE(u.error,''),
-		       u.created_at, COALESCE(x.full_name,'')
+		       u.created_at, COALESCE(x.display_name,'')
 		  FROM crm_uploads u
 		  LEFT JOIN users x ON x.id = u.uploaded_by
 		 ORDER BY u.created_at DESC LIMIT $1`, limit)
@@ -535,7 +535,7 @@ func DistributeCRMLeads(c *gin.Context) {
 			   AND lower(d.role) LIKE '%team leader%'
 			   AND crm_branch_key(d.branch) = l.branch_key
 			   AND (l.product_hint = '' OR d.product = l.product_hint)
-			 WHERE l.id = ANY($2) AND l.COALESCE(branch_key,'') <> ''
+			 WHERE l.id = ANY($2::uuid[]) AND COALESCE(l.branch_key,'') <> ''
 			 ORDER BY l.id, d.full_name
 			ON CONFLICT (lead_id) DO UPDATE SET
 			  batch_id = EXCLUDED.batch_id, directory_id = EXCLUDED.directory_id,
@@ -610,7 +610,7 @@ func crmLoadTeamLeaders(tx *sql.Tx, ids []string) ([]crmPerson, error) {
 	rows, err := tx.Query(`
 		SELECT id::text, full_name, COALESCE(email,''), COALESCE(phone,''), COALESCE(role,'')
 		  FROM digital_directory
-		 WHERE id = ANY($1) AND is_active AND lower(role) LIKE '%team leader%'
+		 WHERE id = ANY($1::uuid[]) AND is_active AND lower(role) LIKE '%team leader%'
 		 ORDER BY full_name`, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -632,7 +632,7 @@ func GetCRMDistributions(c *gin.Context) {
 	limit := ddIntQuery(c, "limit", 20, 1, 100)
 	rows, err := database.DB.Query(`
 		SELECT b.id, b.created_at, b.method, COALESCE(b.note,''),
-		       b.lead_count, COALESCE(u.full_name,''),
+		       b.lead_count, COALESCE(u.display_name,''),
 		       (SELECT COUNT(DISTINCT assignee_name) FROM crm_distributions d WHERE d.batch_id = b.id),
 		       (SELECT COUNT(*) FROM crm_distributions d WHERE d.batch_id = b.id AND d.sent_at IS NOT NULL)
 		  FROM crm_distribution_batches b

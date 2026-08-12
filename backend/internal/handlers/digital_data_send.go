@@ -114,7 +114,7 @@ func SendDigitalDistribution(c *gin.Context) {
 			entry["error"] = err.Error()
 			_, _ = database.DB.Exec(`
 				UPDATE digital_distributions SET send_error = $2
-				 WHERE id = ANY($1)`, pq.Array(g.DistributionIDs), err.Error())
+				 WHERE id = ANY($1::uuid[])`, pq.Array(g.DistributionIDs), err.Error())
 			_, _ = database.DB.Exec(`
 				INSERT INTO digital_send_log
 				  (batch_id, assignee_name, assignee_email, lead_count, status, error, sent_by)
@@ -126,7 +126,7 @@ func SendDigitalDistribution(c *gin.Context) {
 			_, _ = database.DB.Exec(`
 				UPDATE digital_distributions
 				   SET status = 'SENT', sent_at = NOW(), sent_to = $2, send_error = NULL
-				 WHERE id = ANY($1)`, pq.Array(g.DistributionIDs), g.Email)
+				 WHERE id = ANY($1::uuid[])`, pq.Array(g.DistributionIDs), g.Email)
 			_, _ = database.DB.Exec(`
 				INSERT INTO digital_send_log
 				  (batch_id, assignee_name, assignee_email, lead_count, status, sent_by)
@@ -161,7 +161,7 @@ func collectDistributionRecipients(req sendDistributionRequest) ([]assigneeLeads
 		add("d.batch_id = $%d", req.BatchID)
 	}
 	if len(req.AssigneeIDs) > 0 {
-		add("d.directory_id = ANY($%d)", pq.Array(req.AssigneeIDs))
+		add("d.directory_id = ANY($%d::uuid[])", pq.Array(req.AssigneeIDs))
 	}
 	if !req.IncludeAlreadySent {
 		conds = append(conds, "d.sent_at IS NULL")

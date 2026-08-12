@@ -92,7 +92,7 @@ func SendCRMDistribution(c *gin.Context) {
 			entry["status"] = "FAILED"
 			entry["error"] = err.Error()
 			_, _ = database.DB.Exec(
-				`UPDATE crm_distributions SET send_error=$2 WHERE id = ANY($1)`,
+				`UPDATE crm_distributions SET send_error=$2 WHERE id = ANY($1::uuid[])`,
 				pq.Array(g.DistIDs), err.Error())
 			_, _ = database.DB.Exec(`
 				INSERT INTO crm_send_log (batch_id, assignee_name, assignee_email, lead_count, status, error, sent_by)
@@ -104,7 +104,7 @@ func SendCRMDistribution(c *gin.Context) {
 			_, _ = database.DB.Exec(`
 				UPDATE crm_distributions
 				   SET status='SENT', sent_at=NOW(), sent_to=$2, send_error=NULL
-				 WHERE id = ANY($1)`, pq.Array(g.DistIDs), g.Email)
+				 WHERE id = ANY($1::uuid[])`, pq.Array(g.DistIDs), g.Email)
 			_, _ = database.DB.Exec(`
 				INSERT INTO crm_send_log (batch_id, assignee_name, assignee_email, lead_count, status, sent_by)
 				VALUES ($1,$2,$3,$4,'SENT',$5)`,
@@ -132,7 +132,7 @@ func crmCollectRecipients(req crmSendRequest) ([]crmGroup, error) {
 		add("d.batch_id = $%d", req.BatchID)
 	}
 	if len(req.AssigneeIDs) > 0 {
-		add("d.directory_id = ANY($%d)", pq.Array(req.AssigneeIDs))
+		add("d.directory_id = ANY($%d::uuid[])", pq.Array(req.AssigneeIDs))
 	}
 	if !req.IncludeAlreadySent {
 		conds = append(conds, "d.sent_at IS NULL")

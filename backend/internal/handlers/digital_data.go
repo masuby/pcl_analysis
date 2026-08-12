@@ -677,7 +677,7 @@ func DistributeDigitalLeads(c *gin.Context) {
 	// How many of these already had an owner — i.e. this action is an update
 	// for them, not a first assignment.
 	reassigned := 0
-	_ = tx.QueryRow(`SELECT COUNT(*) FROM digital_distributions WHERE lead_id = ANY($1)`,
+	_ = tx.QueryRow(`SELECT COUNT(*) FROM digital_distributions WHERE lead_id = ANY($1::uuid[])`,
 		pq.Array(leadIDs)).Scan(&reassigned)
 
 	assigned := 0
@@ -733,7 +733,7 @@ func GetDigitalDistributions(c *gin.Context) {
 	rows, err := database.DB.Query(`
 		SELECT b.id, b.created_at, COALESCE(b.product,''), b.method,
 		       COALESCE(b.note,''), b.lead_count, b.assignee_count,
-		       COALESCE(u.full_name, '')
+		       COALESCE(u.display_name, '')
 		  FROM digital_distribution_batches b
 		  LEFT JOIN users u ON u.id = b.created_by
 		 ORDER BY b.created_at DESC LIMIT $1`, limit)
