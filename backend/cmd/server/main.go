@@ -197,6 +197,21 @@ func main() {
 				digital.GET("/send-log", handlers.GetDigitalSendLog)
 			}
 
+			// CRM — accumulating lead store, distributed to branch Team Leaders
+			crm := protected.Group("/crm")
+			{
+				crm.POST("/upload", handlers.UploadCRMLeads)
+				crm.GET("/uploads", handlers.GetCRMUploads)
+				crm.GET("/summary", handlers.GetCRMSummary)
+				crm.GET("/leads", handlers.GetCRMLeads)
+				crm.GET("/filters", handlers.GetCRMFilters)
+				crm.GET("/team-leaders", handlers.GetCRMTeamLeaders)
+				crm.POST("/distribute", handlers.DistributeCRMLeads)
+				crm.GET("/distributions", handlers.GetCRMDistributions)
+				crm.POST("/send", handlers.SendCRMDistribution)
+				crm.GET("/send-log", handlers.GetCRMSendLog)
+			}
+
 			// LBF Call Centre monthly targets — reads the Performance Dashboard sheet
 			protected.GET("/lbf-callcenter-targets", handlers.GetLBFCallCenterTargets)
 

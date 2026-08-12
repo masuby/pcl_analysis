@@ -1,0 +1,103 @@
+/* CRM — additions on top of the shared DigitalData.css visual language.
+   Only what is unique to this section lives here: the upload dropzone, the
+   progress bar and two small table badges. */
+
+/* ------------------------------------------------------------- upload drop */
+
+.crm-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 34px 20px;
+  margin: 14px 0;
+  border: 2px dashed var(--dd-line);
+  border-radius: 12px;
+  background: var(--dd-bg);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.crm-drop:hover { border-color: var(--dd-blue); }
+.crm-drop.is-drag { border-color: var(--dd-blue); background: #eff6ff; }
+.crm-drop.has-file { border-style: solid; border-color: var(--dd-blue); }
+
+.crm-drop-icon { font-size: 1.9rem; }
+.crm-drop-main { font-size: 0.88rem; font-weight: 600; color: var(--dd-ink); }
+.crm-drop-sub  { font-size: 0.76rem; color: var(--dd-muted); }
+
+/* --------------------------------------------------------------- progress */
+
+.crm-progress {
+  position: relative;
+  height: 22px;
+  margin: 10px 0 4px;
+  border-radius: 6px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.crm-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--dd-blue);
+  transition: width 0.2s;
+}
+.crm-progress-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--dd-ink);
+}
+
+/* ------------------------------------------------------------ merge result */
+
+.crm-result { margin-top: 20px; }
+.crm-result h5 { margin: 0 0 10px; font-size: 0.86rem; font-weight: 700; }
+
+.crm-err {
+  margin-top: 3px;
+  font-size: 0.68rem;
+  color: var(--dd-bad);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- table badges */
+
+/* Times a client has been re-uploaded — useful for spotting churn. */
+.crm-updates {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Marks a lead whose Team Leader has already been emailed. */
+.crm-sent { margin-left: 5px; color: var(--dd-good); font-size: 0.78rem; }
+
+/* ------------------------------------------------------------- dark mode */
+
+.dark-mode .crm-drop { background: #1e293b; border-color: #334155; }
+.dark-mode .crm-drop:hover,
+.dark-mode .crm-drop.has-file { border-color: #3b82f6; }
+.dark-mode .crm-drop.is-drag { background: #1e3a5f; border-color: #3b82f6; }
+.dark-mode .crm-drop-main { color: #e2e8f0; }
+.dark-mode .crm-drop-sub { color: #94a3b8; }
+
+.dark-mode .crm-progress { background: #1e293b; }
+.dark-mode .crm-progress-label { color: #e2e8f0; }
+
+.dark-mode .crm-result h5 { color: #e2e8f0; }
+.dark-mode .crm-updates { background: #334155; color: #cbd5e1; }

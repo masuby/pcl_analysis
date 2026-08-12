@@ -4,6 +4,7 @@ import '../DepartmentalDashboard/DepartmentalDashboard.css';
 import './DataDashboard.css';
 import AISalesAgent from './AISalesAgent';
 import DigitalData from './DigitalData/DigitalData';
+import CRMData from './CRM/CRMData';
 
 // Data sources + the AI Sales Agent tab.
 const DATA_VIEWS = [
@@ -43,9 +44,10 @@ const DataDashboard = () => {
       </div>
 
       <div className="dept-content">
+        {activeView === 'CRM'     && <CRMData />}
         {activeView === 'DIGITAL' && <DigitalData />}
         {activeView === 'AISA'    && <AISalesAgent />}
-        {activeView !== 'DIGITAL' && activeView !== 'AISA' && (
+        {activeView !== 'CRM' && activeView !== 'DIGITAL' && activeView !== 'AISA' && (
           <ComingSoon label={current.label} icon={current.icon} />
         )}
       </div>
