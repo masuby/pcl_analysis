@@ -71,7 +71,7 @@ func Merge(ctx context.Context, uploadID string, rows []Row, skipped int) (*Resu
 	return res, nil
 }
 
-const crmCols = 28
+const crmCols = 29
 
 func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, updated int, err error) {
 	if len(rows) == 0 {
@@ -91,7 +91,7 @@ func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, up
 
 		args = append(args,
 			r.PhoneNorm, nullStr(r.PhoneRaw), r.PhoneValid,
-			nullStr(r.Name), nullStr(r.CreatedBy), nullStr(r.Email),
+			nullStr(r.Name), nullStr(r.CreatedBy), nullStr(r.CreatedByKey), nullStr(r.Email),
 			nullStr(r.IDNumber), nullStr(r.EmpNumber), nullStr(r.TeamName),
 			nullStr(r.AssignedTo), nullStr(r.ConsentType), nullStr(r.ConsentStatus),
 			nullTime(r.ConsentDate), nullTime(r.ConsentRequestDate),
@@ -112,7 +112,7 @@ func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, up
 	q := `
 	INSERT INTO crm_leads (
 	  phone_norm, phone_raw, phone_valid,
-	  lead_name, created_by, email_address, id_number, emp_number, team_name,
+	  lead_name, created_by, created_by_key, email_address, id_number, emp_number, team_name,
 	  assigned_to, consent_type, consent_status, consent_date, consent_request_date,
 	  status, branch, branch_key, product_hint, region, location, source,
 	  affordability_outcome, total_affordability, installment_amount,
@@ -123,7 +123,7 @@ func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, up
 	-- Postgres has nothing to infer from, so every column would arrive as text
 	-- and the booleans / timestamps / numerics would be rejected.
 	SELECT v.phone_norm, v.phone_raw, v.phone_valid::boolean,
-	       v.lead_name, v.created_by, v.email_address, v.id_number, v.emp_number,
+	       v.lead_name, v.created_by, v.created_by_key, v.email_address, v.id_number, v.emp_number,
 	       v.team_name, v.assigned_to, v.consent_type, v.consent_status,
 	       v.consent_date::timestamptz, v.consent_request_date::timestamptz,
 	       v.status, v.branch, v.branch_key, v.product_hint,
@@ -134,7 +134,7 @@ func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, up
 	       '` + uploadID + `'::uuid, '` + uploadID + `'::uuid
 	  FROM (VALUES ` + strings.Join(ph, ",") + `) AS v(
 	    phone_norm, phone_raw, phone_valid,
-	    lead_name, created_by, email_address, id_number, emp_number, team_name,
+	    lead_name, created_by, created_by_key, email_address, id_number, emp_number, team_name,
 	    assigned_to, consent_type, consent_status, consent_date, consent_request_date,
 	    status, branch, branch_key, product_hint, region, location, source,
 	    affordability_outcome, total_affordability, installment_amount,
@@ -144,6 +144,7 @@ func upsertChunk(ctx context.Context, uploadID string, rows []Row) (inserted, up
 	  phone_valid             = EXCLUDED.phone_valid,
 	  lead_name               = COALESCE(EXCLUDED.lead_name, crm_leads.lead_name),
 	  created_by              = COALESCE(EXCLUDED.created_by, crm_leads.created_by),
+	  created_by_key          = COALESCE(EXCLUDED.created_by_key, crm_leads.created_by_key),
 	  email_address           = COALESCE(EXCLUDED.email_address, crm_leads.email_address),
 	  id_number               = COALESCE(EXCLUDED.id_number, crm_leads.id_number),
 	  emp_number              = COALESCE(EXCLUDED.emp_number, crm_leads.emp_number),

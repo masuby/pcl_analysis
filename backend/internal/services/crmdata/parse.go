@@ -24,6 +24,7 @@ type Row struct {
 
 	Name                string
 	CreatedBy           string
+	CreatedByKey        string
 	Email               string
 	IDNumber            string
 	EmpNumber           string
@@ -133,6 +134,18 @@ func BranchKey(s string) string {
 	x = branchCentre.ReplaceAllString(x, "center")
 	x = branchWordBranch.ReplaceAllString(x, "")
 	return branchStrip.ReplaceAllString(strings.ToLower(x), "")
+}
+
+var wsRun = regexp.MustCompile(`\s+`)
+
+// NameKey normalises a person's name for matching against the directory.
+// Runs of whitespace are collapsed: the CRM export writes "ESTER  KILONGO"
+// with two spaces where the Zone & Clusters workbook writes one, and that
+// single difference accounted for 902 unmatched rows in the sample file.
+//
+// Must stay in step with crm_name_key() in migration 023.
+func NameKey(s string) string {
+	return strings.ToLower(strings.TrimSpace(wsRun.ReplaceAllString(s, " ")))
 }
 
 // ProductHint returns CS / LBF / SME when the branch string names one, else "".
@@ -260,6 +273,7 @@ func ParseWorkbook(path string) ([]Row, int, error) {
 			PhoneNorm: norm, PhoneRaw: rawPhone, PhoneValid: valid,
 			Name:                 get(r, "name"),
 			CreatedBy:            get(r, "created_by"),
+			CreatedByKey:         NameKey(get(r, "created_by")),
 			Email:                get(r, "email"),
 			IDNumber:             get(r, "id_number"),
 			EmpNumber:            get(r, "emp_number"),

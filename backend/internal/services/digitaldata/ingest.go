@@ -403,7 +403,9 @@ func SyncDirectory(ctx context.Context) (int, error) {
 			switch normKey(h) {
 			case "zone":
 				idx["zone"] = c
-			case "branch":
+			// The CRM tab names the branch column "Tenant"; every other tab
+			// calls it "Branch". Both mean the same thing for routing.
+			case "branch", "tenant":
 				idx["branch"] = c
 			case "name", "fullname", "names":
 				idx["name"] = c
@@ -468,9 +470,19 @@ func SyncDirectory(ctx context.Context) (int, error) {
 }
 
 // directoryTabMeta derives the product and the call-centre/branch channel from
-// a Zone & Clusters tab name (CS_CC, LBF_Branches, SME, ...).
+// a Zone & Clusters tab name (CS_CC, LBF_Branches, SME, CRM, ...).
 func directoryTabMeta(tab string) (product, channel string) {
 	t := normKey(tab)
+
+	// The CRM tab is the roster of CRM system users (936 of them). It is the
+	// lookup that answers "which branch and product does this Created_By belong
+	// to". Its rows carry their own Product per person, and they must NOT be
+	// offered as DIGITAL DATA assignees — that rule picks channel 'CC' and SME
+	// branch managers — so they get a channel of their own.
+	if t == "crm" {
+		return "", "CRM"
+	}
+
 	switch {
 	case strings.HasPrefix(t, "cs"):
 		product = "CS"

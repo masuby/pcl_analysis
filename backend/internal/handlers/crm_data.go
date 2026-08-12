@@ -198,13 +198,26 @@ func crmFilters(c *gin.Context) (string, []interface{}) {
 	}
 	// Only leads whose branch maps to a Team Leader — the distributable set.
 	if c.Query("routable") == "1" {
-		conds = append(conds, `COALESCE(branch_key,'') <> '' AND EXISTS (
-			SELECT 1 FROM digital_directory dd
-			 WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
-			   AND crm_branch_key(dd.branch) = crm_leads.branch_key
-			   -- product must agree when the branch names one, so a CS call
-			   -- centre lead never reaches an LBF team leader
-			   AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint))`)
+		conds = append(conds, `(
+			-- Preferred: Created_By names a CRM user, whose Tenant (branch) and
+			-- Product identify the team. Matches 82% of rows, against 65% for the
+			-- lead's own branch string.
+			EXISTS (
+			  SELECT 1
+			    FROM digital_directory cu
+			    JOIN digital_directory tl
+			      ON tl.is_active AND lower(tl.role) LIKE '%team leader%'
+			     AND crm_branch_key(tl.branch) = crm_branch_key(cu.branch)
+			     AND (cu.product IS NULL OR cu.product = '' OR tl.product = cu.product)
+			   WHERE cu.channel = 'CRM' AND cu.is_active
+			     AND crm_name_key(cu.full_name) = crm_leads.created_by_key)
+			-- Fallback: the lead's own branch string.
+			OR (COALESCE(branch_key,'') <> '' AND EXISTS (
+			      SELECT 1 FROM digital_directory dd
+			       WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
+			         AND crm_branch_key(dd.branch) = crm_leads.branch_key
+			         AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint)))
+		)`)
 	}
 
 	if len(conds) == 0 {
@@ -222,11 +235,19 @@ func GetCRMSummary(c *gin.Context) {
 		SELECT COUNT(*),
 		       COUNT(*) FILTER (WHERE phone_valid),
 		       COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM crm_distributions d WHERE d.lead_id = crm_leads.id)),
-		       COUNT(*) FILTER (WHERE COALESCE(branch_key,'') <> '' AND EXISTS (
-		           SELECT 1 FROM digital_directory dd
-		            WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
-		              AND crm_branch_key(dd.branch) = crm_leads.branch_key
-		              AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint))),
+		       COUNT(*) FILTER (WHERE
+		           EXISTS (SELECT 1 FROM digital_directory cu
+		                     JOIN digital_directory tl
+		                       ON tl.is_active AND lower(tl.role) LIKE '%team leader%'
+		                      AND crm_branch_key(tl.branch) = crm_branch_key(cu.branch)
+		                      AND (cu.product IS NULL OR cu.product = '' OR tl.product = cu.product)
+		                    WHERE cu.channel = 'CRM' AND cu.is_active
+		                      AND crm_name_key(cu.full_name) = crm_leads.created_by_key)
+		           OR (COALESCE(branch_key,'') <> '' AND EXISTS (
+		                 SELECT 1 FROM digital_directory dd
+		                  WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
+		                    AND crm_branch_key(dd.branch) = crm_leads.branch_key
+		                    AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint)))),
 		       COUNT(*) FILTER (WHERE lower(status) = 'converted')
 		  FROM crm_leads `+where, args...).
 		Scan(&total, &valid, &assigned, &routable, &converted)
@@ -523,20 +544,42 @@ func DistributeCRMLeads(c *gin.Context) {
 	if req.Method == "BY_BRANCH" {
 		// One statement: join each lead to a Team Leader of its own branch.
 		// DISTINCT ON keeps a single TL per lead when a branch has several.
+		// Each lead is matched to a Team Leader by two routes, preferred first:
+		//   1. Created_By -> the CRM user's Tenant (branch) + Product -> that
+		//      team's TL. Covers 82% of rows.
+		//   2. the lead's own branch string -> a TL of that branch. Covers 65%.
+		// A lead resolved by route 1 must not also take route 2, so the routes
+		// are UNIONed with a rank and DISTINCT ON keeps the better one.
 		res, err := tx.Exec(`
+			WITH candidate AS (
+			  SELECT l.id AS lead_id, tl.id AS dir_id, tl.full_name, tl.email, tl.phone,
+			         tl.role, l.branch, l.region, 1 AS rank
+			    FROM crm_leads l
+			    JOIN digital_directory cu
+			      ON cu.channel = 'CRM' AND cu.is_active
+			     AND crm_name_key(cu.full_name) = l.created_by_key
+			    JOIN digital_directory tl
+			      ON tl.is_active AND lower(tl.role) LIKE '%team leader%'
+			     AND crm_branch_key(tl.branch) = crm_branch_key(cu.branch)
+			     AND (cu.product IS NULL OR cu.product = '' OR tl.product = cu.product)
+			   WHERE l.id = ANY($2::uuid[])
+			  UNION ALL
+			  SELECT l.id, d.id, d.full_name, d.email, d.phone,
+			         d.role, l.branch, l.region, 2
+			    FROM crm_leads l
+			    JOIN digital_directory d
+			      ON d.is_active AND lower(d.role) LIKE '%team leader%'
+			     AND crm_branch_key(d.branch) = l.branch_key
+			     AND (l.product_hint = '' OR d.product = l.product_hint)
+			   WHERE l.id = ANY($2::uuid[]) AND COALESCE(l.branch_key,'') <> ''
+			)
 			INSERT INTO crm_distributions
 			  (batch_id, lead_id, directory_id, assignee_name, assignee_email,
 			   assignee_phone, assignee_role, branch, region)
-			SELECT DISTINCT ON (l.id)
-			       $1, l.id, d.id, d.full_name, d.email, d.phone, d.role, l.branch, l.region
-			  FROM crm_leads l
-			  JOIN digital_directory d
-			    ON d.is_active
-			   AND lower(d.role) LIKE '%team leader%'
-			   AND crm_branch_key(d.branch) = l.branch_key
-			   AND (l.product_hint = '' OR d.product = l.product_hint)
-			 WHERE l.id = ANY($2::uuid[]) AND COALESCE(l.branch_key,'') <> ''
-			 ORDER BY l.id, d.full_name
+			SELECT DISTINCT ON (lead_id)
+			       $1, lead_id, dir_id, full_name, email, phone, role, branch, region
+			  FROM candidate
+			 ORDER BY lead_id, rank, full_name
 			ON CONFLICT (lead_id) DO UPDATE SET
 			  batch_id = EXCLUDED.batch_id, directory_id = EXCLUDED.directory_id,
 			  assignee_name = EXCLUDED.assignee_name, assignee_email = EXCLUDED.assignee_email,
@@ -711,13 +754,26 @@ func crmFiltersFromMap(m map[string]string) (string, []interface{}) {
 		conds = append(conds, "EXISTS (SELECT 1 FROM crm_distributions d WHERE d.lead_id = crm_leads.id)")
 	}
 	if m["routable"] == "1" {
-		conds = append(conds, `COALESCE(branch_key,'') <> '' AND EXISTS (
-			SELECT 1 FROM digital_directory dd
-			 WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
-			   AND crm_branch_key(dd.branch) = crm_leads.branch_key
-			   -- product must agree when the branch names one, so a CS call
-			   -- centre lead never reaches an LBF team leader
-			   AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint))`)
+		conds = append(conds, `(
+			-- Preferred: Created_By names a CRM user, whose Tenant (branch) and
+			-- Product identify the team. Matches 82% of rows, against 65% for the
+			-- lead's own branch string.
+			EXISTS (
+			  SELECT 1
+			    FROM digital_directory cu
+			    JOIN digital_directory tl
+			      ON tl.is_active AND lower(tl.role) LIKE '%team leader%'
+			     AND crm_branch_key(tl.branch) = crm_branch_key(cu.branch)
+			     AND (cu.product IS NULL OR cu.product = '' OR tl.product = cu.product)
+			   WHERE cu.channel = 'CRM' AND cu.is_active
+			     AND crm_name_key(cu.full_name) = crm_leads.created_by_key)
+			-- Fallback: the lead's own branch string.
+			OR (COALESCE(branch_key,'') <> '' AND EXISTS (
+			      SELECT 1 FROM digital_directory dd
+			       WHERE dd.is_active AND lower(dd.role) LIKE '%team leader%'
+			         AND crm_branch_key(dd.branch) = crm_leads.branch_key
+			         AND (crm_leads.product_hint = '' OR dd.product = crm_leads.product_hint)))
+		)`)
 	}
 	if len(conds) == 0 {
 		return "", args
