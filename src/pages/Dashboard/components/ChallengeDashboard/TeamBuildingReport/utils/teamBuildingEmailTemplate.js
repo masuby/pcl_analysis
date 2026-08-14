@@ -7,14 +7,40 @@
 export function buildTeamBuildingEmailHTML(summary, monthsInData) {
   const {
     totalAgents, qualified, notQualified,
-    qualifiedTLs, qualifiedRegions,
+    qualifiedTLs, qualifiedRegions, qualifiedClusters = 0,
     totalLoans, totalAmount, byProduct,
+    targetPeople = 270, totalQualifiedPeople = 0, gapToTarget = 0,
+    nearAgents = 0, nearTLs = 0, nearRegions = 0, nearClusters = 0, totalNear = 0,
   } = summary;
 
   const period   = monthsInData.join(' · ');
   const generated = new Date().toLocaleString('en-GB');
   const fmt = (n) => Math.round(n ?? 0).toLocaleString();
   const pct = (a, t) => t > 0 ? `${Math.round((a / t) * 100)}%` : '—';
+
+  // ── Road to 270 rows ──────────────────────────────────────────────────────
+  const targetMet     = totalQualifiedPeople >= targetPeople;
+  const ifAllNear     = totalQualifiedPeople + totalNear;
+  const ifAllNearMet  = ifAllNear >= targetPeople;
+  const r270 = (label, value, note, valColor = '#1f3864', bg = '#ffffff', bold = false) => `
+    <tr style="background:${bg};">
+      <td style="padding:9px 14px;border:1px solid #e5e7eb;font-size:13px;${bold ? 'font-weight:700;' : ''}color:#1f2937;">${label}</td>
+      <td style="padding:9px 14px;border:1px solid #e5e7eb;font-size:13px;text-align:right;font-weight:700;color:${valColor};">${value}</td>
+      <td style="padding:9px 14px;border:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${note}</td>
+    </tr>`;
+  const roadRows = [
+    r270('Target', fmt(targetPeople), 'qualified people across all levels'),
+    r270('Currently Qualified', fmt(totalQualifiedPeople),
+      `${pct(totalQualifiedPeople, targetPeople)} of target`, '#166534', '#ecfdf5', true),
+    r270('Gap to Target', fmt(gapToTarget), targetMet ? 'target reached 🎉' : 'still needed',
+      targetMet ? '#166534' : '#991b1b', targetMet ? '#ecfdf5' : '#fef2f2', true),
+    r270(`Near Qualifying (≥60%)`, fmt(totalNear),
+      `Reps ${nearAgents} · TLs ${nearTLs} · Regions ${nearRegions} · Clusters ${nearClusters}`,
+      '#b45309', '#fffbeb'),
+    r270('If ALL near ones qualify', fmt(ifAllNear),
+      ifAllNearMet ? '✓ target met' : `${fmt(Math.max(0, targetPeople - ifAllNear))} short`,
+      ifAllNearMet ? '#166534' : '#991b1b', '#f8fafc'),
+  ].join('');
 
   const PRODUCT_LABELS = {
     CS:  'CS — Civil Servant',
@@ -162,6 +188,25 @@ export function buildTeamBuildingEmailHTML(summary, monthsInData) {
           </td>
         </tr>
 
+        <!-- Road to 270 -->
+        <tr>
+          <td style="padding:12px 32px 8px;">
+            <h3 style="margin:0 0 4px;color:#b45309;font-size:15px;font-weight:700;">🎯 Road to 270 Qualified People</h3>
+            <p style="margin:0 0 12px;font-size:12px;color:#6b7280;">
+              A qualified person counts at every level — Sales Reps, Team Leaders, Regions / BMs, and Clusters.
+              The full push-list is on the <strong>Near Qualifying</strong> sheet.
+            </p>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+              <tr style="background:#b45309;">
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;">METRIC</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;text-align:right;">PEOPLE</td>
+                <td style="padding:10px 14px;color:#fff;font-size:12px;font-weight:700;">NOTE</td>
+              </tr>
+              ${roadRows}
+            </table>
+          </td>
+        </tr>
+
         <!-- Product breakdown -->
         <tr>
           <td style="padding:12px 32px 24px;">
@@ -189,7 +234,7 @@ export function buildTeamBuildingEmailHTML(summary, monthsInData) {
                 📎 The complete Excel report is attached to this email.
               </p>
               <p style="margin:0;color:#fff;font-size:14px;font-weight:600;">
-                Sheets: Summary · All Agents · Qualified · Not Qualified · Criteria
+                Sheets: Summary · Qualified · Near Qualifying · Not Qualified · Clusters · All Agents · Sales · Criteria
               </p>
             </div>
           </td>

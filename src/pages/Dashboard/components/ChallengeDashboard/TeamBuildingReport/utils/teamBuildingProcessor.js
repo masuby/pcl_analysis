@@ -57,6 +57,31 @@ const JAN_2026  = new Date('2026-01-01');
 const MAY_2026  = new Date('2026-05-01');
 const PAR_LIMIT = 0.04; // 4%
 
+// Qualification drive: the goal is 270 qualified people across all levels.
+// Anything not yet qualified but within NEAR_FLOOR of its target is flagged
+// "near" so it can be chased over the line.
+const TARGET_PEOPLE = 270;
+const NEAR_FLOOR    = 0.60;   // ≥ 60% of the binding threshold = near
+const PAR_NEAR      = 0.06;   // PAR within reach of the 4% limit
+
+/**
+ * How close a target-based entity (TL / region / cluster) is to qualifying, and
+ * what specifically it still needs. `achievement` = actual / target.
+ */
+function nearness(achievement, par30, target) {
+  const achOk  = achievement >= 1;
+  const parOk  = (par30 ?? 0) <= PAR_LIMIT;
+  const near   = !(achOk && parOk)
+    && achievement >= NEAR_FLOOR
+    && (par30 ?? 0) <= PAR_NEAR;
+  const needs  = [];
+  if (!achOk && target > 0) {
+    needs.push(`TZS ${Math.round(target * (1 - achievement)).toLocaleString()} more (${Math.round(achievement * 100)}%)`);
+  }
+  if (!parOk) needs.push(`cut PAR>30 ${((par30 ?? 0) * 100).toFixed(1)}% → ≤4%`);
+  return { near, needs: needs.join('; ') };
+}
+
 // ── robust field getter ───────────────────────────────────────────────────────
 function getField(row, name, posIdx) {
   if (row[name] !== undefined && row[name] !== null && row[name] !== '') return row[name];
@@ -411,9 +436,20 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     if (!repName || !product || !month) return;
     monthsSet.add(month);
 
-    const key = `${product}|||${region}|||${branch}|||${repName}`;
+    // Aggregate by PERSON within a product — NOT by person + branch. A rep who
+    // shifted branch mid-period (e.g. Mlimani → City Centre) has sales rows
+    // under several "Branch / TL" labels; the old key
+    // `product|||region|||branch|||rep` split them into separate part-agents, so
+    // each fragment fell below the loan/disbursement thresholds and the person
+    // was mis-qualified. One person = one record, with their FULL sales,
+    // regardless of the shift. This applies to Team Leaders too (their own sales
+    // are read whole).
+    const key = `${product}|||${normKey(repName)}`;
     if (!agentMap[key]) {
-      agentMap[key] = { repName, product, region, branch, monthly: {}, totalAmount: 0, totalLoans: 0, repsTarget: 0 };
+      agentMap[key] = {
+        repName, product, monthly: {}, totalAmount: 0, totalLoans: 0, repsTarget: 0,
+        _branchTally: {}, _regionTally: {}, bySource: {},
+      };
     }
     const a = agentMap[key];
     if (!a.monthly[month]) a.monthly[month] = { amt: 0, loans: 0 };
@@ -422,6 +458,46 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     a.totalAmount           += amount;
     a.totalLoans            += 1;
     if (repsTgt > a.repsTarget) a.repsTarget = repsTgt;
+
+    // Track every branch / region the rep sold under (weighted by rows, then
+    // amount) so they can be placed where they primarily worked.
+    if (branch) {
+      const bt = a._branchTally[branch] ?? (a._branchTally[branch] = { rows: 0, amt: 0 });
+      bt.rows += 1; bt.amt += amount;
+    }
+    if (region) {
+      const rt = a._regionTally[region] ?? (a._regionTally[region] = { rows: 0, amt: 0 });
+      rt.rows += 1; rt.amt += amount;
+    }
+
+    // Keep WHERE each sale was obtained — the Branch/TL under the physical
+    // branch (Supervision/Region), with its own monthly breakdown. The analysis
+    // still combines a shifted rep/team into one total (keyed by the Branch/TL),
+    // but the Sales sheet reads this to show, e.g., which of VIANERY KOMBA's
+    // loans came from Mlimani and which from City Centre — instead of collapsing
+    // them all onto the home branch.
+    const srcKey = `${branch}|||${region}`;
+    const src = a.bySource[srcKey]
+      ?? (a.bySource[srcKey] = { branch, region, loans: 0, amt: 0, monthly: {} });
+    src.loans += 1;
+    src.amt   += amount;
+    if (!src.monthly[month]) src.monthly[month] = { amt: 0, loans: 0 };
+    src.monthly[month].amt   += amount;
+    src.monthly[month].loans += 1;
+  });
+
+  // Resolve each rep's home branch/region = where they did the most business
+  // (row count, tie-broken by disbursed amount). branchesSeen records the shift
+  // so it can be surfaced in the Sales sheet.
+  const dominant = (tally) =>
+    Object.entries(tally).sort((x, y) => (y[1].rows - x[1].rows) || (y[1].amt - x[1].amt))[0]?.[0] ?? '';
+  Object.values(agentMap).forEach((a) => {
+    a.branch       = dominant(a._branchTally);
+    a.region       = dominant(a._regionTally);
+    a.branchesSeen = Object.keys(a._branchTally);
+    a.shifted      = a.branchesSeen.length > 1;
+    delete a._branchTally;
+    delete a._regionTally;
   });
 
   // Enrich agents
@@ -448,13 +524,38 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
   const monthsInData = [...monthsSet].sort((x, y) => MONTH_ORDER.indexOf(x) - MONTH_ORDER.indexOf(y));
   const monthsCount  = monthsInData.length || 1;
 
+  // ── branch home region ────────────────────────────────────────────────────────
+  // A whole team (Branch/TL) can shift region mid-period, so its agents carry
+  // different Supervision/Region values. If the hierarchy split by region, the
+  // Team Leader would be judged separately in each region against the FULL
+  // target and fail both, when the combined team qualifies — the VIANERY KOMBA
+  // case (611M @ Mlimani + 310M @ City Centre = 921M vs an 805M target: split
+  // → 76% and 39%, both fail; combined → 114%, qualifies).
+  //
+  // So each Branch/TL is placed under ONE home region — the region where the
+  // team did most of its business — carrying all its agents and its full sales.
+  const branchRegionAmt = {};   // `${product}|||${branch}` → { region → amount }
+  Object.values(agentMap).forEach((a) => {
+    const bk = `${a.product}|||${normKey(a.branch)}`;
+    const m  = branchRegionAmt[bk] ?? (branchRegionAmt[bk] = {});
+    m[a.region] = (m[a.region] ?? 0) + a.totalAmount;
+  });
+  const branchHomeRegion = {};
+  Object.entries(branchRegionAmt).forEach(([bk, m]) => {
+    branchHomeRegion[bk] = Object.entries(m).sort((x, y) => y[1] - x[1])[0]?.[0] ?? '';
+  });
+
   // ── build hierarchy ───────────────────────────────────────────────────────────
   const hierarchy = {};
   Object.values(agentMap).forEach((a) => {
     if (!hierarchy[a.product]) hierarchy[a.product] = { regions: {} };
-    const pObj = hierarchy[a.product];
-    if (!pObj.regions[a.region]) pObj.regions[a.region] = { branches: {} };
-    const rObj = pObj.regions[a.region];
+    const pObj       = hierarchy[a.product];
+    const homeRegion = branchHomeRegion[`${a.product}|||${normKey(a.branch)}`] || a.region;
+    // Reflect the team's placement on the agent too, so the Sales sheet and the
+    // per-agent rows agree with the branch/region they are grouped under.
+    a.region = homeRegion;
+    if (!pObj.regions[homeRegion]) pObj.regions[homeRegion] = { branches: {} };
+    const rObj = pObj.regions[homeRegion];
     if (!rObj.branches[a.branch]) rObj.branches[a.branch] = { agents: [] };
     rObj.branches[a.branch].agents.push(a);
   });
@@ -500,6 +601,40 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
           agent.qualReason  = q.reason;
           agent.minLoans    = q.minLoans;
           agent.minDisb     = q.minDisb;
+
+          // LBF Call Center exception (confirmed by user 2026-08-14): these agents
+          // must ALSO reach ≥100% of their cumulative target, on top of the loan +
+          // disbursement thresholds. Every other agent keeps threshold-only rules.
+          agent.isLbfCallCenter = product === 'LBF' && /call\s*cent(er|re)/i.test(region || '');
+          if (agent.isLbfCallCenter) {
+            const meetsTarget = agent.target > 0 && agent.totalAmount >= agent.target;
+            agent.targetPct   = agent.target > 0 ? agent.totalAmount / agent.target : 0;
+            if (agent.qualified && !meetsTarget) {
+              agent.qualified  = false;
+              const pctStr     = `${Math.round(agent.targetPct * 100)}%`;
+              agent.qualReason = agent.target > 0
+                ? `Met loan & disbursement thresholds but only ${pctStr} of target (Call Center needs ≥100%)`
+                : 'No target on file — Call Center requires ≥100% of target';
+            }
+          }
+
+          // "Near" = missed only narrowly on the BINDING threshold (the lower of
+          // the two ratios), so a small push qualifies. Record what is needed.
+          const loanRatio = q.minLoans > 0 ? agent.totalLoans  / q.minLoans : 1;
+          const disbRatio = q.minDisb  > 0 ? agent.totalAmount / q.minDisb  : 1;
+          // For LBF Call Center the target is an additional binding constraint.
+          const targetRatio = agent.isLbfCallCenter
+            ? (agent.target > 0 ? agent.totalAmount / agent.target : 0)
+            : 1;
+          agent.qualifyRatio = Math.min(loanRatio, disbRatio, targetRatio);
+          agent.near = !agent.qualified && agent.qualifyRatio >= NEAR_FLOOR;
+          const needs = [];
+          if (agent.totalLoans  < q.minLoans) needs.push(`${q.minLoans - agent.totalLoans} more loan(s)`);
+          if (agent.totalAmount < q.minDisb)  needs.push(`TZS ${Math.round(q.minDisb - agent.totalAmount).toLocaleString()} more`);
+          if (agent.isLbfCallCenter && agent.target > 0 && agent.totalAmount < agent.target) {
+            needs.push(`TZS ${Math.round(agent.target - agent.totalAmount).toLocaleString()} more to hit target`);
+          }
+          agent.nearNeeds = needs.join('; ');
         });
 
         // Step 2: branch totals + PAR (across the WHOLE roster, TLs included)
@@ -529,6 +664,9 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         bObj.tlReason      = tlQual.reason;
         bObj.tlAchievement = tlQual.achievement;
         bObj.tlPar30       = tlQual.par30;
+        const tlNear       = nearness(tlQual.achievement, bObj.par30, bObj.target);
+        bObj.tlNear        = tlNear.near;
+        bObj.tlNearNeeds   = tlNear.needs;
       });
 
       // Step 4: region totals + PAR
@@ -545,6 +683,9 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
       rObj.regionReason      = rq.reason;
       rObj.regionAchievement = rq.achievement;
       rObj.regionPar30       = rq.par30;
+      const rNear            = nearness(rq.achievement, rObj.par30, rObj.target);
+      rObj.regionNear        = rNear.near;
+      rObj.regionNearNeeds   = rNear.needs;
     });
 
     // Product totals
@@ -603,6 +744,9 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
       c.achievement = q.achievement;
       c.productList = [...c.products].join(', ');
       c.regionList  = [...c.regions].join(', ');
+      const cNear  = nearness(q.achievement, c.par30, c.target);
+      c.near       = cNear.near;
+      c.nearNeeds  = cNear.needs;
     });
   }
 
@@ -610,19 +754,30 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
   const allAgents = Object.values(agentMap);
   const salesOnly = allAgents.filter((a) => !a.isTeamLeader);
 
-  let qualifiedTLs = 0;
-  let qualifiedRegions = 0;
+  let qualifiedTLs = 0, qualifiedRegions = 0;
+  let nearTLs = 0, nearRegions = 0;
   products.forEach((p) => {
     Object.values(hierarchy[p].regions).forEach((rObj) => {
       if (rObj.regionQualified) qualifiedRegions++;
+      else if (rObj.regionNear) nearRegions++;
       Object.values(rObj.branches).forEach((bObj) => {
         if (bObj.tlQualified) qualifiedTLs++;
+        else if (bObj.tlNear) nearTLs++;
       });
     });
   });
 
-  const clusterList      = Object.values(clusters);
+  const clusterList       = Object.values(clusters);
   const qualifiedClusters = clusterList.filter((c) => c.qualified).length;
+  const nearClusters      = clusterList.filter((c) => c.near).length;
+
+  const qualifiedAgents = salesOnly.filter((a) => a.qualified).length;
+  const nearAgents      = salesOnly.filter((a) => a.near).length;
+
+  // A qualified PERSON at any level counts toward the 270 goal: each qualified
+  // sales rep, Team Leader, Region/BM, and cluster (its manager).
+  const totalQualifiedPeople = qualifiedAgents + qualifiedTLs + qualifiedRegions + qualifiedClusters;
+  const totalNear            = nearAgents + nearTLs + nearRegions + nearClusters;
 
   const summary = {
     // Sales-rep figures EXCLUDE Team Leaders (they are judged as TLs instead).
@@ -636,8 +791,20 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     qualifiedRegions,
     qualifiedClusters,
     totalClusters:   clusterList.length,
+    // The 270-people qualification drive.
+    targetPeople:         TARGET_PEOPLE,
+    totalQualifiedPeople,
+    gapToTarget:          Math.max(0, TARGET_PEOPLE - totalQualifiedPeople),
+    nearAgents,
+    nearTLs,
+    nearRegions,
+    nearClusters,
+    totalNear,
     oldAgents:       salesOnly.filter((a) => a.flag === 'Yes').length,
     newAgents:       salesOnly.filter((a) => a.flag === 'No' && a.period !== 'Unknown').length,
+    // Reps whose sales spanned more than one Branch/TL (branch shift) and were
+    // merged into a single record — surfaced so the merge is auditable.
+    shiftedReps:     allAgents.filter((a) => a.shifted).length,
     monthsInData,
     byProduct: Object.fromEntries(
       products.map((p) => [p, {

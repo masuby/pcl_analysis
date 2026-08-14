@@ -970,6 +970,9 @@ function buildSummarySheet(summary, monthsInData) {
   const {
     totalAgents, totalAmount, totalLoans,
     qualified, notQualified, qualifiedTLs, qualifiedRegions,
+    qualifiedClusters = 0, totalClusters = 0,
+    targetPeople = 270, totalQualifiedPeople = 0, gapToTarget = 0,
+    nearAgents = 0, nearTLs = 0, nearRegions = 0, nearClusters = 0, totalNear = 0,
     oldAgents, newAgents, byProduct,
   } = summary;
   const generated = new Date().toLocaleString('en-GB');
@@ -1006,11 +1009,31 @@ function buildSummarySheet(summary, monthsInData) {
     [mk('Not Qualified Reps',         false, SUB), mk(notQualified,     true, SUB, '9C0006', 'right'), mk(''), mk(''), mk(''), mk('')],
     [mk('Qualified Team Leaders',     false, SUB), mk(qualifiedTLs ?? 0,true, SUB, '166534', 'right'), mk(''), mk(''), mk(''), mk('')],
     [mk('Qualified Regions / BMs',    false, SUB), mk(qualifiedRegions ?? 0, true, SUB, '166534', 'right'), mk(''), mk(''), mk(''), mk('')],
+    [mk('Qualified Clusters',         false, SUB), mk(qualifiedClusters, true, SUB, '166534', 'right'), mk(`of ${totalClusters}`, false, SUB, '6B7280', 'left'), mk(''), mk(''), mk('')],
     [mk('Total Disbursed (TZS)',       false, SUB), mk(totalAmount,      true, SUB, '1A1A2E', 'right', 9, '#,##0'), mk(''), mk(''), mk(''), mk('')],
     [mk('Total Loans',                false, SUB), mk(totalLoans,       true, SUB, '1A1A2E', 'right'), mk(''), mk(''), mk(''), mk('')],
     [mk('Old Agents (before 2026)',   false, SUB), mk(oldAgents,        true, SUB, '1A1A2E', 'right'), mk(''), mk(''), mk(''), mk('')],
     [mk('New Agents (Jan–Apr 2026)',  false, SUB), mk(newAgents,        true, SUB, '1A1A2E', 'right'), mk(''), mk(''), mk(''), mk('')],
     [mk('Months Covered',            false, SUB), mk(monthsInData.join(', '), false, SUB), mk(''), mk(''), mk(''), mk('')],
+    [mk(''), mk(''), mk(''), mk(''), mk(''), mk('')],
+
+    // ── The 270-people qualification drive ─────────────────────────────────────
+    [mk('ROAD TO 270 QUALIFIED PEOPLE', true, HDR, HDR_FG), mk('',false,HDR), mk('',false,HDR), mk('',false,HDR), mk('',false,HDR), mk('',false,HDR)],
+    [mk('Target',                     false, SUB), mk(targetPeople,        true, SUB, '1A1A2E', 'right'), mk('people (all levels)', false, SUB, '6B7280', 'left'), mk(''), mk(''), mk('')],
+    [mk('Currently Qualified',        true,  'ECFDF5'), mk(totalQualifiedPeople, true, 'ECFDF5', '166534', 'right'),
+      mk(targetPeople > 0 ? Math.round(totalQualifiedPeople / targetPeople * 100) : 0, true, 'ECFDF5', '166534', 'right', 9, '0"% of target"'), mk(''), mk(''), mk('')],
+    [mk('Gap to Target',              true,  gapToTarget > 0 ? 'FEF2F2' : 'ECFDF5'),
+      mk(gapToTarget, true, gapToTarget > 0 ? 'FEF2F2' : 'ECFDF5', gapToTarget > 0 ? '9C0006' : '166534', 'right'),
+      mk(gapToTarget > 0 ? 'still needed' : 'target reached', false, gapToTarget > 0 ? 'FEF2F2' : 'ECFDF5', '6B7280', 'left'), mk(''), mk(''), mk('')],
+    [mk('Near Qualifying (≥80%)',     true,  'FFFBEB'), mk(totalNear, true, 'FFFBEB', 'B45309', 'right'),
+      mk('see "Near Qualifying" sheet', false, 'FFFBEB', '6B7280', 'left'), mk(''), mk(''), mk('')],
+    [mk('   · Sales Reps',            false, SUB), mk(nearAgents,   false, SUB, 'B45309', 'right'), mk(''), mk(''), mk(''), mk('')],
+    [mk('   · Team Leaders',          false, SUB), mk(nearTLs,      false, SUB, 'B45309', 'right'), mk(''), mk(''), mk(''), mk('')],
+    [mk('   · Regions / BMs',         false, SUB), mk(nearRegions,  false, SUB, 'B45309', 'right'), mk(''), mk(''), mk(''), mk('')],
+    [mk('   · Clusters',              false, SUB), mk(nearClusters, false, SUB, 'B45309', 'right'), mk(''), mk(''), mk(''), mk('')],
+    [mk('If ALL near ones qualify',   false, SUB), mk(totalQualifiedPeople + totalNear, true, SUB, '1A1A2E', 'right'),
+      mk(totalQualifiedPeople + totalNear >= targetPeople ? '✓ target met' : `${Math.max(0, targetPeople - totalQualifiedPeople - totalNear)} short`,
+        false, SUB, totalQualifiedPeople + totalNear >= targetPeople ? '166534' : '9C0006', 'left'), mk(''), mk(''), mk('')],
     [mk(''), mk(''), mk(''), mk(''), mk(''), mk('')],
 
     [
@@ -1111,15 +1134,346 @@ function buildCriteriaSheet() {
   return ws;
 }
 
+// ── Sheet: Sales ────────────────────────────────────────────────────────────
+// The audit view of the sales that FEED the qualification, showing WHERE each
+// loan was obtained. One row per person PER SOURCE — the Branch/TL under a
+// physical branch (Supervision / Region). A rep or team that shifted mid-period
+// therefore shows one row per branch they worked (e.g. VIANERY KOMBA's team
+// appears once for Mlimani and once for City Centre), so an analyst can see
+// exactly where each portion came from — even though the qualification sheets
+// combine those portions under the one Branch/TL. A per-person SUBTOTAL row
+// follows whenever a person has more than one source.
+function buildSalesSheet(hierarchy, monthsInData) {
+  const months    = monthsInData;
+  const monthCols = months.map((m) => m.slice(0, 3).toUpperCase());
+
+  // Flatten every agent (sales reps AND team leaders) out of the hierarchy.
+  const people = [];
+  Object.entries(hierarchy).forEach(([product, pObj]) => {
+    Object.values(pObj.regions).forEach((rObj) => {
+      Object.values(rObj.branches).forEach((bObj) => {
+        (bObj.agents ?? []).forEach((a) => people.push({ ...a, product }));
+      });
+    });
+  });
+  const prodRank = (p) => { const i = ['CS', 'LBF', 'SME'].indexOf(p); return i < 0 ? 99 : i; };
+  people.sort((a, b) =>
+    prodRank(a.product) - prodRank(b.product)
+    || b.totalAmount - a.totalAmount
+    || String(a.repName).localeCompare(String(b.repName)));
+
+  const hdr = [
+    '#', 'SALES REP.', 'TITLE', 'ROLE', 'PRODUCT', 'BRANCH / TL',
+    'BRANCH WHERE OBTAINED (Supervision / Region)',
+    ...monthCols,
+    'LOANS', 'AMOUNT (TZS)',
+  ];
+  const colWidths = [5, 26, 18, 12, 8, 24, 34, ...months.map(() => 20), 10, 20];
+
+  const rows = [];
+  const title = `SALES — where each loan was obtained (${months.join(', ') || 'all months'}). `
+    + 'Analysis combines by Branch / TL; a shifted rep or team shows a row per branch.';
+  rows.push([{
+    v: title, t: 's',
+    s: { font: F(true, 'FFFFFF', 11), fill: FILL('1F3864'), alignment: A('left', false, 'center'), border: BORDER },
+  }]);
+  rows.push(hdr.map((h) => hdrCell(h)));
+
+  let n = 0;
+  people.forEach((a) => {
+    // Sources = the (Branch/TL, physical branch) pairs the person sold under,
+    // biggest first. Falls back to a single synthetic source if bySource is
+    // somehow absent (older processed payloads).
+    const sources = Object.values(a.bySource ?? {}).sort((x, y) => y.amt - x.amt);
+    const list = sources.length ? sources
+      : [{ branch: a.branch, region: a.region, loans: a.totalLoans, amt: a.totalAmount, monthly: a.monthly }];
+    const multi = list.length > 1;
+
+    list.forEach((src) => {
+      n += 1;
+      const alt = n % 2 === 1;
+      rows.push([
+        numCell(n, alt),
+        agentCell(a.repName, alt, true),
+        agentCell(a.title || '—', alt),
+        agentCell(a.isTeamLeader ? 'Team Leader' : 'Sales Rep', alt),
+        agentCell(a.product, alt),
+        agentCell(src.branch || '—', alt),
+        // Highlight the origin when the person worked more than one branch.
+        { v: src.region || '—', t: 's',
+          s: { font: F(multi, multi ? 'B45309' : '1A1A2E', 9),
+               fill: FILL(alt ? PAL.agentAlt : PAL.agentBg), alignment: A('left', true), border: BORDER } },
+        ...months.map((m) => monthCell(src.monthly?.[m], alt)),
+        numCell(src.loans, alt),
+        numCell(Math.round(src.amt), alt),
+      ]);
+    });
+
+    // Per-person combined subtotal (only when the sales were split), so the
+    // number the analysis uses is visible right next to the split.
+    if (multi) {
+      const shade = 'FEF3C7';
+      const tcell = (v, num = false, bold = true) => ({
+        v, t: num ? 'n' : 's',
+        s: { font: F(bold, '92400E', 9), fill: FILL(shade), alignment: A(num ? 'right' : 'left'),
+             border: BORDER, ...(num ? { numFmt: '#,##0' } : {}) },
+      });
+      rows.push([
+        tcell(''), tcell(`${a.repName} — TOTAL`), tcell(''), tcell(''), tcell(a.product),
+        tcell(a.branch || '—'), tcell(`${list.length} branches combined`),
+        ...months.map((m) => {
+          const mo = a.monthly?.[m];
+          return tcell(!mo || (mo.amt === 0 && mo.loans === 0) ? '—'
+            : `${Math.round(mo.amt).toLocaleString()} (${mo.loans})`);
+        }),
+        tcell(a.totalLoans, true), tcell(Math.round(a.totalAmount), true),
+      ]);
+    }
+  });
+
+  if (people.length === 0) rows.push([agentCell('No sales rows found.', false)]);
+
+  const rowHeights = { 0: 22, 1: 26 };
+  const ws = aoaToSheet(rows, colWidths, rowHeights);
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: hdr.length - 1 } }];
+  ws['!freeze'] = { ySplit: 2, xSplit: 2 };
+  return ws;
+}
+
+// ── Sheet: Clusters ───────────────────────────────────────────────────────────
+// Every cluster in one place, split into QUALIFIED and NOT QUALIFIED sections,
+// so both can be read at a glance instead of being buried at the bottom of the
+// two agent sheets. A cluster's target is the sum of its member branches'
+// targets; it qualifies at ≥100% cumulative achievement AND PAR>30 ≤ 4%.
+//
+// Only populated when the Zone & Clusters file was supplied — otherwise a clear
+// note explains what to upload, so the empty sheet is never mysterious.
+function buildClustersSheet(clusters = []) {
+  const COLS = ['#', 'CLUSTER', 'ZONE', 'PRODUCT(S)', 'REGION(S)', 'BRANCHES', 'SALES REPS',
+    'QUALIFIED REPS', 'CLUSTER TARGET (TZS)', 'CLUSTER ACTUAL (TZS)', '% ACHIEVED', 'PAR > 30', 'REASON'];
+  const LEN      = COLS.length;
+  const WIDTHS   = [5, 22, 16, 14, 24, 10, 10, 12, 20, 20, 11, 10, 40];
+  const SEP_COLS = [4, 7];   // right border after REGION(S) and QUALIFIED REPS
+
+  const rows       = [];
+  const merges     = [];
+  const rowHeights = {};
+  let r = 0;
+
+  const sectionHdr = (title, fill) => {
+    const row = [{ v: title, t: 's',
+      s: { font: F(true, '1E3A5F', 11), fill: FILL(fill), alignment: A('left', false, 'center'), border: BORDER } }];
+    for (let i = 1; i < LEN; i++) row.push({ v: '', t: 's', s: { fill: FILL(fill), border: BORDER } });
+    return row;
+  };
+  const reasonCell = (txt, alt) => ({
+    v: txt || '—', t: 's',
+    s: { font: F(false, '7A1212', 9), fill: FILL(alt ? PAL.agentAlt : PAL.agentBg),
+         alignment: A('left', true), border: BORDER },
+  });
+
+  // Title banner
+  rows.push([{
+    v: 'CLUSTERS — qualification by cluster (target = sum of member-branch targets; qualify at ≥100% AND PAR>30 ≤ 4%)',
+    t: 's',
+    s: { font: F(true, 'FFFFFF', 11), fill: FILL('1F3864'), alignment: A('left', false, 'center'), border: BORDER },
+  }]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: LEN - 1 } });
+  rowHeights[r++] = 22;
+
+  if (!clusters.length) {
+    rows.push([{
+      v: 'No cluster data. Upload the "Zone and Clusters" file alongside the Sales / Users / Activities '
+        + 'files to group branches into clusters and see Qualified / Not Qualified clusters here.',
+      t: 's',
+      s: { font: F(false, '7A1212', 10), fill: FILL('FFF5F5'), alignment: A('left', true, 'center'), border: BORDER },
+    }]);
+    merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: LEN - 1 } });
+    rowHeights[r++] = 40;
+    const wsEmpty = aoaToSheet(rows, WIDTHS, rowHeights);
+    wsEmpty['!merges'] = merges;
+    return wsEmpty;
+  }
+
+  const clusterRow = (c, idx, alt, withReason) => {
+    const row = new Array(LEN).fill(null);
+    row[0]  = numCell(idx + 1, alt);
+    row[1]  = agentCell(c.name, alt, true);
+    row[2]  = agentCell(c.zone || '—', alt);
+    row[3]  = agentCell(c.productList || '—', alt);
+    row[4]  = agentCell(c.regionList || '—', alt, false, true);           // sep
+    row[5]  = numCell(c.branchCount ?? 0, alt);
+    row[6]  = numCell(c.agentCount  ?? 0, alt);
+    row[7]  = numCell(c.qualCount   ?? 0, alt, '166534', true);           // sep
+    row[8]  = numCell(c.target      ?? 0, alt);
+    row[9]  = numCell(c.totalAmount ?? 0, alt);
+    row[10] = pctCell(c.totalAmount ?? 0, c.target ?? 0, alt);
+    row[11] = parCell(c.par30 ?? 0, alt);
+    row[12] = withReason ? reasonCell(c.reason, alt) : agentCell('Criteria met', alt);
+    return row;
+  };
+
+  const section = (label, fill, list, withReason) => {
+    rows.push(sectionHdr(`${label}  (${list.length})`, fill));
+    merges.push({ s: { r, c: 0 }, e: { r, c: LEN - 1 } });
+    rowHeights[r++] = 22;
+    rows.push(COLS.map((h, i) => hdrCell(h, SEP_COLS.includes(i))));
+    rowHeights[r++] = 28;
+    if (!list.length) {
+      rows.push([agentCell(`No ${label.toLowerCase()}.`, false)]);
+      rowHeights[r++] = 16;
+      return;
+    }
+    list.forEach((c, idx) => { rows.push(clusterRow(c, idx, idx % 2 === 1, withReason)); rowHeights[r++] = 18; });
+  };
+
+  const byAchv = (x, y) => cmpAchv(x.totalAmount, x.target, y.totalAmount, y.target);
+  const qualified    = clusters.filter((c) => c.qualified).sort(byAchv);
+  const notQualified = clusters.filter((c) => !c.qualified).sort(byAchv);
+
+  section('QUALIFIED CLUSTERS', 'DCFCE7', qualified, false);
+  rows.push(new Array(LEN).fill({ v: '', t: 's', s: { border: {} } })); rowHeights[r++] = 8;
+  section('NOT QUALIFIED CLUSTERS', 'FEE2E2', notQualified, true);
+
+  const ws = aoaToSheet(rows, WIDTHS, rowHeights);
+  ws['!merges'] = merges;
+  ws['!freeze'] = { ySplit: 1 };
+  return ws;
+}
+
+// ── Sheet: Near Qualifying ────────────────────────────────────────────────────
+// The push-list for the 270-people goal: everything NOT yet qualified but within
+// 80% of the binding threshold, across ALL levels — Sales Reps, Team Leaders,
+// Regions/BMs and Clusters — sorted closest-first, with exactly what each one
+// still needs. Chase these to close the gap.
+function buildNearSheet(hierarchy, clusters = [], summary = {}) {
+  const near = { agents: [], tls: [], regions: [], clusters: [] };
+
+  Object.entries(hierarchy).forEach(([product, pObj]) => {
+    Object.entries(pObj.regions).forEach(([region, rObj]) => {
+      if (rObj.regionNear) {
+        near.regions.push({
+          product, name: region, where: PRODUCT_LABELS[product] ?? product,
+          progress: `${fmt(rObj.totalAmount)} / ${fmt(rObj.target)}`,
+          pct: rObj.target > 0 ? rObj.totalAmount / rObj.target : 0,
+          par: rObj.par30 ?? 0, needs: rObj.regionNearNeeds || '—',
+        });
+      }
+      Object.entries(rObj.branches).forEach(([branch, bObj]) => {
+        if (bObj.tlNear) {
+          near.tls.push({
+            product, name: bObj.tlName || branch, where: region,
+            progress: `${fmt(bObj.totalAmount)} / ${fmt(bObj.target)}`,
+            pct: bObj.target > 0 ? bObj.totalAmount / bObj.target : 0,
+            par: bObj.par30 ?? 0, needs: bObj.tlNearNeeds || '—',
+          });
+        }
+        (bObj.agents ?? []).forEach((a) => {
+          if (a.near) {
+            near.agents.push({
+              product, name: a.repName, where: `${region} · ${branch}`,
+              progress: `${a.totalLoans}/${a.minLoans} loans · ${fmt(a.totalAmount)}/${fmt(a.minDisb)}`,
+              pct: a.qualifyRatio ?? 0, par: null, needs: a.nearNeeds || '—',
+            });
+          }
+        });
+      });
+    });
+  });
+
+  clusters.filter((c) => c.near).forEach((c) => {
+    near.clusters.push({
+      product: c.productList || '—', name: c.name, where: c.zone || c.regionList || '—',
+      progress: `${fmt(c.totalAmount)} / ${fmt(c.target)}`,
+      pct: c.target > 0 ? c.totalAmount / c.target : 0,
+      par: c.par30 ?? 0, needs: c.nearNeeds || '—',
+    });
+  });
+
+  const COLS   = ['#', 'LEVEL', 'PRODUCT', 'NAME', 'REGION / BRANCH', 'PROGRESS (current / required)',
+    '% TO QUALIFY', 'PAR > 30', 'WHAT IS STILL NEEDED'];
+  const WIDTHS = [5, 14, 10, 26, 30, 34, 13, 10, 40];
+  const LEN    = COLS.length;
+
+  const rows = [];
+  const merges = [];
+  const rowHeights = {};
+  let r = 0;
+
+  const totalNear = summary.totalNear ?? (near.agents.length + near.tls.length + near.regions.length + near.clusters.length);
+  rows.push([{
+    v: `NEAR QUALIFYING — ${totalNear} within reach of the 270 goal (currently ${summary.totalQualifiedPeople ?? 0} qualified, `
+      + `gap ${summary.gapToTarget ?? 0}). Closest first; chase these.`,
+    t: 's',
+    s: { font: F(true, 'FFFFFF', 11), fill: FILL('B45309'), alignment: A('left', false, 'center'), border: BORDER },
+  }]);
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: LEN - 1 } });
+  rowHeights[r++] = 22;
+  rows.push(COLS.map((h) => hdrCell(h)));
+  rowHeights[r++] = 28;
+
+  const sectionLabel = (label, count, fill) => {
+    rows.push([{ v: `${label}  (${count})`, t: 's',
+      s: { font: F(true, '1E3A5F', 10), fill: FILL(fill), alignment: A('left'), border: BORDER } },
+      ...Array(LEN - 1).fill({ v: '', t: 's', s: { fill: FILL(fill), border: BORDER } })]);
+    merges.push({ s: { r, c: 0 }, e: { r, c: LEN - 1 } });
+    rowHeights[r++] = 18;
+  };
+
+  const emit = (levelName, list, fill) => {
+    sectionLabel(levelName, list.length, fill);
+    if (!list.length) {
+      rows.push([agentCell('— none —', false)]); rowHeights[r++] = 16; return;
+    }
+    list.sort((x, y) => y.pct - x.pct).forEach((e, i) => {
+      const alt = i % 2 === 1;
+      rows.push([
+        numCell(i + 1, alt),
+        agentCell(levelName.replace(/S$/, ''), alt),
+        agentCell(e.product, alt),
+        agentCell(e.name, alt, true),
+        agentCell(e.where, alt),
+        agentCell(e.progress, alt),
+        { v: Math.round((e.pct || 0) * 100), t: 'n',
+          s: { font: F(true, e.pct >= 0.95 ? '166534' : 'B45309', 9),
+               fill: FILL(alt ? PAL.agentAlt : PAL.agentBg), alignment: A('center'), border: BORDER, numFmt: '0"%"' } },
+        e.par === null
+          ? agentCell('—', alt)
+          : parCell(e.par, alt),
+        { v: e.needs, t: 's',
+          s: { font: F(false, '7A1212', 9), fill: FILL(alt ? PAL.agentAlt : PAL.agentBg),
+               alignment: A('left', true), border: BORDER } },
+      ]);
+      rowHeights[r++] = 18;
+    });
+    rows.push(new Array(LEN).fill({ v: '', t: 's', s: { border: {} } })); rowHeights[r++] = 6;
+  };
+
+  emit('SALES REPS',    near.agents,   'FEF3C7');
+  emit('TEAM LEADERS',  near.tls,      'DBEAFE');
+  emit('REGIONS / BMS', near.regions,  'E0E7FF');
+  emit('CLUSTERS',      near.clusters, 'DCFCE7');
+
+  const ws = aoaToSheet(rows, WIDTHS, rowHeights);
+  ws['!merges'] = merges;
+  ws['!freeze'] = { ySplit: 2 };
+  return ws;
+}
+
 // ── public API ────────────────────────────────────────────────────────────────
 
 export function downloadTeamBuildingReport(processedData) {
   const { hierarchy, monthsInData, summary, clusters = [] } = processedData;
   const wb = XLSXStyle.utils.book_new();
+  // Sheet order: status views first (Qualified → Near Qualifying → Not Qualified
+  // → Clusters), then the detail (All Agents, Sales), then the reference Criteria.
   XLSXStyle.utils.book_append_sheet(wb, buildSummarySheet(summary, monthsInData),        'Summary');
-  XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
   XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData, clusters),    'Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildNearSheet(hierarchy, clusters, summary),   'Near Qualifying');
   XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData, clusters), 'Not Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildClustersSheet(clusters),                     'Clusters');
+  XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
+  XLSXStyle.utils.book_append_sheet(wb, buildSalesSheet(hierarchy, monthsInData),        'Sales');
   XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(),                            'Criteria');
   XLSXStyle.writeFile(wb, `Team_Building_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
@@ -1127,10 +1481,15 @@ export function downloadTeamBuildingReport(processedData) {
 export function buildTeamBuildingReportBuffer(processedData) {
   const { hierarchy, monthsInData, summary, clusters = [] } = processedData;
   const wb = XLSXStyle.utils.book_new();
+  // Sheet order: status views first (Qualified → Near Qualifying → Not Qualified
+  // → Clusters), then the detail (All Agents, Sales), then the reference Criteria.
   XLSXStyle.utils.book_append_sheet(wb, buildSummarySheet(summary, monthsInData),        'Summary');
-  XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
   XLSXStyle.utils.book_append_sheet(wb, buildQualifiedSheet(hierarchy, monthsInData, clusters),    'Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildNearSheet(hierarchy, clusters, summary),   'Near Qualifying');
   XLSXStyle.utils.book_append_sheet(wb, buildNotQualifiedSheet(hierarchy, monthsInData, clusters), 'Not Qualified');
+  XLSXStyle.utils.book_append_sheet(wb, buildClustersSheet(clusters),                     'Clusters');
+  XLSXStyle.utils.book_append_sheet(wb, buildAllAgentsSheet(hierarchy, monthsInData),    'All Agents');
+  XLSXStyle.utils.book_append_sheet(wb, buildSalesSheet(hierarchy, monthsInData),        'Sales');
   XLSXStyle.utils.book_append_sheet(wb, buildCriteriaSheet(),                            'Criteria');
   const date     = new Date().toISOString().slice(0, 10);
   const fileName = `Team_Building_Report_${date}.xlsx`;

@@ -250,7 +250,7 @@ function EmailModal({ processedData, onClose }) {
             {/* attachment note */}
             <div className="tbr-modal-note">
               📎 <strong>Team_Building_Report_{new Date().toISOString().slice(0, 10)}.xlsx</strong>
-              <br />Includes: Summary · All Agents · Qualified · Not Qualified sheets.
+              <br />Includes: Summary · All Agents · Sales · Qualified · Not Qualified · Clusters · Near Qualifying sheets.
               <br />Plus the criteria memo (PDF), when one has been uploaded.
             </div>
 
@@ -731,7 +731,13 @@ const TeamBuildingReport = () => {
     try {
       const list = await localTripAPI.getFiles();
       const map  = {};
-      list.forEach((f) => { if (['SALES','USERS','ACTIVITIES','LOAN'].includes(f.kind)) map[f.kind] = f; });
+      // Restore EVERY known file kind from the backend, including the optional
+      // ZONE_CLUSTERS. It is uploaded once and stored server-side (one active
+      // file per kind); the old filter omitted it, so it looked un-uploaded on
+      // every page load and had to be re-uploaded. Deriving the allow-list from
+      // FILE_TYPES keeps it in step if a new kind is added.
+      const KNOWN_KINDS = FILE_TYPES.map((t) => t.kind);
+      list.forEach((f) => { if (KNOWN_KINDS.includes(f.kind)) map[f.kind] = f; });
       setFiles(map);
     } finally {
       setLoading(false);
