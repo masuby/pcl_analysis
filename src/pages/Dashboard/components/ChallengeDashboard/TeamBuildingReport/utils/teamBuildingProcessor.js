@@ -129,7 +129,6 @@ function toDate(val) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// ── region name overrides ─────────────────────────────────────────────────────
 // Sales file region names → Target sheet region keys
 const REGION_OVERRIDES = {
   'sme arusha branch': 'sme northern',
@@ -571,11 +570,6 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     const pObj = hierarchy[product];
 
     Object.entries(pObj.regions).forEach(([region, rObj]) => {
-      // Region target VLOOKUP (with override for SME region name mismatches)
-      const regionKey = REGION_OVERRIDES[normKey(region)] ?? normKey(region);
-      // Multiply by monthsCount so cumulative actual can be compared to cumulative target
-      rObj.target     = (targetMap[regionKey] ?? 0) * monthsCount;
-
       Object.entries(rObj.branches).forEach(([branch, bObj]) => {
         // TL target: cumulative (monthly × months)
         bObj.target = (targetMap[normKey(branch)] ?? 0) * monthsCount;
@@ -670,6 +664,15 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
       });
 
       // Step 4: region totals + PAR
+      // Region target: prefer the official region-level row from the Target
+      // sheet (this is the authoritative target and is NOT simply the sum of the
+      // branch rows). When that row is missing — e.g. a manually corrected sales
+      // file that dropped the region rollup rows — fall back to the sum of the
+      // region's Branch/TL targets so regions still get a target instead of 0.
+      const regionKey       = REGION_OVERRIDES[normKey(region)] ?? normKey(region);
+      const regionRow       = (targetMap[regionKey] ?? 0) * monthsCount;
+      const branchTargetSum = Object.values(rObj.branches).reduce((s, b) => s + (b.target ?? 0), 0);
+      rObj.target         = regionRow > 0 ? regionRow : branchTargetSum;
       rObj.totalAmount    = Object.values(rObj.branches).reduce((s, b) => s + b.totalAmount, 0);
       rObj.totalLoans     = Object.values(rObj.branches).reduce((s, b) => s + b.totalLoans,  0);
       rObj.totalPrincipal = Object.values(rObj.branches).reduce((s, b) => s + b.totalPrincipal, 0);
