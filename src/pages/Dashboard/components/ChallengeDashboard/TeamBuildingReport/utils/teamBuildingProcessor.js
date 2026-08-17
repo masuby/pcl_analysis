@@ -639,12 +639,12 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         bObj.par30          = bObj.totalPrincipal > 0 ? bObj.par30Principal / bObj.totalPrincipal : 0;
         bObj.qualCount      = bObj.salesAgents.filter((a) => a.qualified).length;
 
-        // TL name: prefer the real person(s) found in the roster, else fall back
-        // to the "Branch Name (TL Name)" pattern used by the sales file.
-        const tlMatch = trim(branch).match(/\(([^)]+)\)\s*$/);
-        bObj.tlName   = bObj.teamLeaders.length
-          ? bObj.teamLeaders.map((t) => t.repName).join(', ')
-          : (tlMatch ? trim(tlMatch[1]) : trim(branch));
+        // TL label = the sales file's "Branch / TL" value verbatim. We do NOT
+        // substitute a roster member's name: a TL-titled agent who merely sold a
+        // few loans in a branch that isn't theirs (a roaming TL, e.g. Meshack in
+        // ZANZIBAR (MTORO)) would otherwise mislabel the branch. The Branch/TL
+        // value already carries the TL identity for LBF and "PLACE (TL)" branches.
+        bObj.tlName   = trim(branch);
         bObj.tlTitle  = bObj.teamLeaders[0]?.title ?? '';
 
         // Branch cluster = the cluster most of its roster belongs to.
