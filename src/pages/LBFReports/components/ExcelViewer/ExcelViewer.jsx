@@ -223,13 +223,42 @@ const ExcelViewer = ({ reportId, fileUrl, fileName, fileType, filePath }) => {
         throw new Error('No sheets found in Excel file');
       }
 
+      // Recover corrupted/bloated workbooks: a used-range that spans to column
+      // XFD (16384) — usually from formatting applied across entire rows/columns —
+      // makes SheetJS return an *undefined* worksheet under these read options, so
+      // worksheet['!ref'] below would throw ("Cannot read properties of undefined").
+      // Re-read with cellText:true + sheetStubs:false (which parses those sheets),
+      // then clamp every sheet's range to the cells that actually hold data.
+      if (workbook.SheetNames.some((name) => !workbook.Sheets[name])) {
+        try {
+          workbook = XLSX.read(arrayBuffer, { ...readOptions, cellText: true, sheetStubs: false });
+        } catch (recoverErr) {
+          // Keep the earlier workbook; the null-guard below skips any bad sheet.
+        }
+        workbook.SheetNames.forEach((name) => {
+          const ws = workbook.Sheets[name];
+          if (!ws || typeof ws !== 'object') return;
+          let maxR = -1;
+          let maxC = -1;
+          Object.keys(ws).forEach((key) => {
+            if (key.charCodeAt(0) === 33) return; // skip '!ref', '!cols', … meta keys
+            const cell = XLSX.utils.decode_cell(key);
+            if (cell.r > maxR) maxR = cell.r;
+            if (cell.c > maxC) maxC = cell.c;
+          });
+          if (maxR >= 0) {
+            ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+          }
+        });
+      }
+
       // Set workbook first
       setWorkbook(workbook);
 
       // Analyze and categorize sheets
       const sheetAnalysis = workbook.SheetNames.map(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
-        const range = worksheet['!ref'];
+        const range = worksheet ? worksheet['!ref'] : null;
         let rowCount = 0;
         let colCount = 0;
         let hasData = false;
