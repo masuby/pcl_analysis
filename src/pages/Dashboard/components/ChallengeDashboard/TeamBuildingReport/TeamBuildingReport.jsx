@@ -357,14 +357,18 @@ function UploadRow({ typeDef, fileRecord, onUploaded, onDeleted, showToast }) {
     try {
       const { record, stats } = await refreshSalesFileFromMTD({
         existingFileId: fileRecord?.id ?? null,
+        existingFileName: fileRecord?.fileName ?? null,
         onProgress: (m) => showToast?.({ type: 'info', title: 'Refreshing Sales File', message: m }),
       });
       onUploaded(record);
       const skip = stats.skipped.length ? ` Skipped: ${stats.skipped.join(', ')}.` : '';
+      const lead = stats.incremental
+        ? `Appended ${stats.appended} ${stats.monthsLabel} row(s), kept ${stats.kept} earlier · ${stats.total} total`
+        : `${stats.total} rows · ${stats.monthsLabel}`;
       showToast?.({
         type: 'success',
-        title: 'Sales File refreshed from MTD',
-        message: `${stats.total} rows · ${stats.monthsLabel} (CS ${stats.byDept.CS}, LBF ${stats.byDept.LBF}, SME ${stats.byDept.SME}) · ${stats.targetsFilled}/${stats.noTarget} missing targets filled from MTD${stats.stillMissing ? `, ${stats.stillMissing} unresolved` : ""}.${skip}`,
+        title: stats.incremental ? 'Sales File updated from MTD' : 'Sales File built from MTD',
+        message: `${lead} (CS ${stats.byDept.CS}, LBF ${stats.byDept.LBF}, SME ${stats.byDept.SME}) · ${stats.targetsFilled}/${stats.noTarget} missing targets filled from MTD${stats.stillMissing ? `, ${stats.stillMissing} unresolved` : ""}.${skip}`,
       });
     } catch (ex) {
       const msg = ex?.message || 'Refresh failed';

@@ -326,6 +326,40 @@ async function loadExistingTargetSheet(existingFileId) {
   }
 }
 
+/**
+ * Read the currently-active Sales file once so `refreshSalesFileFromMTD` can
+ * APPEND new months to it instead of rebuilding every month from scratch.
+ * Returns the existing Sales rows (as 12-column arrays, in the SALES_HEADERS
+ * order), the set of month names already present, and the Target sheet.
+ */
+async function loadExistingSalesWorkbook(existingFileId) {
+  if (!existingFileId) return null;
+  try {
+    const buf = await localTripAPI.downloadFileBuffer(existingFileId);
+    const wb = XLSXStyle.read(buf, { type: 'array', cellDates: true });
+    const salesName  = wb.SheetNames.find((n) => up(n) === 'SALES');
+    const targetName = wb.SheetNames.find((n) => up(n) === 'TARGET');
+
+    const salesRows = [];
+    const presentMonths = new Set();
+    if (salesName) {
+      // raw:true keeps numbers numeric and dates as serials (preserved verbatim).
+      const aoa = XLSXStyle.utils.sheet_to_json(wb.Sheets[salesName], { header: 1, defval: null, raw: true });
+      for (let i = 1; i < aoa.length; i++) { // row 0 = header
+        const row = aoa[i];
+        if (!row || !row.some((c) => c !== null && String(c).trim() !== '')) continue;
+        const r12 = row.slice(0, SALES_HEADERS.length);
+        salesRows.push(r12);
+        const mn = String(r12[5] ?? '').trim();
+        if (mn) presentMonths.add(mn);
+      }
+    }
+    return { salesRows, presentMonths, targetSheet: targetName ? wb.Sheets[targetName] : null };
+  } catch {
+    return null;
+  }
+}
+
 /** Apply header/zebra/product/border styling, freeze panes and auto-filter. */
 function styleSalesSheet(ws, rows) {
   const enc = XLSXStyle.utils.encode_cell;
@@ -639,34 +673,67 @@ function buildLbfCallCenterSheet(rows) {
 }
 
 /**
- * Build the new sales_2026.xlsx from MTD data and upload it (replacing SALES).
+ * Refresh the active Sales file from MTD data.
+ *
+ * INCREMENTAL: when an existing Sales file is passed, its earlier months are
+ * preserved verbatim (so manual corrections to Jan–July survive) and only the
+ * CURRENT calendar month is (re)built from the latest MTDs and appended — plus
+ * any completed month that is somehow missing. The file KEEPS ITS NAME. When
+ * there is no existing file it falls back to a full build (Jan → last completed
+ * month) named `sales_2026.xlsx`.
  *
  * @param {object}   opts
- * @param {string}   [opts.existingFileId]  id of the active Sales file (Target sheet is preserved from it)
- * @param {function} [opts.onProgress]      (message:string) => void  — status updates for a toast/log
- * @returns {Promise<{ record:any, stats:{ total:number, monthsLabel:string, months:string[], byDept:Record<string,number>, skipped:string[] } }>}
+ * @param {string}   [opts.existingFileId]    id of the active Sales file (rows + Target sheet are preserved from it)
+ * @param {string}   [opts.existingFileName]  keep this file name on the refreshed upload
+ * @param {function} [opts.onProgress]        (message:string) => void  — status updates for a toast/log
  */
-export async function refreshSalesFileFromMTD({ existingFileId = null, onProgress } = {}) {
+export async function refreshSalesFileFromMTD({ existingFileId = null, existingFileName = null, onProgress } = {}) {
   const say = (m) => { try { onProgress?.(m); } catch { /* noop */ } };
 
-  const months = targetMonths();
+  const now = new Date();
+  const year = now.getFullYear();
+  const curMonthIdx = now.getMonth() + 1;                 // 1-based current calendar month (Aug = 8)
+
+  // Read the existing Sales file so we can append to it rather than rebuild it.
+  say('Reading existing Sales file…');
+  const existing = existingFileId ? await loadExistingSalesWorkbook(existingFileId) : null;
+  const incremental = !!(existing && existing.salesRows.length);
+
+  // Which months to (re)build from the MTDs.
+  //  • Incremental: always re-pull the CURRENT month (so it tracks the latest
+  //    MTD) plus any completed month missing from the file; every other month
+  //    already in the file is kept untouched.
+  //  • First build: Jan → last completed month.
+  let months;
+  if (incremental) {
+    months = [];
+    for (let m = 1; m <= curMonthIdx; m++) {
+      const name = MONTH_NAMES[m - 1];
+      if (m === curMonthIdx || !existing.presentMonths.has(name)) {
+        months.push({ year, month: m, name });
+      }
+    }
+  } else {
+    months = targetMonths(now);
+  }
   if (months.length === 0) {
-    throw new Error('No completed months yet this year — nothing to build.');
+    throw new Error('No months to update — the Sales file is already current.');
   }
   const monthLabel = months.length === 1
-    ? `${months[0].name} ${months[0].year}`
-    : `${months[0].name}–${months[months.length - 1].name} ${months[months.length - 1].year}`;
-  say(`Collecting MTD data for ${monthLabel}…`);
+    ? `${months[0].name} ${year}`
+    : `${months[0].name}–${months[months.length - 1].name} ${year}`;
+  say(incremental
+    ? `Updating ${monthLabel} from MTD (keeping earlier months)…`
+    : `Collecting MTD data for ${monthLabel}…`);
 
   // Load each department's report list once, up front.
   const deptReports = {};
   for (const dept of DEPARTMENTS) deptReports[dept] = await loadDeptReports(dept);
 
-  const dataRows = [];
+  const newRows = [];
   const byDept = { CS: 0, LBF: 0, SME: 0 };
   const skipped = [];
-  // Branch/TL → MONTH TARGET, accumulated from each MTD's first sheet.
-  // Iterating Jan→Jun with overwrite means the latest month's target wins.
+  // Branch/TL → MONTH TARGET, accumulated from each processed MTD's first sheet.
   const mtdTargets = { CS: new Map(), LBF: new Map(), SME: new Map() };
   // firstName → actual full name, for LBF reps under CALL CENTER supervision.
   const ccRepByFirst = new Map();
@@ -692,7 +759,7 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, onProgres
       }
 
       for (const r of listing) {
-        dataRows.push([
+        newRows.push([
           r.rep, r.fullName, r.term, r.number, r.day,
           m.name, REPS_TARGET[dept], r.amount, r.status,
           r.branch, r.supervision, dept,
@@ -709,14 +776,25 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, onProgres
     }
   }
 
-  if (dataRows.length === 0) {
+  // Keep the existing rows for every month we are NOT reprocessing.
+  const processedNames = new Set(months.map((c) => c.name));
+  const keptRows = incremental
+    ? existing.salesRows.filter((r) => !processedNames.has(String(r[5] ?? '').trim()))
+    : [];
+
+  if (newRows.length === 0 && keptRows.length === 0) {
     throw new Error(`No MTD SALES LISTING data found for ${monthLabel}. Make sure the final MTD reports are uploaded.`);
   }
 
-  const monthsCovered = [...new Set(dataRows.map((r) => r[5]))]; // distinct Month values actually written
+  // Combine kept + new, then order by calendar month so the sheet reads Jan → latest.
+  const dataRows = [...keptRows, ...newRows];
+  dataRows.sort((a, b) =>
+    MONTH_NAMES.indexOf(String(a[5] ?? '').trim()) - MONTH_NAMES.indexOf(String(b[5] ?? '').trim()));
+
+  const monthsCovered = [...new Set(dataRows.map((r) => String(r[5] ?? '').trim()).filter(Boolean))];
 
   say('Preserving existing Target sheet…');
-  const targetSheet = (await loadExistingTargetSheet(existingFileId))
+  const targetSheet = (incremental ? existing.targetSheet : await loadExistingTargetSheet(existingFileId))
     || XLSXStyle.utils.aoa_to_sheet([['Branch/TL', 'Target']]);
 
   // Branches present in Sales but missing from the Target sheet.
@@ -752,7 +830,7 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, onProgres
     }
   }
   let ccApplied = 0;
-  for (const row of dataRows) {
+  for (const row of newRows) {   // kept rows already carry their call-centre targets
     if (row[11] !== 'LBF' || !/CALL\s*CENTER/i.test(row[10])) continue;
     const t = ccTargetByMonthRep.get(`${row[5]}|${firstToken(row[0])}`);
     if (typeof t === 'number' && t > 0) { row[6] = t; ccApplied++; }
@@ -795,7 +873,9 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, onProgres
   const blob = new Blob([outBuf], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const file = new File([blob], 'sales_2026.xlsx', { type: blob.type });
+  // Keep the existing file's name on refresh; only name it sales_2026.xlsx on a first build.
+  const outName = (existingFileName && String(existingFileName).trim()) || 'sales_2026.xlsx';
+  const file = new File([blob], outName, { type: blob.type });
 
   say('Uploading refreshed Sales file…');
   const result = await localTripAPI.uploadFile(file, 'SALES');
@@ -805,6 +885,9 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, onProgres
     record: result.data,
     stats: {
       total: dataRows.length,
+      appended: newRows.length,
+      kept: keptRows.length,
+      incremental,
       monthsLabel: monthLabel,
       months: monthsCovered,
       byDept,
