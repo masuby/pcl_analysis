@@ -19,14 +19,46 @@ const processExcelFile = async (fileUrl, fileName, department) => {
     }
     
     const arrayBuffer = await response.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { 
+    let workbook = XLSX.read(arrayBuffer, {
       type: 'array',
       cellDates: true,
       cellNF: false,
       cellText: false,
       raw: false
     });
-    
+
+    // Recover corrupted/bloated workbooks: a used-range that spans to column XFD
+    // (16384) — from formatting applied across entire rows/columns — makes SheetJS
+    // return an undefined worksheet under these read options, so the MTD/listing
+    // sheets parse to nothing and the analysis shows "No MTD data available" (and
+    // the Departmental scorecard, which uses this same parser, reads no LBF data).
+    // Re-read with cellText:true + sheetStubs:false, then clamp each sheet's range
+    // to the cells that actually hold data.
+    if (workbook.SheetNames.some((name) => !workbook.Sheets[name])) {
+      try {
+        workbook = XLSX.read(arrayBuffer, {
+          type: 'array', cellDates: true, cellNF: false, cellText: true, raw: false, sheetStubs: false
+        });
+      } catch (recoverErr) {
+        // Keep the earlier workbook; downstream guards tolerate a missing sheet.
+      }
+      workbook.SheetNames.forEach((name) => {
+        const ws = workbook.Sheets[name];
+        if (!ws || typeof ws !== 'object') return;
+        let maxR = -1;
+        let maxC = -1;
+        Object.keys(ws).forEach((key) => {
+          if (key.charCodeAt(0) === 33) return; // skip '!ref', '!cols', … meta keys
+          const cell = XLSX.utils.decode_cell(key);
+          if (cell.r > maxR) maxR = cell.r;
+          if (cell.c > maxC) maxC = cell.c;
+        });
+        if (maxR >= 0) {
+          ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+        }
+      });
+    }
+
     const sheetNames = workbook.SheetNames;
 
     // Find the MTD sheet (first sheet) and Sales Listing sheet
