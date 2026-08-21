@@ -377,7 +377,13 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     const title      = trim(String(getField(row, 'Title',  3) ?? ''));
     const role       = trim(String(getField(row, 'Role',   2) ?? ''));
     const userBranch = trim(String(getField(row, 'Branch', 6) ?? ''));
-    usersMap[name] = { title, role, branch: userBranch };
+    // One person can hold SEVERAL Users records — a stale account and a current
+    // one, often with different job titles. Keeping only the last one seen
+    // mislabelled people: NEEMA NDEMBEYE sells SME, but her old
+    // "CS FIELD SALES TEAM LEADER" record overwrote her "SME Loan Officer" one,
+    // so she was judged against Team Leader criteria instead of as the sales rep
+    // she is. Keep them all; getUser() picks by product.
+    (usersMap[name] ??= []).push({ title, role, branch: userBranch });
   });
 
   // ── activities map: norm(name) → earliest date ───────────────────────────────
@@ -407,9 +413,50 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     return              { joinDate: ds, period: 'After Apr 2026',   flag: 'No'  };
   }
 
-  function getUser(repName)  { return usersMap[norm(repName)] ?? null; }
-  function getRole(repName)  { return getUser(repName)?.role  ?? ''; }
-  function getTitle(repName) { return getUser(repName)?.title ?? ''; }
+  /** Does this Users record belong to `product` (CS | LBF | SME)? */
+  function recordMatchesProduct(rec, product) {
+    const p = trim(product).toUpperCase();
+    if (!p) return false;
+    // Match on the whole word only, so "CS" cannot match inside "SERVICES".
+    const hay = `${rec.role} ${rec.branch}`.toUpperCase();
+    return new RegExp(`(^|[^A-Z])${p}([^A-Z]|$)`).test(hay);
+  }
+
+  /**
+   * The Users record to believe for this person.
+   *
+   * People can hold several accounts with different job titles, so "whichever
+   * came last in the file" mislabelled them. Score each record against what the
+   * sales data actually says the person did:
+   *   • the branch they sold in is the strongest signal (LUCAS MAGANGA sells in
+   *     SUMBAWANGA, so his Sumbawanga agent record beats his Nzega TL record);
+   *   • failing that, the product (NEEMA NDEMBEYE sells SME, so her
+   *     "SME Loan Officer" record beats her stale "CS FIELD SALES TEAM LEADER").
+   * Ties keep the first record, and a single-record person is untouched.
+   */
+  function getUser(repName, product = '', branch = '', region = '') {
+    const recs = usersMap[norm(repName)];
+    if (!recs || recs.length === 0) return null;
+    if (recs.length === 1) return recs[0];
+
+    const wantKeys = [normBranchKey(branch), normBranchKey(region)].filter(Boolean);
+    const score = (rec) => {
+      const recKey = normBranchKey(rec.branch);
+      const branchHit = recKey && wantKeys.includes(recKey);
+      return (branchHit ? 2 : 0) + (recordMatchesProduct(rec, product) ? 1 : 0);
+    };
+    let best = recs[0];
+    let bestScore = score(recs[0]);
+    for (const rec of recs.slice(1)) {
+      const s = score(rec);
+      if (s > bestScore) { best = rec; bestScore = s; }
+    }
+    return best;
+  }
+  const getRole  = (repName, product = '', branch = '', region = '') =>
+    getUser(repName, product, branch, region)?.role ?? '';
+  const getTitle = (repName, product = '', branch = '', region = '') =>
+    getUser(repName, product, branch, region)?.title ?? '';
 
   // ── aggregate agent data from Sales sheet ─────────────────────────────────────
   const agentMap  = {};
@@ -502,8 +549,8 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
   // Enrich agents
   Object.values(agentMap).forEach((a) => {
     Object.assign(a, getJoinInfo(a.repName));
-    a.role  = getRole(a.repName);
-    a.title = getTitle(a.repName);
+    a.role  = getRole(a.repName, a.product, a.branch, a.region);
+    a.title = getTitle(a.repName, a.product, a.branch, a.region);
     const p = getAgentPAR(a.repName);
     a.totalPrincipal = p.totalPrincipal;
     a.par30Principal = p.par30Principal;
@@ -511,7 +558,7 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
 
     // Cluster: VLOOKUP on the user's Branch (the clean branch name), which
     // matches Zone & Clusters far better than the "Branch / TL" team label.
-    a.userBranch = getUser(a.repName)?.branch ?? '';
+    a.userBranch = getUser(a.repName, a.product, a.branch, a.region)?.branch ?? '';
     const cl     = getCluster(a.userBranch) ?? getCluster(a.branch);
     a.cluster    = cl?.cluster ?? '';
     a.zone       = cl?.zone    ?? '';
