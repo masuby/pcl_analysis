@@ -406,11 +406,11 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
 
   function getJoinInfo(repName) {
     const d = actMap[norm(repName)];
-    if (!d) return { joinDate: 'Unknown', period: 'Unknown', flag: 'No' };
+    if (!d) return { joinDate: 'Unknown', period: 'Unknown', flag: 'No', joinedAt: null };
     const ds = d.toLocaleDateString('en-GB');
-    if (d < JAN_2026) return { joinDate: ds, period: 'Before Jan 2026', flag: 'Yes' };
-    if (d < MAY_2026) return { joinDate: ds, period: 'Jan–Apr 2026',    flag: 'No'  };
-    return              { joinDate: ds, period: 'After Apr 2026',   flag: 'No'  };
+    if (d < JAN_2026) return { joinDate: ds, period: 'Before Jan 2026', flag: 'Yes', joinedAt: d };
+    if (d < MAY_2026) return { joinDate: ds, period: 'Jan–Apr 2026',    flag: 'No',  joinedAt: d };
+    return              { joinDate: ds, period: 'After Apr 2026',   flag: 'No',  joinedAt: d };
   }
 
   /** Does this Users record belong to `product` (CS | LBF | SME)? */
@@ -570,6 +570,23 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
   const monthsInData = [...monthsSet].sort((x, y) => MONTH_ORDER.indexOf(x) - MONTH_ORDER.indexOf(y));
   const monthsCount  = monthsInData.length || 1;
 
+  /**
+   * How many of the reported months a person was actually on the books for.
+   *
+   * Thresholds and targets are "per month × months", so charging somebody who
+   * started in April for January–March asks them to have sold before they
+   * existed. Count only the reported months from their joining month onward.
+   * Anyone who joined before the period (or whose joining date is unknown) is
+   * charged the full period, exactly as before.
+   */
+  function activeMonths(joinedAt) {
+    // Joined before the reporting year (or date unknown) → charged in full.
+    if (!joinedAt || joinedAt < JAN_2026) return monthsCount;
+    const joinIdx = joinedAt.getMonth();           // 0-based month of joining
+    const n = monthsInData.filter((m) => MONTH_ORDER.indexOf(m) >= joinIdx).length;
+    return Math.max(1, Math.min(monthsCount, n));  // never zero, never more than reported
+  }
+
   // ── branch home region ────────────────────────────────────────────────────────
   // A whole team (Branch/TL) can shift region mid-period, so its agents carry
   // different Supervision/Region values. If the hierarchy split by region, the
@@ -640,7 +657,11 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
 
         // Step 1: qualify each SALES AGENT (cumulative thresholds)
         bObj.agents.forEach((agent) => {
-          agent.target = agent.repsTarget * monthsCount;
+          // Somebody who joined in April is only answerable for April onward —
+          // charging them January-to-date would ask for sales made before they
+          // existed. Everyone who was already on the books keeps the full period.
+          agent.activeMonths = activeMonths(agent.joinedAt);
+          agent.target = agent.repsTarget * agent.activeMonths;
           if (agent.isTeamLeader) {
             agent.qualified  = false;
             agent.qualReason = 'Team Leader — assessed in the Team Leader table';
@@ -648,7 +669,7 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
             agent.minDisb    = 0;
             return;
           }
-          const q           = qualifyAgent(agent, product, region, monthsCount);
+          const q           = qualifyAgent(agent, product, region, agent.activeMonths);
           agent.qualified   = q.qualified;
           agent.qualReason  = q.reason;
           agent.minLoans    = q.minLoans;
