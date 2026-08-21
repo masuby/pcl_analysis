@@ -313,11 +313,22 @@ _ROBOTS_KUPATANA = ("robots.txt checked 2026-08-10: User-agent * disallows only 
                     "/dashboard — search and listing paths permitted")
 
 # Categories whose sellers own a vehicle.
+#
+# Measured 2026-08-21 — listings per distinct phone number, which is what
+# decides how many PEOPLE a crawl actually finds:
+#     three-wheelers  2.0     motorbikes ~2      (owner-operators: bajaji, bodaboda)
+#     saloons         5.9     trucks      7.0
+#     vehicles       13.2                        (dealers re-posting stock)
+# The owner-operator categories are therefore worth far more per page crawled
+# than the car categories, even though the car categories look bigger.
 KUPATANA_LBF_CATEGORIES = [
-    "vehicles",
+    "three-wheelers",
+    "motorbikes",
+    "motorcycles",
+    "pikipiki",
     "saloons-mpv-s-4wd-s-pickups",
     "trucks-trailers-buses",
-    "three-wheelers",
+    "vehicles",
 ]
 
 # Categories whose sellers are running a business rather than clearing a shelf:
