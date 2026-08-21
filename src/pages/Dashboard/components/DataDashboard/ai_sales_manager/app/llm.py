@@ -16,9 +16,13 @@ class BudgetError(RuntimeError):
 
 
 # friendly id -> (provider, model name, langchain package)
+# Groq retired the llama-3.x ids in 2026; these are the ids the account can
+# actually call today (GET https://api.groq.com/openai/v1/models).
 MODELS = {
-    "groq: llama-3.3-70b":  ("groq", "llama-3.3-70b-versatile", "langchain_groq"),
-    "groq: llama-3.1-8b":   ("groq", "llama-3.1-8b-instant", "langchain_groq"),
+    "deepseek: chat":       ("deepseek", "deepseek-chat", "langchain_openai"),
+    "groq: gpt-oss-20b":    ("groq", "openai/gpt-oss-20b", "langchain_groq"),
+    "groq: gpt-oss-120b":   ("groq", "openai/gpt-oss-120b", "langchain_groq"),
+    "groq: qwen3.6-27b":    ("groq", "qwen/qwen3.6-27b", "langchain_groq"),
     "openai: gpt-4o":       ("openai", "gpt-4o", "langchain_openai"),
     "openai: gpt-4o-mini":  ("openai", "gpt-4o-mini", "langchain_openai"),
     "anthropic: sonnet-5":  ("anthropic", "claude-sonnet-5", "langchain_anthropic"),
@@ -29,6 +33,7 @@ _PROVIDER_KEY = {
     "groq": lambda: settings.groq_key,
     "openai": lambda: settings.openai_key,
     "anthropic": lambda: settings.anthropic_key,
+    "deepseek": lambda: settings.deepseek_key,
 }
 
 
@@ -60,6 +65,12 @@ def _build(model_id: str):
     if prov == "openai":
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(model=name, api_key=key, temperature=0)
+    if prov == "deepseek":
+        # OpenAI-compatible endpoint; paid credit, so it is not fenced in by the
+        # free tiers' tokens-per-minute ceiling.
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model=name, api_key=key, temperature=0,
+                          base_url=settings.deepseek_base)
     if prov == "anthropic":
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(model=name, api_key=key, temperature=0)
@@ -109,10 +120,28 @@ class _Budget:
 budget = _Budget(settings.daily_token_limit)
 
 
+def _structured_method(model_id: str | None) -> str | None:
+    """How to ask this provider for structured output.
+
+    DeepSeek's endpoint is OpenAI-shaped but rejects `response_format:
+    json_schema` ("This response_format type is unavailable now"), so it has to
+    be driven through tool/function calling instead of the library default.
+    """
+    if model_id and MODELS.get(model_id, (None,))[0] == "deepseek":
+        return "function_calling"
+    return None
+
+
 def invoke_structured(model_id: str | None, schema, messages):
     """Budget-checked structured-output call. `schema` is a pydantic model."""
     budget.check()
-    llm = get_llm(model_id).with_structured_output(schema, include_raw=True)
+    if not model_id or model_id not in available_models():
+        model_id = default_model()
+    method = _structured_method(model_id)
+    kwargs = {"include_raw": True}
+    if method:
+        kwargs["method"] = method
+    llm = get_llm(model_id).with_structured_output(schema, **kwargs)
     out = llm.invoke(messages)
     raw = out.get("raw") if isinstance(out, dict) else None
     usage = getattr(raw, "usage_metadata", None) if raw is not None else None

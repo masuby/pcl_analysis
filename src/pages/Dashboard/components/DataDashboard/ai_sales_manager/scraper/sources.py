@@ -222,6 +222,22 @@ SOURCES: dict[str, Source] = {
         extract=jiji_extract,
         robots_note=_ROBOTS_JIJI,
     ),
+    # Motorcycles are the other asset LBF lends against, and — unlike the car
+    # categories, which are dominated by dealers re-posting the same stock
+    # against one phone number — these are mostly individual owners, so a page
+    # of them yields far more distinct people to call.
+    "jiji_motorcycles": Source(
+        key="jiji_motorcycles",
+        label="Jiji — motorcycles & scooters",
+        product=LBF,
+        base=JIJI_BASE,
+        index_url=_jiji_index("motorcycles-and-scooters"),
+        listing_re=re.compile(
+            r"/[a-z0-9-]+/motorcycles-and-scooters/[a-zA-Z0-9-]+\.html", re.I),
+        extract=jiji_extract,
+        robots_note=_ROBOTS_JIJI,
+        categories=["motorcycles-and-scooters"],
+    ),
 }
 
 # One Source per SME category, so they can be enabled independently.

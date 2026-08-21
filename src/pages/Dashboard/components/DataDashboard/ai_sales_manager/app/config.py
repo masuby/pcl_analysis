@@ -67,6 +67,10 @@ class Settings:
     openai_key = os.getenv("OPENAI_API_KEY")
     groq_key = os.getenv("GROQ_API_KEY")
     google_key = os.getenv("GOOGLE_API_KEY")
+    # DeepSeek speaks the OpenAI wire format, so it is driven through
+    # langchain_openai with its own base_url (see llm.py).
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    deepseek_base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
     # Tools
     tavily_key = os.getenv("TAVILY_API_KEY")

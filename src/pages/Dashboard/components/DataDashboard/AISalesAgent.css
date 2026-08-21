@@ -355,3 +355,55 @@
 .dark-mode .aism-source-name { color: #e2e8f0; }
 .dark-mode .aism-source-meta { color: #94a3b8; }
 .dark-mode .aism-linkbtn { color: #60a5fa; }
+
+/* Download / publish actions on the lead panels.
+   Same flat, bordered treatment as .aism-db-refresh — these are ordinary
+   controls, not calls to action. */
+.aism-db-download,
+.aism-db-publish {
+  margin-left: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  background: #fff;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.aism-db-download:hover:not(:disabled),
+.aism-db-publish:hover:not(:disabled) {
+  background: #f3f6fb;
+  border-color: #9fb3cd;
+}
+
+.aism-db-download:disabled,
+.aism-db-publish:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aism-db-msg {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #374151;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dark-mode .aism-db-download,
+.dark-mode .aism-db-publish {
+  background: #1e293b;
+  border-color: #475569;
+  color: #93c5fd;
+}
+
+.dark-mode .aism-db-download:hover:not(:disabled),
+.dark-mode .aism-db-publish:hover:not(:disabled) { background: #273449; }
+
+.dark-mode .aism-db-msg {
+  color: #cbd5e1;
+  background: #172033;
+  border-top-color: #334155;
+}

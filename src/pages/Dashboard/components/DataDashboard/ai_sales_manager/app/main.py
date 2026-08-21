@@ -10,9 +10,10 @@ import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
-from . import db
+from . import db, export
 from .config import settings
 from .llm import budget, available_models, default_model
 from .tools.sheets import service_account_email
@@ -99,6 +100,31 @@ def leads(limit: int = 0, product: str = "", source: str = ""):
     else:
         rows = db.all_clean(limit=limit)
     return {"leads": rows, "total": db.count_clean(), "by_product": db.stats_by_product()}
+
+
+@app.get("/export.xlsx")
+def export_xlsx(product: str = ""):
+    """Download the acquired leads as an Excel workbook.
+
+    Same tabs and columns as the Google Sheet, so the file an analyst downloads
+    from the dashboard matches what they see in the sheet.
+    """
+    data = export.build_workbook(product)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{export.filename(product)}"'},
+    )
+
+
+@app.post("/publish")
+def publish():
+    """(Re)write the Google Sheet tabs from whatever is currently in the DB."""
+    from scraper.upload_to_sheet import publish as publish_sheet
+    try:
+        return {"ok": True, **publish_sheet(log=lambda m: None)}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
 
 
 @app.get("/unique")

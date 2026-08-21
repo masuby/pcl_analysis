@@ -227,6 +227,50 @@ const AISalesAgent = () => {
       .catch(() => {});
   }, []);
 
+  // Download the leads as an Excel workbook (same tabs/columns as the Sheet).
+  const [downloading, setDownloading] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState('');
+
+  const download = useCallback(async (which) => {
+    setDownloading(which);
+    try {
+      const q = which === 'ALL' ? '' : `?product=${encodeURIComponent(which)}`;
+      const res = await fetch(`${API}/export.xlsx${q}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const stamp = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `digital_agent_leads_${which}_${stamp}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setPublishMsg(`Download failed: ${e.message || e}`);
+    } finally {
+      setDownloading('');
+    }
+  }, []);
+
+  // Push whatever is in the database to the shared Google Sheet.
+  const publishToSheet = useCallback(async () => {
+    setPublishing(true); setPublishMsg('');
+    try {
+      const res = await fetch(`${API}/publish`, { method: 'POST' });
+      const d = await res.json();
+      setPublishMsg(d.ok
+        ? `Published to Google Sheet — LBF ${d.lbf}, SME ${d.sme}, unique ${d.unique}.`
+        : `Publish failed: ${d.error || 'unknown error'}`);
+    } catch (e) {
+      setPublishMsg(`Publish failed: ${e.message || e}`);
+    } finally {
+      setPublishing(false);
+    }
+  }, []);
+
   useEffect(() => { checkHealth(); loadModels(); loadSources(); }, [checkHealth, loadModels, loadSources]);
   useEffect(() => { loadLeads(); }, [loadLeads]);
 
@@ -492,6 +536,9 @@ const AISalesAgent = () => {
             <span className="aism-db-title">🌟 Unique leads — people to call</span>
             <span className="aism-db-count aism-db-count--unique">{uniqueCount.toLocaleString()} unique{region ? ` · ${region}` : ''}</span>
             <button className="aism-db-refresh" onClick={loadLeads}>refresh</button>
+            <button className="aism-db-download" onClick={() => download('ALL')} disabled={!!downloading}>
+              {downloading === 'ALL' ? 'preparing…' : '⬇ Download all (Excel)'}
+            </button>
           </div>
           <div className={`aism-db-wrap ${showAllUnique ? 'aism-db-wrap--all' : ''}`}>
             <LeadsTable leads={showAllUnique ? uniqueView : uniqueView.slice(0, DB_PREVIEW)} product={product} />
@@ -511,7 +558,17 @@ const AISalesAgent = () => {
             <span className="aism-db-title">🗃 AI-cleaned lead database</span>
             <span className="aism-db-count">{dbCount.toLocaleString()} lead{dbCount === 1 ? '' : 's'}{region ? ` · ${region}` : ''}</span>
             <button className="aism-db-refresh" onClick={loadLeads}>refresh</button>
+            <button className="aism-db-download" onClick={() => download('LBF')} disabled={!!downloading}>
+              {downloading === 'LBF' ? 'preparing…' : '⬇ LBF'}
+            </button>
+            <button className="aism-db-download" onClick={() => download('SME')} disabled={!!downloading}>
+              {downloading === 'SME' ? 'preparing…' : '⬇ SME'}
+            </button>
+            <button className="aism-db-publish" onClick={publishToSheet} disabled={publishing}>
+              {publishing ? 'publishing…' : '📤 Publish to Google Sheet'}
+            </button>
           </div>
+          {publishMsg && <div className="aism-db-msg">{publishMsg}</div>}
           <div className={`aism-db-wrap ${showAllDb ? 'aism-db-wrap--all' : ''}`}>
             <LeadsTable leads={showAllDb ? allView : allView.slice(0, DB_PREVIEW)} product={product} />
           </div>

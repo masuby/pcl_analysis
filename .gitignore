@@ -119,3 +119,8 @@ backend/pcl-api
 backend/Automation/automation_service/worker.log
 backend/Automation/automation_service/worker.log.old
 backend/Automation/automation_service/run_worker_hidden.vbs
+
+# env backups must never be committed (they contain live API keys)
+*.env.bak
+.env.bak.*
+**/.env.bak.*
