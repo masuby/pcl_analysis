@@ -196,10 +196,12 @@ JIJI_SME_CATEGORIES = [
 
 _ROBOTS_JIJI = ("robots.txt checked 2026-08-10: User-agent * disallows only "
                 "/test/, /admin/, /crm/, /auth/facebook — listing paths permitted")
-_ROBOTS_CARTANZANIA = ("robots.txt checked 2026-08-10: User-agent * is Allow: / . "
-                       "Named AI crawlers (GPTBot, ClaudeBot, CCBot, Google-Extended, "
-                       "meta-externalagent…) are disallowed, and the site signals "
-                       "ai-train=no / use=reference")
+_ROBOTS_CARTANZANIA = ("DISABLED 2026-08-21: the site now answers every page with a "
+                       "Cloudflare challenge (403 'Just a moment'), i.e. it is refusing "
+                       "automated access. That is a decision by the site owner and is "
+                       "left alone rather than worked around. "
+                       "(robots.txt checked 2026-08-10: User-agent * was Allow: / , with "
+                       "named AI crawlers disallowed and ai-train=no / use=reference.)")
 
 SOURCES: dict[str, Source] = {
     "cartanzania": Source(
@@ -211,6 +213,7 @@ SOURCES: dict[str, Source] = {
         listing_re=re.compile(r"/en/vehicle_listings/ad-[a-z0-9-]+", re.I),
         extract=cartanzania_extract,
         robots_note=_ROBOTS_CARTANZANIA,
+        enabled=False,
     ),
     "jiji_cars": Source(
         key="jiji_cars",
