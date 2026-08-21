@@ -94,6 +94,65 @@ Each `/buy-cars` page yields ~20 listings; the index runs to ~1000 pages.
 (facebook, jiji.co.tz) can be added as extra `scrape_*.py` modules feeding the
 same `lbf_ai_raw_data.xlsx`.
 
+## Getting the data out (added 2026-08-21)
+
+The point of the agent is leads someone can call, so both delivery paths are
+first-class:
+
+**Google Sheet** (`AISM_LEADS_SHEET_ID`) — rewritten per run, laid out per
+product instead of one wide half-empty table:
+
+| tab | what it holds |
+|---|---|
+| `LBF Leads` | car owners: car, year, price, estimated value/loan, **Source Link** |
+| `SME Leads` | businesses: type, sector, offering, **Business Location**, shopfront, **Source Link** |
+| `Unique Leads` | one row per phone across both products - the call list |
+| `Summary` | links discovered / scraped / structured / unique, broken down by source |
+
+**Excel download** — `GET /export.xlsx[?product=LBF|SME]` returns the same tabs
+as a formatted workbook; the AISM tab has Download (all / LBF / SME) and
+"Publish to Google Sheet" buttons. `app/export.py` reuses the column
+definitions from `scraper/upload_to_sheet.py`, so the download and the sheet
+cannot drift apart.
+
+## Throughput notes (read before a big backfill)
+
+Cleaning is the slow step, and the ceiling is the provider's **tokens per
+minute**, not requests:
+
+- `--batch N` puts N listings in one call. The instructions + output schema cost
+  far more than a single listing, so batching is what actually raises the rate
+  (measured: 8 -> 250 listings/min). A batch that returns the wrong number of
+  entries is retried one-at-a-time, so batching can never put one advert's
+  details on another lead.
+- `--workers N` adds concurrency. Only helps on a provider that is not TPM-capped.
+- 429s are retried with the provider's own `try again in Xs` hint.
+- Each Groq model has its own TPM bucket, so two runs on different models
+  (`--offset` to split the queue) roughly double throughput on the free tier.
+
+```bash
+python -m scraper.crawl --source jiji_motorcycles --max-listings 1500
+python -m scraper.clean_with_ai --product LBF --model "deepseek: chat" --batch 4 --workers 8 --loop
+python -m scraper.upload_to_sheet
+```
+
+**Providers.** Groq retired the `llama-3.x` ids; the registry now lists the ids
+the account can actually call. DeepSeek is OpenAI-compatible but rejects
+`response_format: json_schema`, so it is driven through function calling
+(handled in `llm.py`). `DAILY_TOKEN_LIMIT` still guards spend - raise it before
+a backfill of a few thousand listings.
+
+## Source notes
+
+- **cartanzania** now sits behind a Cloudflare challenge (403 "Just a moment").
+  It is left in the registry but returns nothing; it is deliberately NOT worked
+  around.
+- **kupatana** vehicle categories overlap heavily and are dominated by dealers
+  re-posting stock, so ~900 listings collapsed to ~70 distinct phone numbers.
+  Volume there is not the same thing as people to call.
+- **jiji motorcycles / cars** are mostly individual owners, so they yield far
+  more distinct people per listing - that is where LBF breadth comes from.
+
 ## Next phases
 - **P2:** dedupe against existing CS/LBF/SME customer sheets; region → branch/cluster routing.
 - **P3:** human approval gate in the AISM tab; Gmail draft; Pushover rep notify.
