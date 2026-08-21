@@ -571,8 +571,19 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
 
     Object.entries(pObj.regions).forEach(([region, rObj]) => {
       Object.entries(rObj.branches).forEach(([branch, bObj]) => {
-        // TL target: cumulative (monthly × months)
-        bObj.target = (targetMap[normKey(branch)] ?? 0) * monthsCount;
+        // TL target: cumulative (monthly × months).
+        //
+        // SME has no branch level at all — its MTD listing carries no Branch/TL
+        // column, so every SME rep lands in one unnamed branch and there is no
+        // key to look a target up by. Judging that team against a target of 0
+        // produced a meaningless "No target set" row. When the branch is unnamed
+        // the region IS the team, so the region's target is the honest yardstick.
+        // Named branches are untouched: a missing target there is a real gap in
+        // the Target sheet and should keep saying so.
+        const branchTarget = (targetMap[normKey(branch)] ?? 0) * monthsCount;
+        bObj.target = (branchTarget === 0 && !trim(branch))
+          ? ((targetMap[REGION_OVERRIDES[normKey(region)] ?? normKey(region)] ?? 0) * monthsCount)
+          : branchTarget;
 
         // Split the branch roster: Team Leaders are NOT sales reps. Their sales
         // still count toward the branch total, but they are judged by the TL
@@ -640,11 +651,19 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         bObj.qualCount      = bObj.salesAgents.filter((a) => a.qualified).length;
 
         // TL label = the sales file's "Branch / TL" value verbatim. We do NOT
-        // substitute a roster member's name: a TL-titled agent who merely sold a
-        // few loans in a branch that isn't theirs (a roaming TL, e.g. Meshack in
-        // ZANZIBAR (MTORO)) would otherwise mislabel the branch. The Branch/TL
-        // value already carries the TL identity for LBF and "PLACE (TL)" branches.
-        bObj.tlName   = trim(branch);
+        // substitute a roster member's name when that value is present: a
+        // TL-titled agent who merely sold a few loans in a branch that isn't
+        // theirs (a roaming TL, e.g. Meshack in ZANZIBAR (MTORO)) would
+        // otherwise mislabel the branch. The Branch/TL value already carries the
+        // TL identity for LBF and "PLACE (TL)" branches.
+        //
+        // Some rows carry NO Branch/TL at all though — SME team leaders are
+        // recorded against the region only. Falling back to the real person on
+        // the roster keeps them visible (NEEMA NDEMBEYE, SME DAR ZONE) instead of
+        // printing an anonymous "—" row nobody can act on.
+        bObj.tlName = trim(branch)
+          || bObj.teamLeaders.map((t) => t.repName).filter(Boolean).join(', ')
+          || trim(region);
         bObj.tlTitle  = bObj.teamLeaders[0]?.title ?? '';
 
         // Branch cluster = the cluster most of its roster belongs to.
