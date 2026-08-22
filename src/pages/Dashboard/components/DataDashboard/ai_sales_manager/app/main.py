@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from . import db, export
+from . import db, distribute as distribution, export
 from .config import settings
 from .llm import budget, available_models, default_model
 from .tools.sheets import service_account_email
@@ -115,6 +115,20 @@ def export_xlsx(product: str = ""):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{export.filename(product)}"'},
     )
+
+
+@app.post("/distribute")
+def distribute(month: str = ""):
+    """Push unique leads into the per-product call-centre workbooks.
+
+    Incremental: a phone already in the month's tab is skipped, so re-running
+    never duplicates a lead or overwrites feedback already typed in.
+    """
+    try:
+        return distribution.distribute(month=month, log=lambda m: None)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc),
+                "service_account_email": service_account_email()}
 
 
 @app.post("/publish")

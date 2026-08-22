@@ -255,6 +255,23 @@ const AISalesAgent = () => {
     }
   }, []);
 
+  // Hand the unique leads to the call centre: one workbook per product, a tab
+  // per month. Incremental, so re-running never duplicates or overwrites.
+  const [distributing, setDistributing] = useState(false);
+  const [distribution, setDistribution] = useState(null);
+
+  const distribute = useCallback(async () => {
+    setDistributing(true); setDistribution(null); setPublishMsg('');
+    try {
+      const res = await fetch(`${API}/distribute`, { method: 'POST' });
+      setDistribution(await res.json());
+    } catch (e) {
+      setDistribution({ ok: false, error: e.message || String(e) });
+    } finally {
+      setDistributing(false);
+    }
+  }, []);
+
   // Push whatever is in the database to the shared Google Sheet.
   const publishToSheet = useCallback(async () => {
     setPublishing(true); setPublishMsg('');
@@ -539,7 +556,41 @@ const AISalesAgent = () => {
             <button className="aism-db-download" onClick={() => download('ALL')} disabled={!!downloading}>
               {downloading === 'ALL' ? 'preparing…' : '⬇ Download all (Excel)'}
             </button>
+            <button className="aism-db-publish" onClick={distribute} disabled={distributing}>
+              {distributing ? 'distributing…' : '📨 Distribute to call centre'}
+            </button>
           </div>
+          {distribution && (
+            <div className="aism-db-msg">
+              {distribution.results ? (
+                <>
+                  <div>Distributed into <strong>{distribution.month}</strong>:</div>
+                  <ul className="aism-dist-list">
+                    {distribution.results.map((r) => (
+                      <li key={r.product}>
+                        {r.ok ? (
+                          <>
+                            <strong>{r.product}</strong>: +{r.added} new
+                            {r.already_there ? ` (${r.already_there} already there)` : ''} ·{' '}
+                            <a href={r.url} target="_blank" rel="noreferrer">open sheet</a>
+                          </>
+                        ) : (
+                          <><strong>{r.product}</strong>: {r.error}</>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {distribution.service_account_email && (
+                    <div className="aism-dist-sa">
+                      Share each workbook with <code>{distribution.service_account_email}</code> as Editor.
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>Distribute failed: {distribution.error}</>
+              )}
+            </div>
+          )}
           <div className={`aism-db-wrap ${showAllUnique ? 'aism-db-wrap--all' : ''}`}>
             <LeadsTable leads={showAllUnique ? uniqueView : uniqueView.slice(0, DB_PREVIEW)} product={product} />
           </div>

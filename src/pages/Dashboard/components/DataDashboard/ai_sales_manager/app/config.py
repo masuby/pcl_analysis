@@ -82,6 +82,13 @@ class Settings:
     # Guards / behaviour
     daily_token_limit = int(os.getenv("DAILY_TOKEN_LIMIT") or 200000)
     leads_owner_email = os.getenv("AISM_LEADS_OWNER_EMAIL")
+
+    # Distribution workbooks the call centre works from — one per product.
+    # A service account has no Drive quota, so these cannot be auto-created:
+    # a person creates each workbook, shares it with the service-account address
+    # as Editor, and puts its id (or full URL) here.
+    lbf_sheet_id = _sheet_id(os.getenv("AISM_LBF_SHEET_ID"))
+    sme_sheet_id = _sheet_id(os.getenv("AISM_SME_SHEET_ID"))
     leads_sheet_id = _sheet_id(os.getenv("AISM_LEADS_SHEET_ID"))
 
     env_path = str(ENV_PATH) if ENV_PATH else None

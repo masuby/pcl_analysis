@@ -407,3 +407,27 @@
   background: #172033;
   border-top-color: #334155;
 }
+
+/* Distribution result: which workbook got what, and where to open it. */
+.aism-dist-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.aism-dist-list li { margin: 2px 0; }
+
+.aism-dist-sa {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.aism-dist-sa code {
+  padding: 1px 4px;
+  background: #eef2f7;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.dark-mode .aism-dist-sa { color: #94a3b8; }
+.dark-mode .aism-dist-sa code { background: #273449; }
