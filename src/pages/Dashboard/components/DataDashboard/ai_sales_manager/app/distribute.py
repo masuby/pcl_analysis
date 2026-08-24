@@ -11,10 +11,11 @@ Columns match the call-centre sheets already in use, so an agent does not have
 to learn a new layout:
 
     Product | Location | Name | Date | Source Link | Assigned_to |
-    Phone Number | Feedback | is_converted? | Loan Amount
+    Phone Number | Feedback | is_converted? | Loan Amount | Comments
 
-`Feedback` and `is_converted?` are dropdowns; the remaining blanks are the
-call centre's to fill in.
+`Feedback` and `is_converted?` are dropdowns; `Comments` is free text for
+anything the dropdown cannot say. The remaining blanks are the call centre's
+to fill in.
 
 Distribution is INCREMENTAL: a phone number already present in the month's tab
 is skipped, so re-running never duplicates a lead and never overwrites feedback
@@ -45,6 +46,7 @@ COLUMNS = [
     ("Feedback", ""),
     ("is_converted?", ""),
     ("Loan Amount", ""),
+    ("Comments", ""),
 ]
 
 # The call centre's existing feedback vocabulary (12 options).
@@ -67,7 +69,7 @@ BAND = {"red": 0.965, "green": 0.973, "blue": 0.984}
 
 # Column widths, in the COLUMNS order, so every header reads in full without
 # the reader having to drag anything.
-COL_WIDTHS = [80, 170, 230, 105, 330, 140, 140, 165, 115, 130]
+COL_WIDTHS = [80, 170, 230, 105, 330, 140, 140, 165, 115, 130, 320]
 
 # Feedback colours — the same palette the Social Media call-centre sheets use,
 # so an agent moving between the two reads the same colour the same way.
@@ -248,6 +250,17 @@ def _format(sheets, sid: str, gid: int, nrows: int) -> None:
         "cell": {"userEnteredFormat": {"wrapStrategy": "CLIP"}},
         "fields": "userEnteredFormat.wrapStrategy"}})
 
+    # Comments is free text a caller types — let it wrap so a long note stays
+    # readable instead of disappearing behind the next column.
+    if "Comments" in headers:
+        c_col = headers.index("Comments")
+        reqs.append({"repeatCell": {
+            "range": {"sheetId": gid, "startRowIndex": 1, "endRowIndex": last,
+                      "startColumnIndex": c_col, "endColumnIndex": c_col + 1},
+            "cell": {"userEnteredFormat": {"wrapStrategy": "WRAP",
+                                           "verticalAlignment": "TOP"}},
+            "fields": "userEnteredFormat(wrapStrategy,verticalAlignment)"}})
+
     # money reads as money
     reqs.append({"repeatCell": {
         "range": {"sheetId": gid, "startRowIndex": 1, "endRowIndex": last,
@@ -334,11 +347,12 @@ def distribute_product(product: str, month: str = "", log=print) -> dict:
     tab = tab_name(month)
     gid, created = _ensure_tab(sheets, sid, tab)
 
+    # Written every run, not just on creation, so a tab created before a column
+    # was added picks it up instead of silently keeping the old header.
     headers = [h for h, _ in COLUMNS]
-    if created:
-        sheets.spreadsheets().values().update(
-            spreadsheetId=sid, range=f"'{tab}'!A1",
-            valueInputOption="RAW", body={"values": [headers]}).execute()
+    sheets.spreadsheets().values().update(
+        spreadsheetId=sid, range=f"'{tab}'!A1",
+        valueInputOption="RAW", body={"values": [headers]}).execute()
 
     already = _existing_phones(sheets, sid, tab)
     leads = [l for l in db.unique_clean(newest_first=False)
