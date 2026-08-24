@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getAllReports, searchReports } from '../../../services/reports';
-import { proceduresAPI, adminAPI } from '../../../services/api';
+import { proceduresAPI, adminAPI, systemAPI } from '../../../services/api';
 import { useReportRefresh } from '../../../contexts/ReportRefreshContext';
 import ReportTable from './ReportTable/ReportTable';
 import AddReportModal from './AddReportModal/AddReportModal';
@@ -226,14 +226,49 @@ const ReportManagement = () => {
     setTimeout(() => setToast(null), 5000);
   };
 
-  const getStats = () => {
-    // Use all reports, not filtered ones, for stats
-    const totalReports = reports.length;
-    const activeReports = reports.filter(r => r.isActive !== false).length;
-    const totalViews = reports.reduce((sum, r) => sum + (r.views || 0), 0);
-    const totalDownloads = reports.reduce((sum, r) => sum + (r.downloads || 0), 0);
+  // Real system totals + storage, read from the database rather than inferred
+  // from the page of reports this screen happens to have loaded.
+  const [systemStats, setSystemStats] = useState(null);
 
-    return { totalReports, activeReports, totalViews, totalDownloads };
+  const loadSystemStats = async () => {
+    try {
+      const res = await systemAPI.getStorage();
+      if (res?.success) setSystemStats(res);
+    } catch {
+      /* the cards fall back to counting the loaded page */
+    }
+  };
+
+  useEffect(() => { loadSystemStats(); }, []);
+
+  const fmtBytes = (bytes) => {
+    const n = Number(bytes || 0);
+    if (!n) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+    return `${(n / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  };
+
+  const getStats = () => {
+    // Prefer the database's own totals. The list this screen loads is capped by
+    // the API, so counting the loaded rows under-reports a large library — it
+    // showed "500" against 1,255 stored reports.
+    if (systemStats?.reports) {
+      const r = systemStats.reports;
+      return {
+        totalReports: r.total ?? 0,
+        activeReports: r.active ?? 0,
+        totalViews: r.views ?? 0,
+        totalDownloads: r.downloads ?? 0,
+      };
+    }
+    // Fallback while the totals are still loading, or if the endpoint is absent.
+    return {
+      totalReports: reports.length,
+      activeReports: reports.filter(r => r.isActive !== false).length,
+      totalViews: reports.reduce((sum, r) => sum + (r.views || 0), 0),
+      totalDownloads: reports.reduce((sum, r) => sum + (r.downloads || 0), 0),
+    };
   };
 
   // Load procedure when type/department changes
@@ -569,32 +604,79 @@ const ReportManagement = () => {
             <div className="stat-card">
               <div className="stat-icon">📊</div>
               <div className="stat-content">
-                <div className="stat-value">{stats.totalReports}</div>
+                <div className="stat-value">{stats.totalReports.toLocaleString()}</div>
                 <div className="stat-label">Total Reports</div>
               </div>
             </div>
             <div className="stat-card">
               <div className="stat-icon">✅</div>
               <div className="stat-content">
-                <div className="stat-value">{stats.activeReports}</div>
+                <div className="stat-value">{stats.activeReports.toLocaleString()}</div>
                 <div className="stat-label">Active</div>
               </div>
             </div>
             <div className="stat-card">
               <div className="stat-icon">👁️</div>
               <div className="stat-content">
-                <div className="stat-value">{stats.totalViews}</div>
+                <div className="stat-value">{stats.totalViews.toLocaleString()}</div>
                 <div className="stat-label">Total Views</div>
               </div>
             </div>
             <div className="stat-card">
               <div className="stat-icon">📥</div>
               <div className="stat-content">
-                <div className="stat-value">{stats.totalDownloads}</div>
+                <div className="stat-value">{stats.totalDownloads.toLocaleString()}</div>
                 <div className="stat-label">Downloads</div>
               </div>
             </div>
           </div>
+
+          {/* Server storage — what the database and the uploaded files occupy,
+              and how much room is left on the disk underneath. */}
+          {systemStats?.disk && !systemStats.disk.error && (
+            <div className="storage-panel">
+              <div className="storage-head">
+                <span className="storage-title">Server storage</span>
+                <span className="storage-sub">{systemStats.disk.path}</span>
+              </div>
+
+              <div className="storage-bar" title={`${Math.round(systemStats.disk.percentUsed || 0)}% used`}>
+                <div
+                  className={`storage-bar-fill ${
+                    (systemStats.disk.percentUsed || 0) >= 90 ? 'is-critical'
+                      : (systemStats.disk.percentUsed || 0) >= 75 ? 'is-warn' : ''
+                  }`}
+                  style={{ width: `${Math.min(100, systemStats.disk.percentUsed || 0)}%` }}
+                />
+              </div>
+
+              <div className="storage-grid">
+                <div className="storage-item">
+                  <span className="storage-k">Disk total</span>
+                  <span className="storage-v">{fmtBytes(systemStats.disk.total)}</span>
+                </div>
+                <div className="storage-item">
+                  <span className="storage-k">Used</span>
+                  <span className="storage-v">
+                    {fmtBytes(systemStats.disk.used)}
+                    <em> ({Math.round(systemStats.disk.percentUsed || 0)}%)</em>
+                  </span>
+                </div>
+                <div className="storage-item">
+                  <span className="storage-k">Remaining</span>
+                  <span className="storage-v storage-v--free">{fmtBytes(systemStats.disk.available)}</span>
+                </div>
+                <div className="storage-item">
+                  <span className="storage-k">Database</span>
+                  <span className="storage-v">{fmtBytes(systemStats.database?.bytes)}</span>
+                </div>
+                <div className="storage-item">
+                  <span className="storage-k">Uploaded files</span>
+                  <span className="storage-v">{fmtBytes(systemStats.uploads?.bytes)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Filters and Search */}
           <div className="report-controls">

@@ -803,6 +803,17 @@ export async function verifyGapResponseToken(token) {
 
 // ========== Admin API ==========
 
+export const systemAPI = {
+  /**
+   * Real system totals: report counts straight from the database (not from the
+   * capped page the screen happens to have loaded), plus database, uploads and
+   * disk usage.
+   */
+  async getStorage() {
+    return apiRequest('/api/system/storage');
+  },
+};
+
 export const adminAPI = {
   async getUsers(limit = 50, offset = 0) {
     return apiRequest(`/api/admin/users?limit=${limit}&offset=${offset}`);

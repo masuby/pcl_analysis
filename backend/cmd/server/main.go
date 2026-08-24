@@ -120,6 +120,9 @@ func main() {
 			}
 
 			// Reports routes
+			// System storage + true report totals for the Administration screen.
+			protected.GET("/system/storage", handlers.GetSystemStorage)
+
 			reports := protected.Group("/reports")
 			{
 				reports.GET("", handlers.GetAllReports)
