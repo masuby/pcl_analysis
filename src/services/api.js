@@ -842,6 +842,28 @@ export const mambuAPI = {
   async listUploads(kind = '') {
     return apiRequest(`/api/mambu/uploads${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`);
   },
+
+  // --- Do-not-contact list ---
+  // The number is normalised on the server, so anything typed here (0712…,
+  // +255 712…, 255712…) resolves to the same person. The response carries the
+  // normalised form back so the screen can show what was actually stored.
+
+  async listDoNotContact() {
+    return apiRequest('/api/mambu/do-not-contact');
+  },
+
+  async addDoNotContact(phone, reason = '') {
+    return apiRequest('/api/mambu/do-not-contact', {
+      method: 'POST',
+      body: JSON.stringify({ phone, reason }),
+    });
+  },
+
+  async removeDoNotContact(phone) {
+    return apiRequest(`/api/mambu/do-not-contact/${encodeURIComponent(phone)}`, {
+      method: 'DELETE',
+    });
+  },
 };
 
 export const systemAPI = {

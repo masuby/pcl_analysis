@@ -132,6 +132,11 @@ func main() {
 				mambu.GET("/employees/preview", handlers.GetMambuEmployeesPreview)
 				mambu.GET("/uploads", handlers.ListMambuUploads)
 				mambu.GET("/uploads/:id", handlers.GetMambuUpload)
+
+				// Numbers stripped from every distributed lead file.
+				mambu.GET("/do-not-contact", handlers.ListDoNotContact)
+				mambu.POST("/do-not-contact", handlers.AddDoNotContact)
+				mambu.DELETE("/do-not-contact/:phone", handlers.DeleteDoNotContact)
 			}
 
 			reports := protected.Group("/reports")

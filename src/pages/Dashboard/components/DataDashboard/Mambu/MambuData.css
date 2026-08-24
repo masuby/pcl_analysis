@@ -93,6 +93,14 @@
 .mambu-prodbtn:hover { background: #f3f6fb; }
 .mambu-prodbtn.is-active { color: #fff; background: #1e3a8a; border-color: #1e3a8a; }
 
+/* Applies across all products, so it is pushed away from the product tabs. */
+.mambu-dncbtn {
+  margin-left: auto; padding: 7px 14px; font-size: 13px; font-weight: 600;
+  color: #475569; background: #fff; border: 1px solid #d0d7e2;
+  border-radius: 8px; cursor: pointer;
+}
+.mambu-dncbtn:hover { background: #f3f6fb; color: #1f2937; }
+
 .mambu-notyet {
   padding: 22px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
   max-width: 720px;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import MambuData from './MambuData';
+import DoNotContactModal from './DoNotContactModal';
 import './MambuData.css';
 
 /**
@@ -35,6 +36,7 @@ const NotYet = ({ label }) => (
 
 const MambuSection = () => {
   const [product, setProduct] = useState('CS');
+  const [showDnc, setShowDnc] = useState(false);
 
   return (
     <div className="mambu-section">
@@ -48,9 +50,17 @@ const MambuSection = () => {
             {p.label}
           </button>
         ))}
+
+        {/* The list applies to every product, so it sits with the tabs rather
+            than inside one product's pane. */}
+        <button className="mambu-dncbtn" onClick={() => setShowDnc(true)}>
+          Do not contact
+        </button>
       </div>
 
       {product === 'CS' ? <MambuData /> : <NotYet label={PRODUCTS.find((p) => p.key === product).label} />}
+
+      {showDnc && <DoNotContactModal onClose={() => setShowDnc(false)} />}
     </div>
   );
 };
