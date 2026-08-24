@@ -123,6 +123,15 @@ func main() {
 			// System storage + true report totals for the Administration screen.
 			protected.GET("/system/storage", handlers.GetSystemStorage)
 
+			// MAMBU data — the employee register behind the CS affordability run.
+			mambu := protected.Group("/mambu")
+			{
+				mambu.POST("/employees/upload", handlers.UploadMambuEmployees)
+				mambu.GET("/employees/summary", handlers.GetMambuEmployeesSummary)
+				mambu.GET("/uploads", handlers.ListMambuUploads)
+				mambu.GET("/uploads/:id", handlers.GetMambuUpload)
+			}
+
 			reports := protected.Group("/reports")
 			{
 				reports.GET("", handlers.GetAllReports)

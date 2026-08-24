@@ -803,6 +803,37 @@ export async function verifyGapResponseToken(token) {
 
 // ========== Admin API ==========
 
+export const mambuAPI = {
+  /** Employee register summary: how many people are on file and how complete they are. */
+  async getEmployeesSummary() {
+    return apiRequest('/api/mambu/employees/summary');
+  },
+
+  /**
+   * Hand over an employee extract. The file is ~60 MB and ~650k rows, so the
+   * server processes it in the background and returns an id to poll.
+   */
+  async uploadEmployees(file) {
+    const form = new FormData();
+    form.append('file', file);
+    const token = getToken();
+    const res = await fetch(`${API_URL}/api/mambu/employees/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: form,
+    });
+    return res.json();
+  },
+
+  async getUpload(id) {
+    return apiRequest(`/api/mambu/uploads/${id}`);
+  },
+
+  async listUploads(kind = '') {
+    return apiRequest(`/api/mambu/uploads${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`);
+  },
+};
+
 export const systemAPI = {
   /**
    * Real system totals: report counts straight from the database (not from the
