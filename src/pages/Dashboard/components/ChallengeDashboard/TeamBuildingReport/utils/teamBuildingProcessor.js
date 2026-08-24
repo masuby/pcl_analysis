@@ -135,6 +135,28 @@ const REGION_OVERRIDES = {
   'sme tazara branch': 'sme dar zone',
 };
 
+/**
+ * Team Leaders who took their team over part-way through the year.
+ *
+ * A branch target is "monthly target × months", and the branch itself has
+ * existed all year, so a leader who started in March was being charged for
+ * January and February — months that were somebody else's to deliver. These are
+ * counted from the month they started instead, for BOTH sides of the sum: the
+ * target they carry and the sales that count towards it.
+ *
+ * Keyed loosely (spacing and punctuation are ignored), because the sales file
+ * writes the same team as both "ZANZIBAR (MOHAMED OMARY)" and
+ * "ZANZIBAR(MOHAMED OMARY)". Confirmed by the user on 2026-08-21.
+ */
+const TL_START_MONTH = {
+  'MOROGORO':                  'March',
+  'NACHINGWEA':                'March',
+  'MWANZA (MAGARANI PATRICK)': 'March',
+  'ZANZIBAR (LOREEN)':         'June',
+  'ZANZIBAR (MOHAMED OMARY)':  'April',
+  'TATU':                      'February',
+};
+
 // ── agent qualification criteria (per-month thresholds) ──────────────────────
 const THRESHOLDS = {
   LBF: {
@@ -579,6 +601,25 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
    * Anyone who joined before the period (or whose joining date is unknown) is
    * charged the full period, exactly as before.
    */
+  // Branch/TL key -> start month, matched ignoring spacing and punctuation.
+  const TL_START_BY_KEY = {};
+  Object.entries(TL_START_MONTH).forEach(([name, month]) => {
+    TL_START_BY_KEY[normBranchKey(name)] = month;
+  });
+
+  /**
+   * The reported months a Team Leader is answerable for. Everyone gets the whole
+   * period unless they are listed as having taken the team over mid-year.
+   */
+  function tlMonths(branch) {
+    const start = TL_START_BY_KEY[normBranchKey(branch)];
+    if (!start) return monthsInData;
+    const startIdx = MONTH_ORDER.indexOf(start);
+    if (startIdx < 0) return monthsInData;
+    const kept = monthsInData.filter((m) => MONTH_ORDER.indexOf(m) >= startIdx);
+    return kept.length ? kept : monthsInData;
+  }
+
   function activeMonths(joinedAt) {
     // Joined before the reporting year (or date unknown) → charged in full.
     if (!joinedAt || joinedAt < JAN_2026) return monthsCount;
@@ -644,7 +685,15 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         // the region IS the team, so the region's target is the honest yardstick.
         // Named branches are untouched: a missing target there is a real gap in
         // the Target sheet and should keep saying so.
-        const branchTarget = (targetMap[normKey(branch)] ?? 0) * monthsCount;
+        // A leader who took the team over mid-year is charged only from the
+        // month they started — for the target AND for the sales counted against
+        // it, since crediting them with a predecessor's months while shrinking
+        // their target would flatter the result.
+        const countedMonths = tlMonths(branch);
+        bObj.tlMonths       = countedMonths.length;
+        bObj.tlStartMonth   = countedMonths.length < monthsCount ? countedMonths[0] : '';
+
+        const branchTarget = (targetMap[normKey(branch)] ?? 0) * bObj.tlMonths;
         bObj.target = (branchTarget === 0 && !trim(branch))
           ? ((targetMap[REGION_OVERRIDES[normKey(region)] ?? normKey(region)] ?? 0) * monthsCount)
           : branchTarget;
@@ -710,9 +759,16 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
           agent.nearNeeds = needs.join('; ');
         });
 
-        // Step 2: branch totals + PAR (across the WHOLE roster, TLs included)
-        bObj.totalAmount    = bObj.agents.reduce((s, a) => s + a.totalAmount, 0);
-        bObj.totalLoans     = bObj.agents.reduce((s, a) => s + a.totalLoans,  0);
+        // Step 2: branch totals + PAR (across the WHOLE roster, TLs included).
+        // For a leader who started mid-year, count only their own months, so the
+        // target and the achievement describe the same stretch of time.
+        const partial = bObj.tlMonths < monthsCount;
+        const counted = new Set(countedMonths);
+        const sumOver = (pick) => bObj.agents.reduce((s, a) => s + Object.entries(a.monthly || {})
+          .reduce((t, [m, v]) => t + (counted.has(m) ? pick(v) : 0), 0), 0);
+
+        bObj.totalAmount    = partial ? sumOver((v) => v.amt)   : bObj.agents.reduce((s, a) => s + a.totalAmount, 0);
+        bObj.totalLoans     = partial ? sumOver((v) => v.loans) : bObj.agents.reduce((s, a) => s + a.totalLoans,  0);
         bObj.totalPrincipal = bObj.agents.reduce((s, a) => s + a.totalPrincipal, 0);
         bObj.par30Principal = bObj.agents.reduce((s, a) => s + a.par30Principal, 0);
         bObj.par30          = bObj.totalPrincipal > 0 ? bObj.par30Principal / bObj.totalPrincipal : 0;
