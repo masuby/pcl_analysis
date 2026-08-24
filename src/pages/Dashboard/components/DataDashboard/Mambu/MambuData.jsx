@@ -58,6 +58,9 @@ const MambuData = () => {
   const [summary, setSummary] = useState(null);
   const [uploads, setUploads] = useState([]);
   const [job, setJob] = useState(null);
+  const [expected, setExpected] = useState([]);
+  const [preview, setPreview] = useState([]);
+  const [showColumns, setShowColumns] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const fileRef = useRef(null);
@@ -65,12 +68,16 @@ const MambuData = () => {
 
   const load = useCallback(async () => {
     try {
-      const [s, u] = await Promise.all([
+      const [s, u, cols, prev] = await Promise.all([
         mambuAPI.getEmployeesSummary(),
         mambuAPI.listUploads('EMPLOYEES'),
+        mambuAPI.getEmployeeColumns(),
+        mambuAPI.getEmployeesPreview(20),
       ]);
       if (s?.success) setSummary(s);
       if (u?.success) setUploads(u.uploads || []);
+      if (cols?.success) setExpected(cols.expected || []);
+      if (prev?.success) setPreview(prev.rows || []);
     } catch (e) {
       setError(e.message || String(e));
     }
@@ -160,6 +167,30 @@ const MambuData = () => {
         </div>
       )}
 
+      <div className="mambu-expected">
+        <button className="mambu-expected-toggle" onClick={() => setShowColumns((v) => !v)}>
+          {showColumns ? '▾' : '▸'} Columns the upload file should contain ({expected.length})
+        </button>
+        {showColumns && (
+          <div className="mambu-expected-body">
+            <p className="mambu-expected-note">
+              Extra columns are fine — anything new is added to the register. A file
+              without <code>check_number</code> cannot be matched to anyone, and the
+              ones marked required are what the affordability formula reads.
+            </p>
+            <div className="mambu-expected-grid">
+              {expected.map((c) => (
+                <div key={c.name} className="mambu-expected-item">
+                  <code className={c.required ? 'is-required' : ''}>{c.name}</code>
+                  {c.required && <span className="mambu-req">required</span>}
+                  {c.note && <span className="mambu-expected-hint">{c.note}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mambu-stats">
         <div className="mambu-stat">
           <span className="mambu-stat-v">{fmt(emp?.total)}</span>
@@ -197,6 +228,41 @@ const MambuData = () => {
       )}
 
       <AffordabilityNote />
+
+      {preview.length > 0 && (
+        <div className="mambu-history">
+          <div className="mambu-history-head">
+            Data preview — most recently updated {preview.length} rows
+          </div>
+          <div className="mambu-scroll">
+            <table className="mambu-table">
+              <thead>
+                <tr>
+                  <th>Check number</th><th>Name</th><th>Employer</th><th>Department</th>
+                  <th>Job title</th><th>Birth date</th><th>Phone</th>
+                  <th className="num">Gross</th><th className="num">Basic</th><th className="num">Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((r) => (
+                  <tr key={r.check_number}>
+                    <td>{r.check_number}</td>
+                    <td>{r.name || '—'}</td>
+                    <td>{r.votename || '—'}</td>
+                    <td>{r.deptname || '—'}</td>
+                    <td>{r.jobtittle || '—'}</td>
+                    <td>{r.birth_date || '—'}</td>
+                    <td>{r.phone || '—'}</td>
+                    <td className="num">{r.grosspay != null ? fmt(Math.round(r.grosspay)) : '—'}</td>
+                    <td className="num">{r.basicpay != null ? fmt(Math.round(r.basicpay)) : '—'}</td>
+                    <td className="num">{r.netpay != null ? fmt(Math.round(r.netpay)) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {uploads.length > 0 && (
         <div className="mambu-history">

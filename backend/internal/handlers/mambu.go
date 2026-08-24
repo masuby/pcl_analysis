@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -52,6 +53,94 @@ var mambuTypedColumns = map[string]string{
 var mambuSafeHeader = regexp.MustCompile(`^[a-z][a-z0-9_]{0,62}$`)
 
 const mambuKeyColumn = "check_number"
+
+// The columns the CS extract is expected to carry. Shown on the upload screen so
+// somebody preparing a file knows what it must contain before they send 60 MB
+// across. Extra columns are welcome — they are added to the table — but a file
+// missing check_number identifies nobody, and one missing the salary or birth
+// date columns cannot be run through the affordability formula.
+var mambuExpectedColumns = []gin.H{
+	{"name": "check_number", "required": true, "note": "identifies the person; rows are matched on this"},
+	{"name": "votecode", "required": false, "note": "employer code"},
+	{"name": "votename", "required": false, "note": "employer name"},
+	{"name": "deptname", "required": false, "note": "department"},
+	{"name": "first_name", "required": false, "note": ""},
+	{"name": "middle_name", "required": false, "note": ""},
+	{"name": "last_name", "required": false, "note": ""},
+	{"name": "gender", "required": false, "note": ""},
+	{"name": "birth_date", "required": true, "note": "needed for tenure — months to age 59.5"},
+	{"name": "phone", "required": false, "note": "needed to call the lead"},
+	{"name": "hiredate", "required": false, "note": ""},
+	{"name": "confirdate", "required": false, "note": "confirmation date"},
+	{"name": "seniordate", "required": false, "note": ""},
+	{"name": "contract_end", "required": false, "note": ""},
+	{"name": "jobtittle", "required": false, "note": "spelling as it appears in the extract"},
+	{"name": "grosspay", "required": true, "note": "gross − basic gives allowances"},
+	{"name": "basicpay", "required": true, "note": "a third of it is protected"},
+	{"name": "netpay", "required": true, "note": "the starting point for affordability"},
+}
+
+// GetMambuEmployeeColumns — GET /api/mambu/employees/columns
+func GetMambuEmployeeColumns(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"success": true, "expected": mambuExpectedColumns})
+}
+
+// GetMambuEmployeesPreview — GET /api/mambu/employees/preview?limit=20
+//
+// The tail of the register, so somebody can see what is actually stored rather
+// than trusting a row count. This returns personal data and stays behind the
+// same authentication as everything else here.
+func GetMambuEmployeesPreview(c *gin.Context) {
+	limit := 20
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 100 {
+			limit = n
+		}
+	}
+	rows, err := database.DB.Query(fmt.Sprintf(
+		`SELECT check_number, COALESCE(votename,''), COALESCE(deptname,''),
+		        btrim(COALESCE(first_name,'') || ' ' || COALESCE(middle_name,'') || ' ' || COALESCE(last_name,'')),
+		        COALESCE(gender,''), birth_date, COALESCE(phone,''), COALESCE(jobtittle,''),
+		        grosspay, basicpay, netpay, updated_at
+		   FROM mambu_employees ORDER BY updated_at DESC, check_number LIMIT %d`, limit))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	out := []gin.H{}
+	for rows.Next() {
+		var (
+			chk, vote, dept, name, gender, phone, title string
+			birth                                       sql.NullTime
+			gross, basic, net                           sql.NullFloat64
+			updated                                     time.Time
+		)
+		if err := rows.Scan(&chk, &vote, &dept, &name, &gender, &birth, &phone, &title,
+			&gross, &basic, &net, &updated); err != nil {
+			continue
+		}
+		row := gin.H{
+			"check_number": chk, "votename": vote, "deptname": dept, "name": name,
+			"gender": gender, "phone": phone, "jobtittle": title, "updated_at": updated,
+		}
+		if birth.Valid {
+			row["birth_date"] = birth.Time.Format("2006-01-02")
+		}
+		if gross.Valid {
+			row["grosspay"] = gross.Float64
+		}
+		if basic.Valid {
+			row["basicpay"] = basic.Float64
+		}
+		if net.Valid {
+			row["netpay"] = net.Float64
+		}
+		out = append(out, row)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "rows": out})
+}
 
 type mambuJob struct {
 	mu       sync.Mutex

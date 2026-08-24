@@ -5,7 +5,7 @@ import './DataDashboard.css';
 import AISalesAgent from './AISalesAgent';
 import DigitalData from './DigitalData/DigitalData';
 import CRMData from './CRM/CRMData';
-import MambuData from './Mambu/MambuData';
+import MambuSection from './Mambu/MambuSection';
 
 // Data sources + the AI Sales Agent tab.
 const DATA_VIEWS = [
@@ -45,7 +45,7 @@ const DataDashboard = () => {
       </div>
 
       <div className="dept-content">
-        {activeView === 'MAMBU'   && <MambuData />}
+        {activeView === 'MAMBU'   && <MambuSection />}
         {activeView === 'CRM'     && <CRMData />}
         {activeView === 'DIGITAL' && <DigitalData />}
         {activeView === 'AISA'    && <AISalesAgent />}

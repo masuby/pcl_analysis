@@ -83,3 +83,57 @@
 .dark-mode .mambu-formula-list li, .dark-mode .mambu-formula-foot { color: #cbd5e1; }
 .dark-mode .mambu-table th { background: #172033; color: #94a3b8; border-color: #334155; }
 .dark-mode .mambu-title, .dark-mode .mambu-formula-head, .dark-mode .mambu-history-head { color: #93c5fd; }
+
+/* Product sub-tabs inside MAMBU. */
+.mambu-prodbar { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+.mambu-prodbtn {
+  padding: 7px 16px; font-size: 13px; font-weight: 600; color: #475569;
+  background: #fff; border: 1px solid #d0d7e2; border-radius: 8px; cursor: pointer;
+}
+.mambu-prodbtn:hover { background: #f3f6fb; }
+.mambu-prodbtn.is-active { color: #fff; background: #1e3a8a; border-color: #1e3a8a; }
+
+.mambu-notyet {
+  padding: 22px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  max-width: 720px;
+}
+.mambu-notyet-title { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: #1e3a8a; }
+.mambu-notyet p { margin: 0 0 8px; font-size: 13px; color: #475569; line-height: 1.6; }
+.mambu-notyet-next { font-weight: 600; color: #64748b; }
+
+/* Expected-columns panel. */
+.mambu-expected { margin-bottom: 14px; }
+.mambu-expected-toggle {
+  padding: 7px 12px; font-size: 12.5px; font-weight: 600; color: #1e3a8a;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer;
+}
+.mambu-expected-toggle:hover { background: #f3f6fb; }
+.mambu-expected-body {
+  margin-top: 8px; padding: 14px 16px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+}
+.mambu-expected-note { margin: 0 0 10px; font-size: 12.5px; color: #64748b; line-height: 1.6; }
+.mambu-expected-note code, .mambu-expected-item code {
+  padding: 1px 5px; background: #eef2f7; border-radius: 4px; font-size: 12px; color: #1f2937;
+}
+.mambu-expected-item code.is-required { background: #dbeafe; color: #1e40af; font-weight: 700; }
+.mambu-expected-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 16px;
+}
+.mambu-expected-item { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.mambu-req {
+  font-size: 10px; font-weight: 700; color: #1e40af; text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.mambu-expected-hint { font-size: 11.5px; color: #94a3b8; }
+
+/* Preview table can be wide — let it scroll rather than break the page. */
+.mambu-scroll { overflow-x: auto; }
+.mambu-table td.num, .mambu-table th.num { text-align: right; }
+
+.dark-mode .mambu-prodbtn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+.dark-mode .mambu-prodbtn.is-active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.dark-mode .mambu-notyet, .dark-mode .mambu-expected-body, .dark-mode .mambu-expected-toggle
+  { background: #1e293b; border-color: #334155; }
+.dark-mode .mambu-notyet p, .dark-mode .mambu-expected-note { color: #94a3b8; }
+.dark-mode .mambu-expected-item code { background: #273449; color: #e2e8f0; }

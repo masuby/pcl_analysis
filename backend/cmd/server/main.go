@@ -128,6 +128,8 @@ func main() {
 			{
 				mambu.POST("/employees/upload", handlers.UploadMambuEmployees)
 				mambu.GET("/employees/summary", handlers.GetMambuEmployeesSummary)
+				mambu.GET("/employees/columns", handlers.GetMambuEmployeeColumns)
+				mambu.GET("/employees/preview", handlers.GetMambuEmployeesPreview)
 				mambu.GET("/uploads", handlers.ListMambuUploads)
 				mambu.GET("/uploads/:id", handlers.GetMambuUpload)
 			}

@@ -829,6 +829,16 @@ export const mambuAPI = {
     return apiRequest(`/api/mambu/uploads/${id}`);
   },
 
+  /** Which columns the CS extract should carry, shown before someone uploads. */
+  async getEmployeeColumns() {
+    return apiRequest('/api/mambu/employees/columns');
+  },
+
+  /** The tail of the register, so the stored data can be eyeballed. */
+  async getEmployeesPreview(limit = 20) {
+    return apiRequest(`/api/mambu/employees/preview?limit=${limit}`);
+  },
+
   async listUploads(kind = '') {
     return apiRequest(`/api/mambu/uploads${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`);
   },
