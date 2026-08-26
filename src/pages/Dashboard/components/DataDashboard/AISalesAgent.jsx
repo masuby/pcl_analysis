@@ -227,6 +227,46 @@ const AISalesAgent = () => {
       .catch(() => {});
   }, []);
 
+  // Callback report — what the call centre did with the leads we distributed.
+  // Read-only: it reads the working sheets back and never writes to them.
+  const [report, setReport] = useState(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportErr, setReportErr] = useState('');
+  const [reportMonth, setReportMonth] = useState('');
+  const [reportTab, setReportTab] = useState('LBF');
+
+  const loadReport = useCallback(async () => {
+    setReportBusy(true); setReportErr(''); setReport(null);
+    try {
+      const q = reportMonth.trim() ? `?month=${encodeURIComponent(reportMonth.trim())}` : '';
+      const res = await fetch(`${API}/callback-report${q}`);
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error || 'Could not build the report');
+      setReport(d);
+    } catch (e) {
+      setReportErr(e.message || String(e));
+    } finally {
+      setReportBusy(false);
+    }
+  }, [reportMonth]);
+
+  const downloadReport = useCallback(async () => {
+    try {
+      const q = reportMonth.trim() ? `?month=${encodeURIComponent(reportMonth.trim())}` : '';
+      const res = await fetch(`${API}/callback-report.xlsx${q}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AI_Leads_Callback_Report.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setReportErr(e.message || String(e));
+    }
+  }, [reportMonth]);
+
   // Download the leads as an Excel workbook (same tabs/columns as the Sheet).
   const [downloading, setDownloading] = useState('');
   const [publishing, setPublishing] = useState(false);
@@ -601,6 +641,158 @@ const AISalesAgent = () => {
           )}
         </div>
       )}
+
+      {/* Callback report — what the call centre did with what we distributed */}
+      <div className="aism-db aism-report">
+        <div className="aism-db-head">
+          <span className="aism-db-title">📞 Callback report — what the call centre did</span>
+          <input
+            className="aism-report-month"
+            value={reportMonth}
+            onChange={(e) => setReportMonth(e.target.value)}
+            placeholder="Month (blank = all)"
+          />
+          <button className="aism-db-refresh" onClick={loadReport} disabled={reportBusy}>
+            {reportBusy ? 'reading sheets…' : 'Generate report'}
+          </button>
+          {report && (
+            <button className="aism-db-download" onClick={downloadReport}>
+              ⬇ Download (Excel)
+            </button>
+          )}
+        </div>
+
+        {reportErr && <div className="aism-db-msg">Report failed: {reportErr}</div>}
+
+        {!report && !reportBusy && !reportErr && (
+          <div className="aism-empty">
+            Reads the LBF and SME working sheets back and reports how far each
+            month&rsquo;s leads got — worked, reached, interested, converted — per
+            agent and per location. Nothing is written to the sheets.
+          </div>
+        )}
+
+        {report && (
+          <div className="aism-report-body">
+            <div className="aism-report-cards">
+              {[
+                ['Leads distributed', report.combined.leads, 'handed to the call centre'],
+                ['Worked', report.combined.worked, `${report.combined.workedPct}% of the list`],
+                ['Spoke to a person', report.combined.spokeTo, `${report.combined.spokePct}% of those worked`],
+                ['Never connected', report.combined.noContact, 'no answer, unreachable or duplicate'],
+                ['Genuinely interested', report.combined.warm, `${report.combined.warmPct}% of those worked`],
+              ].map(([k, v, hint]) => (
+                <div key={k} className="aism-report-card">
+                  <span className="aism-report-v">{Number(v).toLocaleString()}</span>
+                  <span className="aism-report-k">{k}</span>
+                  <span className="aism-report-hint">{hint}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="aism-report-tabs">
+              {report.products.map((p) => (
+                <button
+                  key={p.product}
+                  className={`aism-report-tab ${reportTab === p.product ? 'is-active' : ''}`}
+                  onClick={() => setReportTab(p.product)}
+                >
+                  {p.product}
+                </button>
+              ))}
+            </div>
+
+            {report.products.filter((p) => p.product === reportTab).map((p) => (
+              <div key={p.product}>
+                {!p.ok && <div className="aism-db-msg">{p.error}</div>}
+                {p.ok && p.months.map((m) => (
+                  <div key={m.tab} className="aism-report-month-block">
+                    <div className="aism-report-sub">
+                      {p.sheetTitle} · {m.tab} — {m.totals.leads.toLocaleString()} leads,{' '}
+                      {m.totals.worked.toLocaleString()} worked ({m.totals.workedPct}%)
+                    </div>
+
+                    {m.notes.length > 0 && (
+                      <ul className="aism-report-notes">
+                        {m.notes.map((n) => <li key={n}>{n}</li>)}
+                      </ul>
+                    )}
+
+                    <div className="aism-report-grid">
+                      <div>
+                        <div className="aism-report-h">What the clients said</div>
+                        <table className="aism-report-table">
+                          <thead>
+                            <tr><th>Outcome</th><th className="num">Leads</th><th className="num">% worked</th></tr>
+                          </thead>
+                          <tbody>
+                            {m.feedback.map((f) => (
+                              <tr key={f.feedback}>
+                                <td>
+                                  {f.feedback}
+                                  {!f.onDropdown && <span className="aism-report-flag"> typed in</span>}
+                                </td>
+                                <td className="num">{f.count.toLocaleString()}</td>
+                                <td className="num">{f.pct}%</td>
+                              </tr>
+                            ))}
+                            {m.totals.notWorked > 0 && (
+                              <tr className="aism-report-dim">
+                                <td>(not worked yet)</td>
+                                <td className="num">{m.totals.notWorked.toLocaleString()}</td>
+                                <td className="num">—</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div>
+                        <div className="aism-report-h">Per agent</div>
+                        <div className="aism-report-scroll">
+                          <table className="aism-report-table">
+                            <thead>
+                              <tr>
+                                <th>Agent</th><th className="num">Assigned</th>
+                                <th className="num">Worked</th><th className="num">Spoke to</th>
+                                <th className="num">Interested</th><th className="num">Spoke %</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {m.agents.map((a) => (
+                                <tr key={a.agent}>
+                                  <td>{a.agent}</td>
+                                  <td className="num">{a.assigned}</td>
+                                  <td className="num">{a.worked}</td>
+                                  <td className="num">{a.spokeTo}</td>
+                                  <td className="num">{a.warm}</td>
+                                  <td className="num">{a.spokePct}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="aism-report-h">Conversions</div>
+                    <p className="aism-report-conv">
+                      <b>{m.conversions.byFeedback}</b> marked Converted in Feedback,{' '}
+                      <b>{m.conversions.byFlag}</b> flagged Yes under is_converted?, and{' '}
+                      <b>{m.conversions.agreeing}</b> where both agree.
+                      {m.conversions.disagreements.length > 0 && (
+                        <> The two columns contradict each other on{' '}
+                          {m.conversions.disagreements.length} row(s), so treat the
+                          conversion count as unconfirmed.</>
+                      )}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Full AI-cleaned lead database — fixed-height, scrollable, View more */}
       {allView.length > 0 && (

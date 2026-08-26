@@ -141,6 +141,36 @@ def publish():
         return {"ok": False, "error": str(exc)}
 
 
+@app.get("/callback-report")
+def callback_report(month: str = "", products: str = ""):
+    """What the call centre did with the leads we distributed.
+
+    Reads the LBF and SME working sheets back and reports how far each month's
+    list got — worked, reached, interested, converted — per agent and per
+    location. Read-only: it never writes to the sheets.
+    """
+    from . import callback_report as report
+    want = [p.strip().upper() for p in products.split(",") if p.strip()] or None
+    try:
+        return report.build_report(month=month, products=want)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc),
+                "service_account_email": service_account_email()}
+
+
+@app.get("/callback-report.xlsx")
+def callback_report_xlsx(month: str = "", products: str = ""):
+    """The same report as a workbook."""
+    from . import callback_report as report
+    want = [p.strip().upper() for p in products.split(",") if p.strip()] or None
+    data = report.build_workbook(month=month, products=want)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename(month)}"'},
+    )
+
+
 @app.get("/unique")
 def unique(limit: int = 0):
     """One lead per unique phone number (people to call)."""
