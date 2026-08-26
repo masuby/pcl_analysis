@@ -911,6 +911,29 @@ export const mambuAPI = {
     return apiRequest('/api/mambu/rr/runs');
   },
 
+  // --- Distribution by email ---
+  // Preview sends nothing; it reports exactly who would receive what. The send
+  // itself needs confirm:true, because it puts client lists in branch inboxes
+  // and cannot be taken back.
+
+  async previewDistribution(payload) {
+    return apiRequest('/api/mambu/rr/distribute/preview', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async sendDistribution(payload) {
+    return apiRequest('/api/mambu/rr/distribute', {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, confirm: true }),
+    });
+  },
+
+  async listSends(runId) {
+    return apiRequest(`/api/mambu/rr/runs/${runId}/sends`);
+  },
+
   // The zip is fetched with the auth header and handed to the browser as a
   // blob — a plain link would drop the token and get a 401.
   async downloadRun(id, fileName) {

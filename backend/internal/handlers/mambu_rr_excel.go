@@ -199,13 +199,14 @@ func markRecipients(summary *rrTable, recipients []ZonePerson) *rrTable {
 // be silent either: writing the error text into a file still named .xlsx just
 // produces something Excel refuses to open with no explanation. Instead the
 // file is dropped and the reason recorded, so it surfaces on the run.
-func (res *rrProductResult) addWorkbook(relPath string, summary, dist, data, dnc *rrTable) {
+func (res *rrProductResult) addWorkbook(meta rrOutFile, summary, dist, data, dnc *rrTable) {
 	b, err := buildWorkbook(summary, dist, data, dnc)
 	if err != nil {
-		res.fileErrors = append(res.fileErrors, fmt.Sprintf("%s (%v)", relPath, err))
+		res.fileErrors = append(res.fileErrors, fmt.Sprintf("%s (%v)", meta.RelPath, err))
 		return
 	}
-	res.files = append(res.files, rrOutFile{RelPath: relPath, Data: b})
+	meta.Data = b
+	res.files = append(res.files, meta)
 }
 
 func buildWorkbook(summary, dist, data, dnc *rrTable) ([]byte, error) {

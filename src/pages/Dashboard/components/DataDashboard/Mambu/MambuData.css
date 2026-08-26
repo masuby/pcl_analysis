@@ -296,3 +296,8 @@
 .dark-mode .mambu-prodhead { border-color: #334155; }
 .dark-mode .mambu-link { color: #93c5fd; }
 .dark-mode .mambu-link:hover { background: #273449; }
+
+/* Generate + the three Distribute buttons sit on one row. */
+.mambu-runs-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mambu-runs-hint { margin: -6px 0 14px; font-size: 12px; color: #64748b; }
+.dark-mode .mambu-runs-hint { color: #94a3b8; }

@@ -95,7 +95,7 @@ func main() {
 
 		// Protected routes (auth required)
 		protected := api.Group("")
-			protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuthMiddleware())
 		{
 			// Email routes (score card report)
 			protected.POST("/email/scorecard", handlers.SendScoreCardEmail)
@@ -151,6 +151,12 @@ func main() {
 				mambu.GET("/rr/runs", handlers.ListMambuRRRuns)
 				mambu.GET("/rr/runs/:id", handlers.GetMambuRRRun)
 				mambu.GET("/rr/runs/:id/download", handlers.DownloadMambuRRRun)
+				mambu.GET("/rr/runs/:id/sends", handlers.ListMambuDistributions)
+
+				// Emailing a finished run out. Preview says who would receive
+				// what and sends nothing; the send itself needs confirm=true.
+				mambu.POST("/rr/distribute/preview", handlers.PreviewMambuDistribution)
+				mambu.POST("/rr/distribute", handlers.SendMambuDistribution)
 			}
 
 			reports := protected.Group("/reports")

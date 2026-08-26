@@ -236,6 +236,13 @@ func runRRJob(runID uuid.UUID, mode string, products []string,
 		return
 	}
 
+	// Record every workbook and who it is addressed to, so Distribute later
+	// sends exactly these files to exactly these people.
+	if err := saveRunFiles(runID, out); err != nil {
+		fail(fmt.Errorf("recording the run's files: %w", err))
+		return
+	}
+
 	rowsOut, dncRemoved := 0, 0
 	for _, p := range out.Products {
 		rowsOut += p.Rows
@@ -477,4 +484,34 @@ func titleWord(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// saveRunFiles stores one row per built workbook, with the recipients resolved
+// at build time.
+func saveRunFiles(runID uuid.UUID, out *rrRunOutput) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(
+		`INSERT INTO mambu_rr_files
+		   (id, run_id, product, scope, name, cluster, rel_path, rows, emails, names)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, p := range out.Products {
+		for _, f := range p.files {
+			if _, err := stmt.Exec(uuid.New(), runID, p.Product, f.Scope, f.Name,
+				f.Cluster, f.RelPath, f.Rows,
+				strings.Join(f.Emails, ","), strings.Join(f.Names, ",")); err != nil {
+				return err
+			}
+		}
+	}
+	return tx.Commit()
 }

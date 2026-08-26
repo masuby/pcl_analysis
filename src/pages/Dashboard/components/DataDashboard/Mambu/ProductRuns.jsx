@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { mambuAPI } from '../../../../../services/api';
+import DistributeModal from './DistributeModal';
 
 /**
  * REFINANCE / REACTIVATION for one product.
@@ -58,6 +59,7 @@ const ProductRuns = ({ product, label, sources, sourcesLoaded }) => {
   const [runs, setRuns] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [distMode, setDistMode] = useState('');
   const pollRef = useRef(null);
 
   const loadRuns = useCallback(async () => {
@@ -119,6 +121,17 @@ const ProductRuns = ({ product, label, sources, sourcesLoaded }) => {
     }
   };
 
+  // Distribution acts on the report on screen; if none has been generated this
+  // visit, the most recent finished run of the same kind is the sensible target.
+  const lastFinished = runs.find(
+    (r) => r.status === 'DONE' && r.mode === current.label.toUpperCase(),
+  );
+  const distributableRunId =
+    (run?.status === 'DONE' && run.id) || lastFinished?.id || '';
+  const distributeHint = distributableRunId
+    ? 'Opens a preview first — nothing is emailed until you confirm'
+    : 'Generate the report first';
+
   const stats = run?.stats?.products?.find((p) => p.product === product);
   const funnel = run?.stats?.funnel;
 
@@ -170,7 +183,41 @@ const ProductRuns = ({ product, label, sources, sourcesLoaded }) => {
         <button className="mambu-btn" onClick={start} disabled={busy || !sourcesLoaded || !sourceReady}>
           {busy ? 'Building…' : `Generate ${current.label.toLowerCase()} for ${label}`}
         </button>
+
+        {/* Distributing emails real branch staff, so these stay disabled until
+            there is a finished report to send, and each one opens a preview
+            before anything leaves the server. */}
+        <button
+          className="mambu-btn mambu-btn--ghost"
+          onClick={() => setDistMode('cluster')}
+          disabled={!distributableRunId}
+          title={distributeHint}
+        >
+          Distribute to Cluster
+        </button>
+        <button
+          className="mambu-btn mambu-btn--ghost"
+          onClick={() => setDistMode('branch')}
+          disabled={!distributableRunId}
+          title={distributeHint}
+        >
+          Distribute to Branch
+        </button>
+        <button
+          className="mambu-btn mambu-btn--ghost"
+          onClick={() => setDistMode('unallocated')}
+          disabled={!distributableRunId}
+          title={distributeHint}
+        >
+          Distribute Unallocated
+        </button>
       </div>
+
+      {!distributableRunId && (
+        <p className="mambu-runs-hint">
+          Generate the report first — distribution sends the workbooks it produced.
+        </p>
+      )}
 
       {error && <div className="mambu-notice is-bad">{error}</div>}
 
@@ -222,6 +269,16 @@ const ProductRuns = ({ product, label, sources, sourcesLoaded }) => {
           <div className="mambu-warnings-head">Worth knowing</div>
           <ul>{run.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
         </div>
+      )}
+
+      {distMode && (
+        <DistributeModal
+          runId={distributableRunId}
+          mode={distMode}
+          product={product}
+          label={label}
+          onClose={() => setDistMode('')}
+        />
       )}
 
       {runs.length > 0 && (

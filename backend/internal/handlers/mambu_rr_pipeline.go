@@ -61,9 +61,51 @@ type rrProductResult struct {
 	fileErrors []string    // workbooks that could not be written, with the reason
 }
 
+// Scopes a built workbook can have. These decide which Distribute button
+// picks the file up.
+const (
+	ScopeFull          = "FULL"
+	ScopeUnallocated   = "UNALLOCATED"    // one file, to the call centre
+	ScopeUnallocBranch = "UNALLOC_BRANCH" // no call centre: split back to branches
+	ScopeBranch        = "BRANCH"
+	ScopeCluster       = "CLUSTER"
+	ScopeZone          = "ZONE"
+)
+
+// rrOutFile is one built workbook plus everything needed to send it later.
+//
+// Recipients are resolved HERE, at build time, and stored — not recomputed
+// when somebody presses Distribute. The roster can change between building a
+// report and sending it, and the file that goes out must match the file that
+// was reviewed.
 type rrOutFile struct {
 	RelPath string // path inside the zip
 	Data    []byte
+
+	Scope   string
+	Name    string // branch / cluster / zone name
+	Cluster string // for BRANCH files: the cluster it rolls up into
+	Rows    int
+	Emails  []string
+	Names   []string
+}
+
+// recipientEmails pulls the deliverable addresses out of a roster pool.
+func recipientEmails(pool []ZonePerson) ([]string, []string) {
+	var emails, names []string
+	seenE, seenN := map[string]bool{}, map[string]bool{}
+	for _, p := range pool {
+		e := strings.TrimSpace(p.Email)
+		if e != "" && strings.Contains(e, "@") && !seenE[strings.ToLower(e)] {
+			seenE[strings.ToLower(e)] = true
+			emails = append(emails, e)
+		}
+		if p.Name != "" && !seenN[p.Name] {
+			seenN[p.Name] = true
+			names = append(names, p.Name)
+		}
+	}
+	return emails, names
 }
 
 // lbfLoanPattern — the LBF loan products, as the original regex had them.
@@ -397,8 +439,10 @@ func finalizeProduct(src *rrTable, product, label, phoneCol string,
 	// FULL — every row assigned within its own branch.
 	fullDist, fullSummary, noRecip := distributeByBranch(t, zc, product, rng)
 	res.NoRecipient = noRecip
-	res.addWorkbook(fmt.Sprintf("%s/%s_FULL.xlsx", base, base),
-		fullSummary, fullDist, t, removed)
+	res.addWorkbook(rrOutFile{
+		RelPath: fmt.Sprintf("%s/%s_FULL.xlsx", base, base),
+		Scope:   ScopeFull, Name: product, Rows: t.Len(),
+	}, fullSummary, fullDist, t, removed)
 
 	// UNALLOCATED — nobody owns these, so they go to the call centre. They stay
 	// in FULL but are excluded from the branch/cluster/zone splits, so a branch
@@ -407,10 +451,53 @@ func finalizeProduct(src *rrTable, product, label, phoneCol string,
 	alloc := t.Filter(func(r []string) bool { return !isUnallocatedRow(t, r) })
 	res.Unallocated, res.Allocated = unalloc.Len(), alloc.Len()
 
+	// Where the product HAS a call centre (LBF has LBF_CC, CS has CS_CC) the
+	// unallocated clients go there as one file. Where it does not (SME,
+	// Agrifinance) there is nobody central to call them, so they are split back
+	// to the branch each client actually belongs to.
+	hasCallCentre := len(filterClass(zc.peopleWhere(func(p ZonePerson) bool {
+		return p.ProductKey == zoneKey(product)
+	}), "agent")) > 0
+
 	uDist, uSummary := distributePool(unalloc, zc.CallCentrePeople(product), rng)
-	uSummary = markRecipients(uSummary, zc.UnallocatedRecipients(product))
-	res.addWorkbook(fmt.Sprintf("%s/%s_UNALLOCATED.xlsx", base, base),
-		uSummary, uDist, unalloc, nil)
+	uRecips := zc.UnallocatedRecipients(product)
+	uSummary = markRecipients(uSummary, uRecips)
+	uEmails, uNames := recipientEmails(uRecips)
+	uMeta := rrOutFile{
+		RelPath: fmt.Sprintf("%s/%s_UNALLOCATED.xlsx", base, base),
+		Scope:   ScopeUnallocated, Name: product + " unallocated",
+		Rows: unalloc.Len(), Emails: uEmails, Names: uNames,
+	}
+	if !hasCallCentre {
+		// Still written for download and review, but not something to send as
+		// one lump — the per-branch files below are what gets distributed.
+		uMeta.Scope = ScopeFull
+		uMeta.Emails, uMeta.Names = nil, nil
+	}
+	res.addWorkbook(uMeta, uSummary, uDist, unalloc, nil)
+
+	if !hasCallCentre && unalloc.Len() > 0 {
+		for _, br := range distinctValues(unalloc, "Branch") {
+			sub := unalloc.Filter(func(r []string) bool { return unalloc.Get(r, "Branch") == br })
+			name := br
+			if name == "" {
+				name = "Unknown branch"
+			}
+			safe := safeFileName(name)
+			if safe == "" {
+				continue
+			}
+			pool := zc.PeopleForBranch(product, br)
+			d, sm := distributePool(sub, pool, rng)
+			sm = markRecipients(sm, pool)
+			emails, names := recipientEmails(pool)
+			res.addWorkbook(rrOutFile{
+				RelPath: fmt.Sprintf("%s/Unallocated_By_Branch/%s_Unallocated_%s.xlsx", base, label, safe),
+				Scope:   ScopeUnallocBranch, Name: name, Rows: sub.Len(),
+				Emails: emails, Names: names,
+			}, sm, d, sub, nil)
+		}
+	}
 
 	// By branch.
 	for _, br := range distinctValues(alloc, "Branch") {
@@ -422,8 +509,12 @@ func finalizeProduct(src *rrTable, product, label, phoneCol string,
 		pool := zc.PeopleForBranch(product, br)
 		d, s := distributePool(sub, pool, rng)
 		s = markRecipients(s, pool)
-		res.addWorkbook(fmt.Sprintf("%s/By_Branch/%s_%s.xlsx", base, label, safe),
-			s, d, sub, nil)
+		emails, names := recipientEmails(pool)
+		res.addWorkbook(rrOutFile{
+			RelPath: fmt.Sprintf("%s/By_Branch/%s_%s.xlsx", base, label, safe),
+			Scope:   ScopeBranch, Name: br, Cluster: clusterOf[zoneKey(br)],
+			Rows: sub.Len(), Emails: emails, Names: names,
+		}, s, d, sub, nil)
 		res.BranchFiles++
 	}
 
@@ -445,8 +536,12 @@ func finalizeProduct(src *rrTable, product, label, phoneCol string,
 		}
 		d, s := distributePool(sub, pool, rng)
 		s = markRecipients(s, recips)
-		res.addWorkbook(fmt.Sprintf("%s/By_Cluster/%s_%s.xlsx", base, label, safe),
-			s, d, sub, nil)
+		emails, names := recipientEmails(recips)
+		res.addWorkbook(rrOutFile{
+			RelPath: fmt.Sprintf("%s/By_Cluster/%s_%s.xlsx", base, label, safe),
+			Scope:   ScopeCluster, Name: name, Rows: sub.Len(),
+			Emails: emails, Names: names,
+		}, s, d, sub, nil)
 		res.ClusterFile++
 	}
 
@@ -471,11 +566,17 @@ func finalizeProduct(src *rrTable, product, label, phoneCol string,
 			continue
 		}
 		d, s, _ := distributeByBranch(sub, zc, product, rng)
+		var zEmails, zNames []string
 		if z != "Unknown" {
-			s = markRecipients(s, zc.ZoneRecipients(product, z))
+			zr := zc.ZoneRecipients(product, z)
+			s = markRecipients(s, zr)
+			zEmails, zNames = recipientEmails(zr)
 		}
-		res.addWorkbook(fmt.Sprintf("%s/By_Zone/%s_%s.xlsx", base, label, safe),
-			s, d, sub, nil)
+		res.addWorkbook(rrOutFile{
+			RelPath: fmt.Sprintf("%s/By_Zone/%s_%s.xlsx", base, label, safe),
+			Scope:   ScopeZone, Name: z, Rows: sub.Len(),
+			Emails: zEmails, Names: zNames,
+		}, s, d, sub, nil)
 		res.ZoneFiles++
 	}
 
