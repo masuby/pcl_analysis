@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { mambuAPI } from '../../../../../services/api';
+import CSAffordability from './CSAffordability';
 import './MambuData.css';
 
 /**
@@ -264,9 +265,11 @@ const MambuData = () => {
         </div>
       )}
 
+      <CSAffordability />
+
       {uploads.length > 0 && (
         <div className="mambu-history">
-          <div className="mambu-history-head">Recent uploads</div>
+          <div className="mambu-history-head">Recent register uploads</div>
           <table className="mambu-table">
             <thead>
               <tr>

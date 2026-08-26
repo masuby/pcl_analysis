@@ -911,6 +911,50 @@ export const mambuAPI = {
     return apiRequest('/api/mambu/rr/runs');
   },
 
+  // --- CS affordability inputs (deductions + CS loan extracts) ---
+  // Uploaded as a batch: several files go into one open batch, and activating
+  // it makes it the one reports read, retiring the previous one.
+
+  async getCSKinds() {
+    return apiRequest('/api/mambu/cs/kinds');
+  },
+
+  async listCSBatches() {
+    return apiRequest('/api/mambu/cs/batches');
+  },
+
+  async getCSSummary() {
+    return apiRequest('/api/mambu/cs/summary');
+  },
+
+  async uploadCSFile(kind, file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_URL}/api/mambu/cs/upload/${encodeURIComponent(kind)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  async activateCSBatch(id) {
+    return apiRequest(`/api/mambu/cs/batches/${id}/activate`, { method: 'POST' });
+  },
+
+  async deleteCSBatch(id) {
+    return apiRequest(`/api/mambu/cs/batches/${id}`, { method: 'DELETE' });
+  },
+
+  async runCSAffordability(groups) {
+    return apiRequest('/api/mambu/cs/run', {
+      method: 'POST',
+      body: JSON.stringify({ groups }),
+    });
+  },
+
   // --- Distribution by email ---
   // Preview sends nothing; it reports exactly who would receive what. The send
   // itself needs confirm:true, because it puts client lists in branch inboxes
