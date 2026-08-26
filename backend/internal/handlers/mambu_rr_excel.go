@@ -200,7 +200,24 @@ func markRecipients(summary *rrTable, recipients []ZonePerson) *rrTable {
 // produces something Excel refuses to open with no explanation. Instead the
 // file is dropped and the reason recorded, so it surfaces on the run.
 func (res *rrProductResult) addWorkbook(meta rrOutFile, summary, dist, data, dnc *rrTable) {
-	b, err := buildWorkbook(summary, dist, data, dnc)
+	sheets := []namedSheet{{"Summary", summary}, {"Distribution", dist}, {"Data", data}}
+	if dnc != nil && dnc.Len() > 0 {
+		sheets = append(sheets, namedSheet{"Do_Not_Contact", dnc})
+	}
+	res.addSheets(meta, sheets)
+}
+
+// namedSheet lets a caller choose its own sheet names. It matters: the CS
+// report's sheets mean different things from the refinance report's, and a
+// whitelist sitting in a tab called "Do_Not_Contact" reads as the exact
+// opposite of what it is.
+type namedSheet struct {
+	Name  string
+	Table *rrTable
+}
+
+func (res *rrProductResult) addSheets(meta rrOutFile, sheets []namedSheet) {
+	b, err := buildWorkbookSheets(sheets)
 	if err != nil {
 		res.fileErrors = append(res.fileErrors, fmt.Sprintf("%s (%v)", meta.RelPath, err))
 		return
@@ -209,7 +226,10 @@ func (res *rrProductResult) addWorkbook(meta rrOutFile, summary, dist, data, dnc
 	res.files = append(res.files, meta)
 }
 
-func buildWorkbook(summary, dist, data, dnc *rrTable) ([]byte, error) {
+func buildWorkbookSheets(sheets []namedSheet) ([]byte, error) {
+	if len(sheets) == 0 {
+		return nil, fmt.Errorf("a workbook needs at least one sheet")
+	}
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -230,30 +250,15 @@ func buildWorkbook(summary, dist, data, dnc *rrTable) ([]byte, error) {
 		},
 	})
 
-	sheets := []struct {
-		name string
-		t    *rrTable
-	}{
-		{"Summary", summary},
-		{"Distribution", dist},
-		{"Data", data},
-	}
-	if dnc != nil && dnc.Len() > 0 {
-		sheets = append(sheets, struct {
-			name string
-			t    *rrTable
-		}{"Do_Not_Contact", dnc})
-	}
-
 	for i, s := range sheets {
 		if i == 0 {
-			f.SetSheetName("Sheet1", s.name)
+			f.SetSheetName("Sheet1", s.Name)
 		} else {
-			if _, err := f.NewSheet(s.name); err != nil {
+			if _, err := f.NewSheet(s.Name); err != nil {
 				return nil, err
 			}
 		}
-		if err := writeSheet(f, s.name, s.t, header, cell); err != nil {
+		if err := writeSheet(f, s.Name, s.Table, header, cell); err != nil {
 			return nil, err
 		}
 	}

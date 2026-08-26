@@ -21,6 +21,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -28,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -125,9 +127,22 @@ func LoadZoneClusters(ctx context.Context, forceRefresh bool) (*ZoneClusters, er
 		return nil, fmt.Errorf("google sheets: %w", err)
 	}
 
-	meta, err := svc.Spreadsheets.Get(id).Context(ctx).Do()
-	if err != nil {
-		return nil, fmt.Errorf("reading the Zone and Clusters sheet: %w", err)
+	// Sheets returns a transient 503 often enough that a single blip must not
+	// sink a report that takes minutes to build.
+	var meta *sheets.Spreadsheet
+	for attempt := 1; ; attempt++ {
+		meta, err = svc.Spreadsheets.Get(id).Context(ctx).Do()
+		if err == nil {
+			break
+		}
+		if attempt >= 4 || !retryableSheetsErr(err) {
+			return nil, fmt.Errorf("reading the Zone and Clusters sheet: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(attempt*attempt) * time.Second):
+		}
 	}
 
 	zc := &ZoneClusters{LoadedAt: time.Now(), Title: meta.Properties.Title}
@@ -211,13 +226,35 @@ func LoadZoneClusters(ctx context.Context, forceRefresh bool) (*ZoneClusters, er
 
 func readZoneTab(ctx context.Context, svc *sheets.Service, id, tab string) ([][]interface{}, error) {
 	// Sheet names contain spaces, so the range must be quoted.
-	resp, err := svc.Spreadsheets.Values.
-		Get(id, fmt.Sprintf("'%s'!A1:Z5000", strings.ReplaceAll(tab, "'", "''"))).
-		Context(ctx).Do()
-	if err != nil {
-		return nil, err
+	rng := fmt.Sprintf("'%s'!A1:Z5000", strings.ReplaceAll(tab, "'", "''"))
+	for attempt := 1; ; attempt++ {
+		resp, err := svc.Spreadsheets.Values.Get(id, rng).Context(ctx).Do()
+		if err == nil {
+			return resp.Values, nil
+		}
+		if attempt >= 4 || !retryableSheetsErr(err) {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Duration(attempt*attempt) * time.Second):
+		}
 	}
-	return resp.Values, nil
+}
+
+// retryableSheetsErr is true for the transient failures Google returns under
+// load — a 503 or 429 is worth waiting out, a 404 or 403 never is.
+func retryableSheetsErr(err error) bool {
+	var ae *googleapi.Error
+	if errors.As(err, &ae) {
+		return ae.Code == 429 || ae.Code == 500 || ae.Code == 502 ||
+			ae.Code == 503 || ae.Code == 504
+	}
+	// Connection resets and timeouts surface as plain errors.
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout") || strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "eof")
 }
 
 // headerIndex maps a lower-cased header name to its column position.

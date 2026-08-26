@@ -157,6 +157,16 @@ func main() {
 				// what and sends nothing; the send itself needs confirm=true.
 				mambu.POST("/rr/distribute/preview", handlers.PreviewMambuDistribution)
 				mambu.POST("/rr/distribute", handlers.SendMambuDistribution)
+
+				// CS affordability: the deductions (Inst) and CS loan extracts,
+				// then the Refinance / Reactivation / New run built from them.
+				mambu.GET("/cs/kinds", handlers.GetCSBatchKinds)
+				mambu.GET("/cs/batches", handlers.ListCSBatches)
+				mambu.GET("/cs/summary", handlers.GetCSRunStats)
+				mambu.POST("/cs/upload/:kind", handlers.UploadCSFile)
+				mambu.POST("/cs/batches/:id/activate", handlers.ActivateCSBatch)
+				mambu.DELETE("/cs/batches/:id", handlers.DeleteCSBatch)
+				mambu.POST("/cs/run", handlers.RunCSAffordability)
 			}
 
 			reports := protected.Group("/reports")
