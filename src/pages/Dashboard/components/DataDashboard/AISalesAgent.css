@@ -489,3 +489,37 @@
 .dark-mode .aism-report-table th { background: #172033; color: #94a3b8; border-color: #334155; }
 .dark-mode .aism-report-month { background: #172033; border-color: #334155; color: #e2e8f0; }
 .dark-mode .aism-report-h { color: #e2e8f0; }
+
+/* Download block inside the callback report. */
+.aism-dl {
+  padding: 14px 16px; margin-bottom: 18px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+}
+.aism-dl-head { margin-bottom: 4px; font-size: 12px; font-weight: 700; color: #1f2937; }
+.aism-dl-sub {
+  margin: 0 0 12px; font-size: 12px; line-height: 1.6; color: #64748b; max-width: 640px;
+}
+.aism-dl-opts {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.aism-dl-opt {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 11px 13px; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid #d0d7e2; border-radius: 9px;
+}
+.aism-dl-opt:hover:not(:disabled) { background: #f3f6fb; }
+.aism-dl-opt:disabled { opacity: .55; cursor: not-allowed; }
+.aism-dl-opt.is-primary { border-color: #1f3864; }
+.aism-dl-opt.is-primary .aism-dl-label { color: #1f3864; }
+.aism-dl-label { font-size: 13px; font-weight: 700; color: #1f2937; }
+.aism-dl-hint { font-size: 11.5px; line-height: 1.55; color: #64748b; }
+.aism-dl-note {
+  margin: 12px 0 0; font-size: 11.5px; line-height: 1.6; color: #64748b; max-width: 660px;
+}
+
+.dark-mode .aism-dl, .dark-mode .aism-dl-opt { background: #1e293b; border-color: #334155; }
+.dark-mode .aism-dl-head, .dark-mode .aism-dl-label { color: #e2e8f0; }
+.dark-mode .aism-dl-opt.is-primary { border-color: #93c5fd; }
+.dark-mode .aism-dl-opt.is-primary .aism-dl-label { color: #93c5fd; }
+.dark-mode .aism-dl-sub, .dark-mode .aism-dl-hint, .dark-mode .aism-dl-note { color: #94a3b8; }

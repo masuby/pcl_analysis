@@ -117,7 +117,7 @@ def _column_reader(header: list[str]):
     return get, idx
 
 
-def report_product(product: str, month: str = "") -> dict:
+def report_product(product: str, month: str = "", keep_rows: bool = False) -> dict:
     """Build the report for one product's sheet."""
     sheet_id = PRODUCT_SHEETS[product]()
     if not sheet_id:
@@ -139,14 +139,15 @@ def report_product(product: str, month: str = "") -> dict:
         header, rows = _read_tab(svc, sheet_id, tab)
         if not header:
             continue
-        months.append(_summarise(product, title, tab, header, rows))
+        months.append(_summarise(product, title, tab, header, rows, keep_rows))
 
     return {"product": product, "ok": True, "sheetTitle": title,
             "sheetId": sheet_id, "tabs": tabs, "months": months}
 
 
 def _summarise(product: str, title: str, tab: str,
-               header: list[str], rows: list[list[str]]) -> dict:
+               header: list[str], rows: list[list[str]],
+               keep_rows: bool = False) -> dict:
     get, idx = _column_reader(header)
     has_agent = "assigned_to" in idx
 
@@ -162,6 +163,7 @@ def _summarise(product: str, title: str, tab: str,
     amounts = []
     comments = 0
     dates = Counter()
+    kept = []                     # the underlying leads, for the full workbook
 
     for r in rows:
         raw_fb = get(r, "Feedback")
@@ -171,6 +173,34 @@ def _summarise(product: str, title: str, tab: str,
         conv = get(r, "is_converted?").strip().lower()
         name = get(r, "Name")
         phone = get(r, "Phone Number")
+
+        # One derived column does most of the work when reading the rows back:
+        # whether anyone actually got through. "Not picking" and "Not
+        # interested" are worlds apart and should never sit in one bucket.
+        if not label:
+            outcome = "Not worked"
+        elif label.lower() in SPOKE_TO:
+            outcome = "Spoke to client"
+        elif label.lower() in NO_CONTACT:
+            outcome = "Never connected"
+        else:
+            outcome = "Other (typed in)"
+
+        if keep_rows:
+            kept.append({
+                "Outcome": outcome,
+                "Feedback": label or "",
+                "Interested": "Yes" if label.lower() in WARM else "",
+                "Name": name,
+                "Phone Number": phone,
+                "Location": get(r, "Location"),
+                "Assigned_to": get(r, "Assigned_to"),
+                "Date": get(r, "Date"),
+                "is_converted?": get(r, "is_converted?"),
+                "Loan Amount": get(r, "Loan Amount"),
+                "Comments": get(r, "Comments"),
+                "Source Link": get(r, "Source Link"),
+            })
 
         if get(r, "Date"):
             dates[get(r, "Date")] += 1
@@ -257,7 +287,7 @@ def _summarise(product: str, title: str, tab: str,
     if worked == 0:
         notes.append("Nobody has worked this list yet — no feedback has been recorded.")
 
-    return {
+    result = {
         "tab": tab,
         "totals": {
             "leads": total,
@@ -289,15 +319,21 @@ def _summarise(product: str, title: str, tab: str,
         "notes": notes,
         "hasAgentColumn": has_agent,
     }
+    if keep_rows:
+        # Underscored so it is obviously internal: the JSON endpoint strips it,
+        # only the workbook builder reads it.
+        result["_rows"] = kept
+    return result
 
 
-def build_report(month: str = "", products: list[str] | None = None) -> dict:
+def build_report(month: str = "", products: list[str] | None = None,
+                 keep_rows: bool = False) -> dict:
     """The whole report: every product, every matching month tab."""
     wanted = [p for p in (products or ["LBF", "SME"]) if p in PRODUCT_SHEETS]
     out = []
     for p in wanted:
         try:
-            out.append(report_product(p, month))
+            out.append(report_product(p, month, keep_rows))
         except Exception as exc:  # noqa: BLE001
             out.append({"product": p, "ok": False, "error": str(exc)})
 
@@ -322,6 +358,21 @@ def build_report(month: str = "", products: list[str] | None = None) -> dict:
 
 NAVY = "1F3864"
 
+# What each download contains. Aggregates alone answer "how are we doing";
+# only the rows answer "who do I ring next", so the full report carries both.
+SCOPES = {
+    "full": "Everything — the figures plus every lead row, the call-back list, "
+            "what has not been worked, and the conversion checks.",
+    "summary": "The figures only — outcomes, agents and locations.",
+    "callback": "Just the people worth ringing again: everyone who showed "
+                "interest, plus anything not yet worked.",
+}
+
+# Column order for any sheet of lead rows.
+ROW_COLS = ["Outcome", "Feedback", "Interested", "Name", "Phone Number",
+            "Location", "Assigned_to", "Date", "is_converted?", "Loan Amount",
+            "Comments", "Source Link"]
+
 
 def _style_header(ws, ncols: int) -> None:
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -340,17 +391,77 @@ def _autofit(ws) -> None:
         ws.column_dimensions[get_column_letter(col[0].column)].width = min(52, width + 3)
 
 
-def build_workbook(month: str = "", products: list[str] | None = None) -> bytes:
-    """The report as a workbook: one Summary sheet, then a sheet per product
-    tab holding the outcome split, the agent table and the locations."""
+def _short_tab(tab: str) -> str:
+    """"August AI Data 2026" -> "August 2026". The "AI Data" part is the same on
+    every tab and only eats into Excel's 31-character sheet-name limit."""
+    return " ".join(w for w in tab.split() if w.lower() not in ("ai", "data")) or tab
+
+
+def _sheet_name(used: set, prefix: str, role: str = "") -> str:
+    """Excel caps sheet names at 31 characters and forbids duplicates.
+
+    The ROLE ("CALL BACK", "ALL LEADS") is what somebody scans the tab strip
+    for, so it is kept whole and the prefix is trimmed instead — truncating the
+    other way produced tabs ending "CALL BA".
+    """
+    role = role.strip()
+    prefix = prefix.strip()
+    if role:
+        room = 31 - len(role) - 1
+        base = f"{prefix[:room].strip()} {role}" if room > 0 else role[:31]
+    else:
+        base = prefix[:31]
+    base = base.strip() or "Sheet"
+
+    name, n = base, 2
+    while name.lower() in used:
+        suffix = f" {n}"
+        name = base[:31 - len(suffix)].strip() + suffix
+        n += 1
+    used.add(name.lower())
+    return name
+
+
+def _rows_sheet(wb, used, prefix, role, rows, note=""):
+    """One sheet of lead rows, with the header the call centre recognises."""
+    ws = wb.create_sheet(_sheet_name(used, prefix, role))
+    if note:
+        ws.append([note])
+        ws.append([])
+    ws.append(ROW_COLS)
+    header_row = ws.max_row
+    for r in rows:
+        ws.append([r.get(c, "") for c in ROW_COLS])
+    if header_row == 1:
+        _style_header(ws, len(ROW_COLS))
+    else:
+        from openpyxl.styles import Font, PatternFill
+        for cell in ws[header_row]:
+            cell.font = Font(bold=True, color="FFFFFF", size=11)
+            cell.fill = PatternFill("solid", fgColor=NAVY)
+        ws.freeze_panes = ws.cell(row=header_row + 1, column=1).coordinate
+    _autofit(ws)
+    return ws
+
+
+def build_workbook(month: str = "", products: list[str] | None = None,
+                   scope: str = "full") -> bytes:
+    """The report as a workbook.
+
+    scope="summary"  the figures only
+    scope="callback" only the rows somebody still has to act on
+    scope="full"     both, which is what the download button offers by default
+    """
     import io
     from openpyxl import Workbook
 
-    rep = build_report(month, products)
+    scope = scope if scope in SCOPES else "full"
+    rep = build_report(month, products, keep_rows=scope != "summary")
     wb = Workbook()
+    used = set()
 
     ws = wb.active
-    ws.title = "Summary"
+    ws.title = _sheet_name(used, "Summary")
     ws.append(["Figure", "Value", "What it means"])
     c = rep["combined"]
     ws.append(["Leads distributed", c["leads"], "Rows handed to the call centre"])
@@ -364,12 +475,13 @@ def build_workbook(month: str = "", products: list[str] | None = None) -> bytes:
                f"{c['warmPct']}% of worked rows — callback, more time, qualified, referred or converted"])
     ws.append([])
     ws.append(["Report generated", rep["generatedAt"], f"Month filter: {rep['month']}"])
+    ws.append(["Contents", scope, SCOPES[scope]])
     _style_header(ws, 3)
     _autofit(ws)
 
     for prod in rep["products"]:
         if not prod.get("ok"):
-            s = wb.create_sheet(f"{prod['product']} (unavailable)"[:31])
+            s = wb.create_sheet(_sheet_name(used, prod["product"], "UNAVAILABLE"))
             s.append(["Problem"])
             s.append([prod.get("error", "unknown")])
             _style_header(s, 1)
@@ -377,50 +489,107 @@ def build_workbook(month: str = "", products: list[str] | None = None) -> bytes:
             continue
 
         for m in prod["months"]:
-            name = f"{prod['product']} {m['tab']}"[:31]
-            s = wb.create_sheet(name)
-            t = m["totals"]
+            tag = f"{prod['product']} {_short_tab(m['tab'])}"
+            rows = m.get("_rows", [])
 
-            s.append(["Outcome", "Leads", "% of worked"])
-            for f in m["feedback"]:
-                label = f["feedback"] + ("" if f["onDropdown"] else "  (typed in, not on the dropdown)")
-                s.append([label, f["count"], f["pct"]])
-            if t["notWorked"]:
-                s.append(["(not worked yet)", t["notWorked"], ""])
-            s.append([])
+            if scope in ("full", "summary"):
+                s = wb.create_sheet(_sheet_name(used, tag))
+                t = m["totals"]
 
-            s.append(["Agent", "Assigned", "Worked", "Not worked",
-                      "Spoke to", "Interested", "Worked %", "Spoke %"])
-            agent_hdr = s.max_row
-            for a in m["agents"]:
-                s.append([a["agent"], a["assigned"], a["worked"], a["notWorked"],
-                          a["spokeTo"], a["warm"], a["workedPct"], a["spokePct"]])
-            s.append([])
-
-            s.append(["Location", "Leads", "Worked", "Spoke to", "Interested"])
-            loc_hdr = s.max_row
-            for l in m["locations"]:
-                s.append([l["location"], l["leads"], l["worked"], l["spokeTo"], l["warm"]])
-
-            if m["notes"]:
+                s.append(["Outcome", "Leads", "% of worked"])
+                for f in m["feedback"]:
+                    label = f["feedback"] + ("" if f["onDropdown"]
+                                             else "  (typed in, not on the dropdown)")
+                    s.append([label, f["count"], f["pct"]])
+                if t["notWorked"]:
+                    s.append(["(not worked yet)", t["notWorked"], ""])
                 s.append([])
-                s.append(["Worth knowing"])
-                for n in m["notes"]:
-                    s.append([n])
 
-            _style_header(s, 3)
-            from openpyxl.styles import Font
-            for r in (agent_hdr, loc_hdr):
-                for cell in s[r]:
-                    if cell.value is not None:
-                        cell.font = Font(bold=True)
-            _autofit(s)
+                s.append(["Agent", "Assigned", "Worked", "Not worked",
+                          "Spoke to", "Interested", "Worked %", "Spoke %"])
+                agent_hdr = s.max_row
+                for a in m["agents"]:
+                    s.append([a["agent"], a["assigned"], a["worked"], a["notWorked"],
+                              a["spokeTo"], a["warm"], a["workedPct"], a["spokePct"]])
+                s.append([])
+
+                s.append(["Location", "Leads", "Worked", "Spoke to", "Interested"])
+                loc_hdr = s.max_row
+                for l in m["locations"]:
+                    s.append([l["location"], l["leads"], l["worked"], l["spokeTo"], l["warm"]])
+
+                if m["notes"]:
+                    s.append([])
+                    s.append(["Worth knowing"])
+                    for n in m["notes"]:
+                        s.append([n])
+
+                _style_header(s, 3)
+                from openpyxl.styles import Font
+                for r in (agent_hdr, loc_hdr):
+                    for cell in s[r]:
+                        if cell.value is not None:
+                            cell.font = Font(bold=True)
+                _autofit(s)
+
+            if scope == "summary":
+                continue
+
+            # The action list first — it is the sheet somebody opens to work
+            # from, so it should not be buried under the full dump.
+            callback = [r for r in rows if r["Interested"] == "Yes"]
+            not_worked = [r for r in rows if r["Outcome"] == "Not worked"]
+            if callback:
+                _rows_sheet(wb, used, tag, "CALL BACK", callback,
+                            "Everyone who showed interest — callback, more time, "
+                            "qualified, referred or converted.")
+            if not_worked:
+                _rows_sheet(wb, used, tag, "NOT WORKED", not_worked,
+                            "No feedback has been recorded against these yet.")
+
+            if scope == "full":
+                _rows_sheet(wb, used, tag, "ALL LEADS", rows)
+
+                conv = m["conversions"]
+                if conv["byFeedback"] or conv["byFlag"] or conv["disagreements"]:
+                    s = wb.create_sheet(_sheet_name(used, tag, "CONVERSIONS"))
+                    s.append(["Check", "Count", "What it means"])
+                    s.append(["Feedback says Converted", conv["byFeedback"],
+                              "The outcome dropdown was set to Converted"])
+                    s.append(["is_converted? says Yes", conv["byFlag"],
+                              "The separate yes/no column was set to Yes"])
+                    s.append(["Both agree", conv["agreeing"],
+                              "Counted as a confirmed conversion"])
+                    s.append([])
+                    if conv["disagreements"]:
+                        s.append(["The two columns disagree on these rows — "
+                                  "until they are reconciled the conversion count "
+                                  "cannot be relied on"])
+                        s.append(["Name", "Phone", "Agent", "Feedback", "is_converted?"])
+                        hdr = s.max_row
+                        for d in conv["disagreements"]:
+                            s.append([d["name"], d["phone"], d["agent"],
+                                      d["feedback"], d["isConverted"]])
+                        from openpyxl.styles import Font
+                        for cell in s[hdr]:
+                            if cell.value is not None:
+                                cell.font = Font(bold=True)
+                    _style_header(s, 3)
+                    _autofit(s)
+
+                off = [r for r in rows
+                       if r["Outcome"] == "Other (typed in)"]
+                if off:
+                    _rows_sheet(wb, used, tag, "TYPED IN", off,
+                                "Feedback typed by hand instead of chosen from the "
+                                "dropdown. These do not roll up into any outcome.")
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def filename(month: str = "") -> str:
+def filename(month: str = "", scope: str = "full") -> str:
     tag = (month or date.today().strftime("%B")).strip().title()
-    return f"AI_Leads_Callback_Report_{tag}_{date.today():%Y-%m-%d}.xlsx"
+    kind = {"full": "Full", "summary": "Summary", "callback": "CallBackList"}.get(scope, "Full")
+    return f"AI_Leads_Callback_{kind}_{tag}_{date.today():%Y-%m-%d}.xlsx"

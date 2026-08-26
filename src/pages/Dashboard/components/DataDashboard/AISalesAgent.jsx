@@ -250,20 +250,30 @@ const AISalesAgent = () => {
     }
   }, [reportMonth]);
 
-  const downloadReport = useCallback(async () => {
+  // The server names the file, so the download keeps the scope and month in
+  // its name rather than every download landing as the same filename.
+  const [reportDl, setReportDl] = useState('');
+
+  const downloadReport = useCallback(async (scope = 'full') => {
+    setReportDl(scope); setReportErr('');
     try {
-      const q = reportMonth.trim() ? `?month=${encodeURIComponent(reportMonth.trim())}` : '';
-      const res = await fetch(`${API}/callback-report.xlsx${q}`);
+      const params = new URLSearchParams({ scope });
+      if (reportMonth.trim()) params.set('month', reportMonth.trim());
+      const res = await fetch(`${API}/callback-report.xlsx?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const disp = res.headers.get('content-disposition') || '';
+      const match = /filename="?([^"]+)"?/.exec(disp);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `AI_Leads_Callback_Report.xlsx`;
+      a.download = match ? match[1] : `AI_Leads_Callback_${scope}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
       setReportErr(e.message || String(e));
+    } finally {
+      setReportDl('');
     }
   }, [reportMonth]);
 
@@ -656,8 +666,8 @@ const AISalesAgent = () => {
             {reportBusy ? 'reading sheets…' : 'Generate report'}
           </button>
           {report && (
-            <button className="aism-db-download" onClick={downloadReport}>
-              ⬇ Download (Excel)
+            <button className="aism-db-download" onClick={() => downloadReport('full')}>
+              {reportDl === 'full' ? 'building…' : '⬇ Download full report'}
             </button>
           )}
         </div>
@@ -700,6 +710,43 @@ const AISalesAgent = () => {
                   {p.product}
                 </button>
               ))}
+            </div>
+
+            <div className="aism-dl">
+              <div className="aism-dl-head">Download</div>
+              <p className="aism-dl-sub">
+                Covers both products and every month tab shown above. The figures
+                are the same as on screen; the full report adds the underlying
+                rows so the list can be worked from the file.
+              </p>
+              <div className="aism-dl-opts">
+                {[
+                  ['full', 'Full report',
+                   'Figures, every lead row, the call-back list, what is still unworked, and the conversion checks.'],
+                  ['callback', 'Call-back list only',
+                   'Just the people worth ringing again, plus anything nobody has worked yet.'],
+                  ['summary', 'Summary only',
+                   'Outcomes, agents and locations — no individual leads.'],
+                ].map(([scope, label, hint]) => (
+                  <button
+                    key={scope}
+                    className={`aism-dl-opt ${scope === 'full' ? 'is-primary' : ''}`}
+                    onClick={() => downloadReport(scope)}
+                    disabled={!!reportDl}
+                  >
+                    <span className="aism-dl-label">
+                      {reportDl === scope ? 'Building…' : `⬇ ${label}`}
+                    </span>
+                    <span className="aism-dl-hint">{hint}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="aism-dl-note">
+                Every lead sheet carries an <b>Outcome</b> column — spoke to the
+                client, never connected, or not worked — because “not picking”
+                and “not interested” mean very different things and should not be
+                counted together.
+              </p>
             </div>
 
             {report.products.filter((p) => p.product === reportTab).map((p) => (

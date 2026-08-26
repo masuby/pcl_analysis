@@ -159,15 +159,22 @@ def callback_report(month: str = "", products: str = ""):
 
 
 @app.get("/callback-report.xlsx")
-def callback_report_xlsx(month: str = "", products: str = ""):
-    """The same report as a workbook."""
+def callback_report_xlsx(month: str = "", products: str = "", scope: str = "full"):
+    """The report as a workbook.
+
+    scope=full      the figures plus every lead row, the call-back list, what is
+                    still unworked, and the conversion checks
+    scope=summary   the figures only
+    scope=callback  only the rows somebody still has to act on
+    """
     from . import callback_report as report
     want = [p.strip().upper() for p in products.split(",") if p.strip()] or None
-    data = report.build_workbook(month=month, products=want)
+    data = report.build_workbook(month=month, products=want, scope=scope)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{report.filename(month)}"'},
+        headers={"Content-Disposition":
+                 f'attachment; filename="{report.filename(month, scope)}"'},
     )
 
 
