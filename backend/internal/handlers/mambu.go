@@ -166,8 +166,8 @@ func UploadMambuEmployees(c *gin.Context) {
 		id := employeesJob.uploadID
 		employeesJob.mu.Unlock()
 		c.JSON(http.StatusConflict, gin.H{
-			"success": false,
-			"error":   "An employee upload is already running.",
+			"success":  false,
+			"error":    "An employee upload is already running.",
 			"uploadId": id,
 		})
 		return
@@ -598,11 +598,11 @@ func ListMambuUploads(c *gin.Context) {
 	out := []gin.H{}
 	for rows.Next() {
 		var (
-			id                          uuid.UUID
-			k, fn, st, colsAdded, eMsg  string
-			rr, ri, ru                  int
-			started                     time.Time
-			finished                    sql.NullTime
+			id                         uuid.UUID
+			k, fn, st, colsAdded, eMsg string
+			rr, ri, ru                 int
+			started                    time.Time
+			finished                   sql.NullTime
 		)
 		if err := rows.Scan(&id, &k, &fn, &st, &rr, &ri, &ru, &colsAdded, &eMsg, &started, &finished); err != nil {
 			continue

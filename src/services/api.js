@@ -864,6 +864,70 @@ export const mambuAPI = {
       method: 'DELETE',
     });
   },
+
+  // --- Source files (Loan / Clients exports) ---
+  // Uploaded once and reused by every product, so LBF, SME and Agrifinance all
+  // read the same data. Replaced only by an explicit upload.
+
+  async getSourceKinds() {
+    return apiRequest('/api/mambu/sources/kinds');
+  },
+
+  async listSources() {
+    return apiRequest('/api/mambu/sources');
+  },
+
+  async uploadSource(kind, file) {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`${API_URL}/api/mambu/sources/${encodeURIComponent(kind)}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  },
+
+  async clearSource(kind) {
+    return apiRequest(`/api/mambu/sources/${encodeURIComponent(kind)}`, { method: 'DELETE' });
+  },
+
+  // --- Refinance / reactivation runs ---
+
+  async runRR(payload) {
+    return apiRequest('/api/mambu/rr/run', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getRun(id) {
+    return apiRequest(`/api/mambu/rr/runs/${id}`);
+  },
+
+  async listRuns() {
+    return apiRequest('/api/mambu/rr/runs');
+  },
+
+  // The zip is fetched with the auth header and handed to the browser as a
+  // blob — a plain link would drop the token and get a 401.
+  async downloadRun(id, fileName) {
+    const res = await fetch(`${API_URL}/api/mambu/rr/runs/${id}/download`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Could not download that run');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName || `run_${id}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const systemAPI = {

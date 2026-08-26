@@ -145,3 +145,154 @@
   { background: #1e293b; border-color: #334155; }
 .dark-mode .mambu-notyet p, .dark-mode .mambu-expected-note { color: #94a3b8; }
 .dark-mode .mambu-expected-item code { background: #273449; color: #e2e8f0; }
+
+/* --------------------------------------------------------------------------
+   Source files + refinance / reactivation runs (LBF, SME, Agrifinance).
+   Same plain reporting style: flat white cards, 1px borders, colour only on
+   status pills and the do/not-ready notices, where it carries meaning.
+   -------------------------------------------------------------------------- */
+
+.mambu-sources { margin-bottom: 22px; }
+.mambu-sources-head { margin-bottom: 12px; }
+.mambu-sources-title { margin: 0 0 4px; font-size: 15px; font-weight: 700; color: #1e3a8a; }
+.mambu-sources-sub {
+  margin: 0; font-size: 12.5px; line-height: 1.55; color: #64748b; max-width: 720px;
+}
+
+.mambu-slots {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.mambu-slot {
+  padding: 14px 16px; background: #fff;
+  border: 1px solid #d0d7e2; border-radius: 10px;
+}
+.mambu-slot-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; margin-bottom: 10px;
+}
+.mambu-slot-name { font-size: 13.5px; font-weight: 700; color: #1f2937; }
+.mambu-slot-purpose { margin-top: 3px; font-size: 12px; line-height: 1.5; color: #64748b; }
+
+.mambu-slot-file {
+  padding: 9px 11px; margin-bottom: 10px;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+}
+.mambu-slot-fname {
+  font-size: 12.5px; font-weight: 600; color: #1f2937;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mambu-slot-meta { margin-top: 3px; font-size: 11.5px; color: #64748b; }
+.mambu-slot-empty {
+  padding: 9px 11px; margin-bottom: 10px; font-size: 12.5px; color: #64748b;
+  background: #f8fafc; border: 1px dashed #d0d7e2; border-radius: 8px;
+}
+
+.mambu-slot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.mambu-slot-cols {
+  margin-top: 11px; padding-top: 11px; border-top: 1px solid #e2e8f0;
+  font-size: 12px; color: #64748b; line-height: 1.55;
+}
+.mambu-slot-cols p { margin: 0 0 8px; }
+.mambu-slot-collist { display: flex; flex-wrap: wrap; gap: 6px; }
+.mambu-slot-collist code,
+.mambu-slot-hint code {
+  padding: 2px 7px; font-size: 11.5px; color: #1f2937;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 5px;
+}
+.mambu-slot-hint { margin: 8px 0 0; font-size: 11.5px; }
+
+.mambu-prodhead { margin: 22px 0 14px; padding-top: 18px; border-top: 1px solid #e2e8f0; }
+
+.mambu-notice {
+  padding: 9px 12px; margin-bottom: 12px;
+  font-size: 12.5px; line-height: 1.5; border-radius: 8px;
+}
+.mambu-notice.is-ok  { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.mambu-notice.is-bad { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+
+.mambu-runs-modes { display: flex; gap: 6px; margin-bottom: 10px; }
+.mambu-modebtn {
+  padding: 6px 15px; font-size: 12.5px; font-weight: 600; color: #475569;
+  background: #fff; border: 1px solid #d0d7e2; border-radius: 8px; cursor: pointer;
+}
+.mambu-modebtn:hover { background: #f3f6fb; }
+.mambu-modebtn.is-active { color: #fff; background: #1e3a8a; border-color: #1e3a8a; }
+
+.mambu-runs-blurb {
+  margin: 0 0 14px; font-size: 12.5px; line-height: 1.55; color: #64748b; max-width: 680px;
+}
+
+.mambu-range { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.mambu-range label { display: flex; flex-direction: column; gap: 5px; }
+.mambu-range span { font-size: 11.5px; font-weight: 600; color: #475569; }
+.mambu-range input {
+  padding: 7px 10px; font-size: 12.5px; color: #1f2937;
+  border: 1px solid #d0d7e2; border-radius: 8px;
+}
+.mambu-range input:focus { outline: none; border-color: #1e3a8a; }
+
+.mambu-runs-actions { margin-bottom: 14px; }
+.mambu-btn--sm { margin-top: 10px; padding: 6px 12px; font-size: 12.5px; }
+
+.mambu-job-line { font-size: 13px; color: #1f2937; }
+.mambu-job-sub { margin-top: 3px; font-size: 12px; color: #64748b; }
+
+.mambu-funnel {
+  padding: 12px 16px; margin-bottom: 14px;
+  background: #fff; border: 1px solid #d0d7e2; border-radius: 10px;
+}
+.mambu-funnel-head {
+  margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #1f2937;
+}
+.mambu-funnel ul { margin: 0; padding: 0; list-style: none; }
+.mambu-funnel li {
+  display: flex; justify-content: space-between; gap: 16px;
+  padding: 5px 0; font-size: 12.5px; color: #475569;
+  border-bottom: 1px solid #f1f5f9;
+}
+.mambu-funnel li:last-child { border-bottom: none; }
+.mambu-funnel b { color: #1f2937; font-variant-numeric: tabular-nums; }
+
+.mambu-warnings {
+  padding: 12px 16px; margin-bottom: 14px;
+  background: #fff; border: 1px solid #d0d7e2; border-radius: 10px;
+}
+.mambu-warnings-head {
+  margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #1f2937;
+}
+.mambu-warnings ul { margin: 0; padding-left: 18px; }
+.mambu-warnings li { font-size: 12.5px; line-height: 1.55; color: #475569; }
+
+.mambu-link {
+  padding: 3px 6px; font-size: 12px; font-weight: 600; color: #1e3a8a;
+  background: none; border: none; border-radius: 5px; cursor: pointer;
+}
+.mambu-link:hover { background: #f1f5f9; }
+
+/* Dark mode for the source-file and run panels, matching the rest of MAMBU. */
+.dark-mode .mambu-slot,
+.dark-mode .mambu-funnel,
+.dark-mode .mambu-warnings { background: #1e293b; border-color: #334155; }
+.dark-mode .mambu-slot-name,
+.dark-mode .mambu-funnel b,
+.dark-mode .mambu-funnel-head,
+.dark-mode .mambu-warnings-head { color: #e2e8f0; }
+.dark-mode .mambu-sources-title { color: #93c5fd; }
+.dark-mode .mambu-slot-purpose,
+.dark-mode .mambu-sources-sub,
+.dark-mode .mambu-runs-blurb,
+.dark-mode .mambu-funnel li,
+.dark-mode .mambu-warnings li { color: #94a3b8; }
+.dark-mode .mambu-slot-file,
+.dark-mode .mambu-slot-empty { background: #172033; border-color: #334155; }
+.dark-mode .mambu-slot-fname { color: #e2e8f0; }
+.dark-mode .mambu-slot-collist code,
+.dark-mode .mambu-slot-hint code { background: #273449; border-color: #334155; color: #e2e8f0; }
+.dark-mode .mambu-modebtn { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+.dark-mode .mambu-modebtn.is-active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.dark-mode .mambu-range input { background: #172033; border-color: #334155; color: #e2e8f0; }
+.dark-mode .mambu-funnel li { border-color: #273449; }
+.dark-mode .mambu-prodhead { border-color: #334155; }
+.dark-mode .mambu-link { color: #93c5fd; }
+.dark-mode .mambu-link:hover { background: #273449; }

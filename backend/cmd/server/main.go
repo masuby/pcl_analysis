@@ -137,6 +137,20 @@ func main() {
 				mambu.GET("/do-not-contact", handlers.ListDoNotContact)
 				mambu.POST("/do-not-contact", handlers.AddDoNotContact)
 				mambu.DELETE("/do-not-contact/:phone", handlers.DeleteDoNotContact)
+
+				// The Loan / Clients exports the refinance and reactivation
+				// runs read. Uploaded once, shared by LBF, SME and Agrifinance,
+				// and only ever changed by an explicit replace.
+				mambu.GET("/sources", handlers.ListMambuSources)
+				mambu.GET("/sources/kinds", handlers.GetMambuSourceKinds)
+				mambu.POST("/sources/:kind", handlers.UploadMambuSource)
+				mambu.DELETE("/sources/:kind", handlers.DeleteMambuSource)
+
+				// Refinance / reactivation runs.
+				mambu.POST("/rr/run", handlers.RunMambuRR)
+				mambu.GET("/rr/runs", handlers.ListMambuRRRuns)
+				mambu.GET("/rr/runs/:id", handlers.GetMambuRRRun)
+				mambu.GET("/rr/runs/:id/download", handlers.DownloadMambuRRRun)
 			}
 
 			reports := protected.Group("/reports")

@@ -94,10 +94,10 @@ func AddDoNotContact(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"phone":    phone,
-		"existed":  existed,
-		"message":  map[bool]string{true: "Already on the list — reason updated.", false: "Added to the do-not-contact list."}[existed],
+		"success": true,
+		"phone":   phone,
+		"existed": existed,
+		"message": map[bool]string{true: "Already on the list — reason updated.", false: "Added to the do-not-contact list."}[existed],
 	})
 }
 

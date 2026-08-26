@@ -75,6 +75,9 @@ services:
       - EQUALIZE_SSH_PORT=${EQUALIZE_SSH_PORT:-}
       - EQUALIZE_SSH_USER=${EQUALIZE_SSH_USER:-}
       - EQUALIZE_SSH_PASSWORD=${EQUALIZE_SSH_PASSWORD:-}
+      # Zone and Clusters roster, read live from Google Sheets by the
+      # refinance / reactivation runs.
+      - ZONE_CLUSTERS_SHEET_ID=${ZONE_CLUSTERS_SHEET_ID:-}
     volumes:
       - ./uploads:/var/reports
     ports:
