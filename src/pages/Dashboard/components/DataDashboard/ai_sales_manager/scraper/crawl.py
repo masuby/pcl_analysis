@@ -67,7 +67,7 @@ def collect_links(sess, source: src.Source, max_pages: int, delay: float, log=pr
 
 
 def crawl_source(source: src.Source, max_listings: int = 0, max_pages: int = 0,
-                 delay: float = 0.6, log=print, should_stop=lambda: False) -> dict:
+                 delay: float = 1.5, log=print, should_stop=lambda: False) -> dict:
     """Discover + detail-scrape one source."""
     sess = session()
     known = db.known_urls(source.key)
@@ -88,6 +88,7 @@ def crawl_source(source: src.Source, max_listings: int = 0, max_pages: int = 0,
     buffer: list[tuple[str, str]] = []
     done = 0
     no_phone = 0
+    recovered = 0
     for i, url in enumerate(pending, 1):
         if should_stop():
             log("  stop requested - flushing progress and halting")
@@ -95,6 +96,25 @@ def crawl_source(source: src.Source, max_listings: int = 0, max_pages: int = 0,
         html = get(sess, url)
         if html:
             raw = source.extract(html)
+
+            # A page can come back 200, complete, and yet have no contact block:
+            # jiji quietly drops it when pages are requested too quickly. It is
+            # not that the advert has no number — re-fetching the same URL a
+            # couple of seconds later returns it. Measured on 15 such pages, all
+            # 15 gave up a phone on the second try.
+            #
+            # A lead without a phone cannot be called, so it is worth one slow
+            # retry rather than storing a row nobody can use. Only pages that
+            # actually came back short pay the cost.
+            if raw and "Phone:" not in raw:
+                time.sleep(max(delay * 3, 2.0))
+                retry_html = get(sess, url)
+                if retry_html:
+                    retry_raw = source.extract(retry_html)
+                    if retry_raw and "Phone:" in retry_raw:
+                        raw = retry_raw
+                        recovered += 1
+
             if raw and len(raw) > 40:
                 buffer.append((url, raw))
                 if "Phone:" not in raw:
@@ -110,18 +130,21 @@ def crawl_source(source: src.Source, max_listings: int = 0, max_pages: int = 0,
         time.sleep(delay)
     done += db.update_details(buffer)
 
+    if recovered:
+        log(f"[{source.key}] recovered a phone on retry for {recovered} page(s)")
     if done and no_phone:
-        # Worth stating plainly: on some sites most sellers hide their number
-        # behind a "show contact" click, which this crawler does not defeat.
-        log(f"[{source.key}] note: {no_phone}/{done} detail pages had no visible phone")
+        # Said plainly because it caps what the run can ever be worth: a lead
+        # with no number cannot be called, however good the advert looks.
+        log(f"[{source.key}] note: {no_phone}/{done} detail pages still had no "
+            f"visible phone after a retry")
 
     return {"source": source.key, "product": source.product,
             "new_links": saved, "new_raw": done, "links_found": len(all_links),
-            "no_phone": no_phone}
+            "no_phone": no_phone, "phone_recovered": recovered}
 
 
 def crawl(product: str = "", source_keys: list[str] | None = None,
-          max_listings: int = 0, max_pages: int = 0, delay: float = 0.6,
+          max_listings: int = 0, max_pages: int = 0, delay: float = 1.5,
           log=print, should_stop=lambda: False) -> dict:
     """Crawl every selected source (all sources for a product when unspecified)."""
     if source_keys:

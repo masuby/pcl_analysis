@@ -237,7 +237,7 @@ def _run_job(max_listings: int, max_pages: int, model: str,
              product: str, sources_sel: list[str]):
     from scraper.run_pipeline import run
     try:
-        summary = run(max_listings=max_listings, max_pages=max_pages, delay=0.6,
+        summary = run(max_listings=max_listings, max_pages=max_pages, delay=1.5,
                       model=model, do_upload=True, log=_job_log,
                       should_stop=_CANCEL.is_set,
                       product=product, sources=sources_sel)

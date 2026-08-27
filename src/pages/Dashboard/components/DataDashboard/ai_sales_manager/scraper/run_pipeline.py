@@ -22,7 +22,7 @@ from .crawl import crawl
 from .upload_to_sheet import upload, upload_unique
 
 
-def run(max_listings: int = 0, max_pages: int = 0, delay: float = 0.6,
+def run(max_listings: int = 0, max_pages: int = 0, delay: float = 1.5,
         model: str | None = None, do_upload: bool = True, log=print,
         should_stop=lambda: False, product: str = "",
         sources: list[str] | None = None) -> dict:
