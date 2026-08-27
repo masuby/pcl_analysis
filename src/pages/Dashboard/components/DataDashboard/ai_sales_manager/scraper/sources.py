@@ -243,6 +243,73 @@ SOURCES: dict[str, Source] = {
     ),
 }
 
+# The rest of the vehicle tree. LBF lends against the logbook, so anything that
+# HAS one qualifies — buses, lorries and plant, not just cars and motorcycles.
+# Car parts are deliberately excluded: an exhaust has no logbook, and the seller
+# is a parts trader (an SME lead at best, never an LBF one).
+#
+# These also skew towards owner-operators rather than dealers, which is what
+# actually matters: a car page can be twenty adverts from one showroom against a
+# single phone number, whereas a man selling his own lorry is one new person.
+JIJI_VEHICLE_CATEGORIES = {
+    "buses": "buses",
+    "trucks-commercial-agricultiral": "trucks & commercial vehicles",
+    "heavy-equipments-machinery": "heavy equipment & machinery",
+}
+
+for _cat, _label in JIJI_VEHICLE_CATEGORIES.items():
+    SOURCES[f"jiji_{_cat.replace('-', '_')}"] = Source(
+        key=f"jiji_{_cat.replace('-', '_')}",
+        label=f"Jiji — {_label}",
+        product=LBF,
+        base=JIJI_BASE,
+        index_url=_jiji_index(_cat),
+        listing_re=re.compile(
+            rf"/[a-z0-9-]+/{re.escape(_cat)}/[a-zA-Z0-9-]+\.html", re.I),
+        extract=jiji_extract,
+        robots_note=_ROBOTS_JIJI,
+        categories=[_cat],
+    )
+
+# ── regional slices ──────────────────────────────────────────────────────────
+#
+# jiji stops paginating a category at page 99, so /cars can never yield more
+# than ~2,400 listings however long you crawl it — a hard ceiling, not a rate
+# limit. Each REGION, though, gets its own 99-page window, and the regional
+# feeds do not overlap the national one: /arusha/cars and /mwanza/cars share
+# zero adverts with /cars page 1.
+#
+# Dar es Salaam and its districts are deliberately left out. They dominate the
+# national feed already, so crawling them again mostly re-fetches adverts we
+# have. The upcountry regions are the opposite: unseen inventory, and far more
+# likely to be one person selling their own vehicle than a showroom posting
+# twenty against a single phone number — which is what actually adds callable
+# people rather than rows.
+JIJI_REGIONS = [
+    "arusha", "mwanza", "dodoma", "mbeya", "tanga", "morogoro", "zanzibar",
+    "kilimanjaro", "iringa", "tabora", "kigoma", "mtwara", "songea",
+    "shinyanga", "singida", "sumbawanga", "lindi", "njombe", "geita",
+    "manyara", "rukwa", "ruvuma", "simiyu", "pwani",
+]
+
+
+def _jiji_region_index(region: str, cat: str) -> Callable[[int], str]:
+    return lambda page: f"{JIJI_BASE}/{region}/{cat}?page={page}"
+
+
+for _region in JIJI_REGIONS:
+    SOURCES[f"jiji_{_region.replace('-', '_')}_cars"] = Source(
+        key=f"jiji_{_region.replace('-', '_')}_cars",
+        label=f"Jiji — cars, {_region.replace('-', ' ').title()}",
+        product=LBF,
+        base=JIJI_BASE,
+        index_url=_jiji_region_index(_region, "cars"),
+        listing_re=JIJI_CARS_LISTING_RE,
+        extract=jiji_extract,
+        robots_note=_ROBOTS_JIJI,
+        categories=["cars"],
+    )
+
 # One Source per SME category, so they can be enabled independently.
 for _cat in JIJI_SME_CATEGORIES:
     SOURCES[f"jiji_{_cat.replace('-', '_')}"] = Source(

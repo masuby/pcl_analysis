@@ -141,6 +141,40 @@ def publish():
         return {"ok": False, "error": str(exc)}
 
 
+@app.post("/distribution-status/mark")
+def distribution_status_mark(month: str = "", dry_run: bool = False):
+    """Mark leads DISTRIBUTED or NEVER DISTRIBUTED from what is in the sheets.
+
+    The sheets are the source of truth: a lead counts as distributed because its
+    phone is currently in a month's tab, not because a past run said it added
+    it. Idempotent — a lead deleted from a sheet reverts to never distributed.
+    """
+    from . import distribution_status
+    try:
+        return distribution_status.mark(month=month, dry_run=dry_run)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/distribution-status")
+def distribution_status_counts():
+    """How many leads have been distributed and how many never have.
+
+    Reported as PEOPLE as well as rows — there are several listings per seller,
+    so the row count overstates how many humans are involved.
+    """
+    with db.connect() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT distribution_status, COUNT(*), COUNT(DISTINCT phone_norm)
+                         FROM aism_clean_leads GROUP BY 1 ORDER BY 1""")
+        rows = [{"status": a, "leads": b, "people": c} for a, b, c in cur.fetchall()]
+        cur.execute("""SELECT product, distribution_status,
+                              COUNT(*), COUNT(DISTINCT phone_norm)
+                         FROM aism_clean_leads GROUP BY 1,2 ORDER BY 1,2""")
+        by_product = [{"product": a, "status": b, "leads": c, "people": d}
+                      for a, b, c, d in cur.fetchall()]
+    return {"ok": True, "breakdown": rows, "byProduct": by_product}
+
+
 @app.get("/callback-report")
 def callback_report(month: str = "", products: str = ""):
     """What the call centre did with the leads we distributed.
