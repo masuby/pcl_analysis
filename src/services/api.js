@@ -237,6 +237,29 @@ export const reportsAPI = {
   getDownloadUrl(id) {
     return `${API_URL}/api/reports/${id}/download`;
   },
+
+  /**
+   * A report's bytes, through the authenticated download endpoint.
+   *
+   * The static `/files/<path>` URL is not served in every deployment: on the
+   * production server nginx answers it with the SPA's index.html and a 200, so
+   * a caller that only checks `response.ok` gets HTML, parses it as a workbook,
+   * finds no rows, and silently produces an empty month. This asks the API for
+   * the file instead, and refuses anything that is not a real .xlsx.
+   */
+  async downloadBuffer(id) {
+    const res = await fetch(`${API_URL}/api/reports/${id}/download`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    // .xlsx is a zip: it must start with "PK". HTML never does.
+    const sig = new Uint8Array(buf.slice(0, 2));
+    if (sig[0] !== 0x50 || sig[1] !== 0x4b) {
+      throw new Error('the server did not return a spreadsheet');
+    }
+    return buf;
+  },
 };
 
 // ========== Dashboard API ==========

@@ -29,7 +29,7 @@
 import XLSXStyle from 'xlsx-js-style';
 import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
-import { localTripAPI, lbfCallCenterAPI } from '../../../../../services/api';
+import { localTripAPI, lbfCallCenterAPI, reportsAPI } from '../../../../../services/api';
 import { injectFreezePanes } from '../../DepartmentalDashboard/utils/excelFreezePanes';
 
 const DEPARTMENTS = ['CS', 'LBF', 'SME'];
@@ -193,12 +193,15 @@ async function loadDeptReports(dept) {
     if (!up(fileName).includes('MTD')) continue;
     if (!up(fileName).includes(dept.toUpperCase())) continue;
 
-    let fileUrl = report.fileUrl || report.file_url;
+    // The report id is what matters: the file is fetched through the
+    // authenticated download endpoint, not a static path. Keep any fileUrl the
+    // API happens to supply only as a fallback for deployments that serve one.
+    let fileUrl = report.fileUrl || report.file_url || null;
     if (!fileUrl && (report.filePath || report.file_path)) {
       try { fileUrl = await getReportFileUrl(report.filePath || report.file_path); }
-      catch { continue; }
+      catch { fileUrl = null; }
     }
-    if (!fileUrl) continue;
+    if (!report.id && !fileUrl) continue;
 
     const date = report.date ? new Date(report.date)
       : report.created_at ? new Date(report.created_at)
@@ -748,13 +751,28 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, existingF
       say(`Reading ${dept} — ${report.fileName}…`);
       let listing;
       try {
-        const resp = await fetch(report.fileUrl);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const wb = XLSXStyle.read(await resp.arrayBuffer(), { type: 'array', cellDates: true });
+        // Prefer the authenticated endpoint. The static /files/<path> URL is a
+        // 200-serving SPA fallback on some deployments, which parses to an
+        // empty workbook and silently drops the whole month.
+        let buf;
+        if (report.id) {
+          buf = await reportsAPI.downloadBuffer(report.id);
+        } else {
+          const resp = await fetch(report.fileUrl);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          buf = await resp.arrayBuffer();
+        }
+        const wb = XLSXStyle.read(buf, { type: 'array', cellDates: true });
         listing = extractListing(wb);
+        // A month that reads cleanly but carries no sales rows is worth saying
+        // out loud — that is what a silently-wrong URL looks like.
+        if (!listing.length) {
+          skipped.push(`${dept} ${m.name} (no sales rows in ${report.fileName})`);
+          continue;
+        }
         for (const [k, v] of extractFirstSheetTargets(wb)) mtdTargets[dept].set(k, v);
-      } catch {
-        skipped.push(`${dept} ${m.name} (read failed)`);
+      } catch (err) {
+        skipped.push(`${dept} ${m.name} (read failed: ${err?.message || err})`);
         continue;
       }
 
