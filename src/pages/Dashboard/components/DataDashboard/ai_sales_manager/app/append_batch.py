@@ -92,6 +92,38 @@ def map_feedback(raw: str) -> tuple[str, bool]:
 # Repair
 # ---------------------------------------------------------------------------
 
+def _unhide_columns(sheets, sid: str, gid: int, tab: str, log=print) -> list[str]:
+    """Make every standard column visible again, and report which were hidden.
+
+    A hidden column looks exactly like a deleted one to whoever is working the
+    sheet — SME had Date and Source Link hidden, and the reasonable conclusion
+    was that the data had been lost. It had not. Unhiding is safe: these eleven
+    columns are the agreed layout and none of them should be out of sight.
+    """
+    meta = sheets.spreadsheets().get(
+        spreadsheetId=sid, ranges=[f"'{tab}'!A1:K1"],
+        includeGridData=True).execute()
+
+    hidden = []
+    for sh in meta.get("sheets", []):
+        if sh["properties"]["sheetId"] != gid:
+            continue
+        data = sh.get("data") or [{}]
+        for i, m in enumerate(data[0].get("columnMetadata", [])[:len(HEADERS)]):
+            if m.get("hiddenByUser"):
+                hidden.append(HEADERS[i])
+
+    if hidden:
+        sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": [
+            {"updateDimensionProperties": {
+                "range": {"sheetId": gid, "dimension": "COLUMNS",
+                          "startIndex": 0, "endIndex": len(HEADERS)},
+                "properties": {"hiddenByUser": False},
+                "fields": "hiddenByUser"}}]}).execute()
+        log(f"unhid column(s): {', '.join(hidden)}")
+    return hidden
+
+
 def repair_columns(product: str, month: str = "", log=print) -> dict:
     """Put back any of the standard columns the sheet has lost."""
     sid = settings.lbf_sheet_id if product == "LBF" else settings.sme_sheet_id
@@ -113,6 +145,8 @@ def repair_columns(product: str, month: str = "", log=print) -> dict:
     # would shift every row right and silently misalign the sheet. If the count
     # of columns already matches, the sheet is only mislabelled: rename in place
     # and touch nothing else.
+    unhidden = _unhide_columns(sheets, sid, gid, tab, log)
+
     if len(current) == len(HEADERS) and any(not h for h in current):
         sheets.spreadsheets().values().update(
             spreadsheetId=sid, range=f"'{tab}'!A1",
@@ -120,12 +154,13 @@ def repair_columns(product: str, month: str = "", log=print) -> dict:
         relabelled = [HEADERS[i] for i, h in enumerate(current) if not h]
         log(f"[{product}] header only: relabelled {', '.join(relabelled)}")
         return {"ok": True, "product": product, "inserted": [],
-                "relabelled": relabelled, "headers": HEADERS}
+                "relabelled": relabelled, "unhidden": unhidden, "headers": HEADERS}
 
     missing = [h for h in HEADERS if h and h not in current]
     if not missing:
         log(f"[{product}] all {len(HEADERS)} columns present")
-        return {"ok": True, "product": product, "inserted": [], "headers": current}
+        return {"ok": True, "product": product, "inserted": [],
+                "unhidden": unhidden, "headers": current}
 
     # Insert each missing column at the position it should occupy, working left
     # to right so earlier inserts do not shift the ones that follow.
@@ -168,7 +203,7 @@ def repair_columns(product: str, month: str = "", log=print) -> dict:
 
     log(f"[{product}] restored {len(missing)} column(s): {', '.join(missing)}")
     return {"ok": True, "product": product, "inserted": missing,
-            "headers": working, "rows": nrows - 1}
+            "unhidden": unhidden, "headers": working, "rows": nrows - 1}
 
 
 # ---------------------------------------------------------------------------
