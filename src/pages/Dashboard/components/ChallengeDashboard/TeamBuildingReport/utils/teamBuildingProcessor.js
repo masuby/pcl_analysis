@@ -183,7 +183,26 @@ const THRESHOLDS = {
       New: { loansPerMonth: 3, disbursePerMonth: 6_000_000 },
     },
   },
+  // Agrifinance has no row in the Criteria file. Its ticket size sits closest to
+  // SME (loans average ~2M), so it is judged on the SME thresholds — confirmed
+  // by the user on 2026-09-01.
+  AGRI: {
+    agent: {
+      Old: { loansPerMonth: 4, disbursePerMonth: 8_000_000 },
+      New: { loansPerMonth: 3, disbursePerMonth: 6_000_000 },
+    },
+  },
 };
+
+/**
+ * Products that only enter the report part-way through the year.
+ *
+ * Agrifinance has no MTD before May, so charging it January-to-date would ask
+ * for sales nobody recorded. Its people are judged on May onward — for the
+ * cumulative thresholds, for the targets, and for the sales counted against
+ * them. Everything else keeps the full reported period.
+ */
+const PRODUCT_START_MONTH = { AGRI: 'May' };
 
 function isZanzibar(region) { return norm(region).includes('zanzibar'); }
 
@@ -611,8 +630,10 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
    * The reported months a Team Leader is answerable for. Everyone gets the whole
    * period unless they are listed as having taken the team over mid-year.
    */
-  function tlMonths(branch) {
-    const start = TL_START_BY_KEY[normBranchKey(branch)];
+  /** The reported months a product is answerable for (all of them, unless it
+   *  joined the report late — see PRODUCT_START_MONTH). */
+  function productMonths(product) {
+    const start = PRODUCT_START_MONTH[String(product ?? '').toUpperCase()];
     if (!start) return monthsInData;
     const startIdx = MONTH_ORDER.indexOf(start);
     if (startIdx < 0) return monthsInData;
@@ -620,12 +641,24 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
     return kept.length ? kept : monthsInData;
   }
 
-  function activeMonths(joinedAt) {
-    // Joined before the reporting year (or date unknown) → charged in full.
-    if (!joinedAt || joinedAt < JAN_2026) return monthsCount;
+  function tlMonths(branch, product) {
+    const base  = productMonths(product);
+    const start = TL_START_BY_KEY[normBranchKey(branch)];
+    if (!start) return base;
+    const startIdx = MONTH_ORDER.indexOf(start);
+    if (startIdx < 0) return base;
+    const kept = base.filter((m) => MONTH_ORDER.indexOf(m) >= startIdx);
+    return kept.length ? kept : base;
+  }
+
+  function activeMonths(joinedAt, product) {
+    const base = productMonths(product);
+    // Joined before the reporting year (or date unknown) → charged for the
+    // product's whole window.
+    if (!joinedAt || joinedAt < JAN_2026) return base.length;
     const joinIdx = joinedAt.getMonth();           // 0-based month of joining
-    const n = monthsInData.filter((m) => MONTH_ORDER.indexOf(m) >= joinIdx).length;
-    return Math.max(1, Math.min(monthsCount, n));  // never zero, never more than reported
+    const n = base.filter((m) => MONTH_ORDER.indexOf(m) >= joinIdx).length;
+    return Math.max(1, Math.min(base.length, n));  // never zero, never more than reported
   }
 
   // ── branch home region ────────────────────────────────────────────────────────
@@ -665,7 +698,7 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
   });
 
   // ── qualification (bottom-up) ─────────────────────────────────────────────────
-  const PRODUCT_ORDER = ['CS', 'LBF', 'SME'];
+  const PRODUCT_ORDER = ['CS', 'LBF', 'SME', 'AGRI'];
   const products = [
     ...PRODUCT_ORDER.filter((p) => hierarchy[p]),
     ...Object.keys(hierarchy).filter((p) => !PRODUCT_ORDER.includes(p)),
@@ -689,13 +722,13 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
         // month they started — for the target AND for the sales counted against
         // it, since crediting them with a predecessor's months while shrinking
         // their target would flatter the result.
-        const countedMonths = tlMonths(branch);
+        const countedMonths = tlMonths(branch, product);
         bObj.tlMonths       = countedMonths.length;
         bObj.tlStartMonth   = countedMonths.length < monthsCount ? countedMonths[0] : '';
 
         const branchTarget = (targetMap[normKey(branch)] ?? 0) * bObj.tlMonths;
         bObj.target = (branchTarget === 0 && !trim(branch))
-          ? ((targetMap[REGION_OVERRIDES[normKey(region)] ?? normKey(region)] ?? 0) * monthsCount)
+          ? ((targetMap[REGION_OVERRIDES[normKey(region)] ?? normKey(region)] ?? 0) * productMonths(product).length)
           : branchTarget;
 
         // Split the branch roster: Team Leaders are NOT sales reps. Their sales
@@ -709,7 +742,7 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
           // Somebody who joined in April is only answerable for April onward —
           // charging them January-to-date would ask for sales made before they
           // existed. Everyone who was already on the books keeps the full period.
-          agent.activeMonths = activeMonths(agent.joinedAt);
+          agent.activeMonths = activeMonths(agent.joinedAt, product);
           agent.target = agent.repsTarget * agent.activeMonths;
           if (agent.isTeamLeader) {
             agent.qualified  = false;
@@ -813,7 +846,7 @@ export function processTeamBuildingReport(salesBuf, usersBuf, activitiesBuf, loa
       // file that dropped the region rollup rows — fall back to the sum of the
       // region's Branch/TL targets so regions still get a target instead of 0.
       const regionKey       = REGION_OVERRIDES[normKey(region)] ?? normKey(region);
-      const regionRow       = (targetMap[regionKey] ?? 0) * monthsCount;
+      const regionRow       = (targetMap[regionKey] ?? 0) * productMonths(product).length;
       const branchTargetSum = Object.values(rObj.branches).reduce((s, b) => s + (b.target ?? 0), 0);
       rObj.target         = regionRow > 0 ? regionRow : branchTargetSum;
       rObj.totalAmount    = Object.values(rObj.branches).reduce((s, b) => s + b.totalAmount, 0);

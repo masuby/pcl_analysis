@@ -15,6 +15,7 @@ const PRODUCT_LABELS = {
   CS:  'CS — CIVIL SERVANT',
   LBF: 'LBF — LOG BOOK FINANCE',
   SME: 'SME — SMALL & MEDIUM ENTERPRISE',
+  AGRI: 'AGRI — AGRIBUSINESS (from May)',
 };
 
 const PAL = {
@@ -198,9 +199,9 @@ const cmpAchv = (aAmt, aTgt, bAmt, bTgt) => {
 function buildAllAgentsSheet(hierarchy, monthsInData) {
   const months = monthsInData;
 
-  const sortedProducts = ['CS', 'LBF', 'SME']
+  const sortedProducts = ['CS', 'LBF', 'SME', 'AGRI']
     .filter((p) => hierarchy[p])
-    .concat(Object.keys(hierarchy).filter((p) => !['CS', 'LBF', 'SME'].includes(p)))
+    .concat(Object.keys(hierarchy).filter((p) => !['CS', 'LBF', 'SME', 'AGRI'].includes(p)))
     .sort((a, b) => cmpAchv(hierarchy[a].totalAmount, hierarchy[a].target, hierarchy[b].totalAmount, hierarchy[b].target));
 
   const COL_PRODUCT   = 0;
@@ -984,7 +985,7 @@ function buildSummarySheet(summary, monthsInData) {
 
   const HDR = PAL.headerBg; const HDR_FG = PAL.headerFg; const SUB = 'F3F4F6';
 
-  const productRows = ['CS', 'LBF', 'SME'].filter((p) => byProduct[p]).map((p, i) => {
+  const productRows = ['CS', 'LBF', 'SME', 'AGRI'].filter((p) => byProduct[p]).map((p, i) => {
     const b  = byProduct[p];
     const bg = i % 2 === 0 ? SUB : 'FFFFFF';
     const pct = b.target > 0 ? Math.round((b.totalAmount / b.target) * 100) : 0;
@@ -1112,6 +1113,9 @@ function buildCriteriaSheet() {
     ['SME', 'Agent',        'Old Agent', '—',        '≥ 4 loans / month', '≥ TZS 8,000,000 / month',  '—',        OLD_BG, OLD_FG],
     ['SME', 'Agent',        'New Agent', '—',        '≥ 3 loans / month', '≥ TZS 6,000,000 / month',  '—',        NEW_BG, NEW_FG],
     ['SME', 'Team Leader',  'All',       '—',        '—',                 '—',                         '≥ 100% cumulative target  AND  PAR > 30 ≤ 4%', TL_BG, TL_FG],
+    ['AGRI', 'Agent',       'Old Agent', 'From May', '≥ 4 loans / month', '≥ TZS 8,000,000 / month',  'Judged May onward — no MTD before May', OLD_BG, OLD_FG],
+    ['AGRI', 'Agent',       'New Agent', 'From May', '≥ 3 loans / month', '≥ TZS 6,000,000 / month',  'Judged May onward — no MTD before May', NEW_BG, NEW_FG],
+    ['AGRI', 'Team Leader', 'All',       'From May', '—',                 '—',                         '≥ 100% cumulative target (20M / month × 4)  AND  PAR > 30 ≤ 4%', TL_BG, TL_FG],
     ['ALL', 'Region / BM',  'All',       '—',        '—',                 '—',                         '≥ 100% cumulative target  AND  PAR > 30 ≤ 4%', RG_BG, RG_FG],
   ];
 
@@ -1156,7 +1160,7 @@ function buildSalesSheet(hierarchy, monthsInData) {
       });
     });
   });
-  const prodRank = (p) => { const i = ['CS', 'LBF', 'SME'].indexOf(p); return i < 0 ? 99 : i; };
+  const prodRank = (p) => { const i = ['CS', 'LBF', 'SME', 'AGRI'].indexOf(p); return i < 0 ? 99 : i; };
   people.sort((a, b) =>
     prodRank(a.product) - prodRank(b.product)
     || b.totalAmount - a.totalAmount
