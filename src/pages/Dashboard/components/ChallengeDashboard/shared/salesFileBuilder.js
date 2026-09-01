@@ -704,15 +704,22 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, existingF
 
   // Which months to (re)build from the MTDs.
   //  • Incremental: always re-pull the CURRENT month (so it tracks the latest
-  //    MTD) plus any completed month missing from the file; every other month
-  //    already in the file is kept untouched.
+  //    MTD) and the month just gone, plus any completed month missing from the
+  //    file; every other month already in the file is kept untouched.
+  //
+  //    The previous month is re-pulled because the FINAL MTD for a month is
+  //    uploaded in the first days of the next one. Re-pulling only the current
+  //    month meant that on 1 September the file kept August as it stood on the
+  //    29th and silently ignored the 31st-of-August finals — including a
+  //    department whose only August MTD arrived after month end.
   //  • First build: Jan → last completed month.
   let months;
   if (incremental) {
+    const prevMonthIdx = curMonthIdx - 1;   // 0 in January — no previous month this year
     months = [];
     for (let m = 1; m <= curMonthIdx; m++) {
       const name = MONTH_NAMES[m - 1];
-      if (m === curMonthIdx || !existing.presentMonths.has(name)) {
+      if (m === curMonthIdx || m === prevMonthIdx || !existing.presentMonths.has(name)) {
         months.push({ year, month: m, name });
       }
     }
