@@ -109,38 +109,55 @@ export async function parseCrmClusterSheets(fileUrl) {
   return { agentActivity, leadReport };
 }
 
-/** Normalize zone for flexible matching: lower case, strip " zone" / " region" suffix, collapse spaces. */
+/**
+ * The CRM export and the cluster constants name the same zones differently:
+ * the constants say "Northern Zone" / "Pwani Zone", the CRM file says
+ * "Northen Region" (its own long-standing typo) and "Coastal Region". Anything
+ * not listed here is matched on its own normalised name.
+ */
+const ZONE_ALIASES = {
+  northen: 'northern',
+  coastal: 'pwani',
+  pwani: 'pwani',
+};
+
+/**
+ * Normalize a zone for matching: lower case, strip a trailing "zone"/"region",
+ * collapse spaces, then apply the alias table.
+ */
 function normalizeZone(s) {
-  return String(s ?? '')
+  const base = String(s ?? '')
+    .replace(/\u00a0/g, ' ')  // the CRM file writes "Western Region" with a non-breaking space
     .trim()
     .toLowerCase()
     .replace(/\s+(zone|region)\s*$/i, '')
     .replace(/\s+/g, ' ')
     .trim();
+  return ZONE_ALIASES[base] ?? base;
 }
 
 /**
- * True if zone (from CRM file) belongs to the given cluster's zone list.
- * Matching: exact, case-insensitive, normalized ("Highland Region" ↔ "Highland Zone"), and contains (e.g. Zanzibar).
+ * True if a CRM zone belongs to the given cluster.
+ *
+ * Matching is exact on the normalised name — never "contains". A substring test
+ * put "Highland Region" into Cluster 3 as well as Cluster 2 (because
+ * "southern highland" contains "highland"), so both clusters counted the other's
+ * activity; and it still missed "Northen Region" and "Coastal Region"
+ * altogether, which silently dropped two of Cluster 1's three zones from every
+ * CRM KPI. Zanzibar keeps a looser rule because its rows arrive as
+ * "Zanzibar Zone", "Pemba" or "Unguja".
  */
 function zoneBelongsToCluster(zone, clusterZones) {
   const z = String(zone || '').trim();
   if (!z) return false;
   const list = (clusterZones || []).map((c) => String(c).trim()).filter(Boolean);
   if (list.length === 0) return false;
-  const set = new Set(list);
-  const zUpper = z.toUpperCase();
-  const zNorm = normalizeZone(z);
 
-  if (set.has(z) || set.has(zUpper)) return true;
-  if (zUpper.includes('ZANZIBAR') && (set.has('ZANZIBAR') || list.some((c) => String(c).toUpperCase().includes('ZANZIBAR')))) return true;
-  for (const c of list) {
-    const cNorm = normalizeZone(c);
-    if (zNorm === cNorm) return true;
-    if (zNorm && cNorm && (zNorm.includes(cNorm) || cNorm.includes(zNorm))) return true;
-    if (zUpper === c.toUpperCase()) return true;
-  }
-  return false;
+  const zNorm = normalizeZone(z);
+  const isZanzibarCluster = list.some((c) => /zanzibar/i.test(c));
+  if (isZanzibarCluster && /zanzibar|pemba|unguja/i.test(z)) return true;
+
+  return list.some((c) => normalizeZone(c) === zNorm);
 }
 
 /**

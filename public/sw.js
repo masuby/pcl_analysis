@@ -17,8 +17,10 @@
  * Bump CACHE_VERSION to force every client to drop its old caches.
  */
 
-// v2 — v1 could store an error page as the offline shell; bumping drops it.
-const CACHE_VERSION = 'v2';
+// v3 — v1 could store an error page as the offline shell; v2 could keep an
+// asset from a previous deployment alive next to a stale index.html, so the
+// browser went on running the old app. Bumping drops both.
+const CACHE_VERSION = 'v3';
 const SHELL_CACHE = `da-shell-${CACHE_VERSION}`;
 const ASSET_CACHE = `da-assets-${CACHE_VERSION}`;
 
