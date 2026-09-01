@@ -24,6 +24,7 @@ import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingS
 import ClusterKpiView from './ClusterKpis/ClusterKpiView';
 import { useNonCsKpiAnalysis } from './hooks/useNonCsKpiAnalysis';
 import { useCsKpiAnalysis } from './hooks/useCsKpiAnalysis';
+import { scoreFraction } from './utils/kpiScore';
 import {
   aggregateBranchDisbursementRows,
   aggregateCrmConsentDailyRows,
@@ -155,6 +156,8 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
   const [gapActualRepsFromServer, setGapActualRepsFromServer] = useState({});
   /** Per-report CRM metrics for the month (all reports): on location + data consent for cluster */
   const [crmReportsInMonthData, setCrmReportsInMonthData] = useState([]);
+  /** CRM email metrics for EVERY CS report in the month (the CRM KPIs are monthly). */
+  const [csCrmDailyRows, setCsCrmDailyRows] = useState([]);
   /** Parsed previous month Management report (Country sheet clusters) for cluster Portfolio / PAR30 */
   const [branchSummaryDataPrevious, setBranchSummaryDataPrevious] = useState(null);
 
@@ -392,6 +395,39 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     return () => { cancelled = true; };
   }, [product, csView, crmReportsInMonth]);
 
+  // The two CRM KPIs are monthly, so they are read from every CRM report in the
+  // month rather than whichever one happens to be latest — one day's snapshot
+  // is not the month's usage or consent, and the exported workbook has always
+  // aggregated. LBF and SME already do this; CS was the odd one out.
+  useEffect(() => {
+    if (product !== 'CS' || !crmReportsInMonth?.length) {
+      setCsCrmDailyRows([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const out = [];
+      for (const report of crmReportsInMonth) {
+        if (cancelled) return;
+        try {
+          const { metrics, date } = await getCrmEmailMetrics(report, 'CS');
+          const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+          out.push({
+            date: date ? new Date(date).toISOString().slice(0, 10) : '—',
+            totalWorkforce: n(metrics.count_team_leaders) + n(metrics.total_agent),
+            loggedIn: n(metrics.logged_in_team_leaders) + n(metrics.total_agent_logged_in),
+            totalLeads: n(metrics.lead),
+            consented: n(metrics.accepted_lead),
+          });
+        } catch {
+          // a report that cannot be read simply does not contribute
+        }
+      }
+      if (!cancelled) setCsCrmDailyRows(out);
+    })();
+    return () => { cancelled = true; };
+  }, [product, crmReportsInMonth]);
+
   useEffect(() => {
     if (product !== 'CS') {
       setBranchToClusterMap(null);
@@ -415,6 +451,20 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     })();
     return () => { cancelled = true; };
   }, [product]);
+
+  const { csAggregatedUsagePct, csAggregatedConsentPct } = useMemo(() => {
+    let workforce = 0; let logged = 0; let leads = 0; let consented = 0;
+    for (const r of csCrmDailyRows) {
+      workforce += r.totalWorkforce || 0;
+      logged    += r.loggedIn || 0;
+      leads     += r.totalLeads || 0;
+      consented += r.consented || 0;
+    }
+    return {
+      csAggregatedUsagePct:   workforce > 0 ? (logged / workforce) * 100 : null,
+      csAggregatedConsentPct: leads > 0 ? (consented / leads) * 100 : null,
+    };
+  }, [csCrmDailyRows]);
 
   const {
     filteredBranchSummaryData,
@@ -449,6 +499,8 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     latestManagementReport,
     previousMonthManagementReport,
     crmParsedDataForMonth,
+    csAggregatedUsagePct,
+    csAggregatedConsentPct,
     toMonthKey,
     normalizeParToPercentage,
     formatTzs,
@@ -681,7 +733,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const salesAchievedNum = typeof mtdSalesAchievedForView === 'number' ? mtdSalesAchievedForView : (mtdSalesAchievedForView != null ? parseFloat(mtdSalesAchievedForView) : NaN);
     const pctSales = Number.isFinite(salesAchievedNum) && salesTarget > 0 ? (salesAchievedNum / salesTarget) * 100 : null;
     const weight1 = standards[0]?.weight ?? 0.1;
-    const weightScored1 = pctSales != null ? (Math.min(100, pctSales) / 100) * weight1 : 0;
+    const weightScored1 = pctSales != null ? scoreFraction(pctSales) * weight1 : 0;
 
     const sheet1Tables = [{
       title: `Sales Target Achievement — ${monthLabel}${viewSuffix}`,
@@ -729,7 +781,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const pctBranches100 = totalBranches > 0 ? (branchData.achieved100Count / totalBranches) * 100 : null;
     const weight2 = standards[1]?.weight ?? 0.1;
     const targetPct85 = 85;
-    const weightScored2 = pctBranches100 != null ? (Math.min(100, (pctBranches100 / targetPct85) * 100) / 100) * weight2 : 0;
+    const weightScored2 = pctBranches100 != null ? scoreFraction(pctBranches100, targetPct85) * weight2 : 0;
 
     const disbursementColLabel = 'Disbursement this Month';
     const sortedBranches = [...branchData.branches].sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
@@ -781,7 +833,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const pctMainland65 = newBizMainlandTarget > 0 && Number.isFinite(newBizMainlandNum) ? (newBizMainlandNum / newBizMainlandTarget) * 100 : null;
     const weight3 = standards[2]?.weight ?? 0.15;
     const target65 = 65;
-    const weightScored3 = pctMainland65 != null ? (Math.min(100, (pctMainland65 / target65) * 100) / 100) * weight3 : 0;
+    const weightScored3 = pctMainland65 != null ? scoreFraction(pctMainland65, target65) * weight3 : 0;
     const sheet3Tables = [{
       title: `Attaining 65% new business (Mainland) — ${monthLabel}`,
       data: [
@@ -814,7 +866,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const pctZan70 = newBizZanTarget > 0 && Number.isFinite(newBizZanNum) ? (newBizZanNum / newBizZanTarget) * 100 : null;
     const weight4 = standards[3]?.weight ?? 0.05;
     const target70 = 70;
-    const weightScored4 = pctZan70 != null ? (Math.min(100, (pctZan70 / target70) * 100) / 100) * weight4 : 0;
+    const weightScored4 = pctZan70 != null ? scoreFraction(pctZan70, target70) * weight4 : 0;
     const sheet4Tables = [{
       title: `Attaining 70% Zanzibar new business — ${monthLabel}`,
       data: [
@@ -848,7 +900,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const growthPct = Number.isFinite(portfolioPrevNum) && portfolioPrevNum > 0 && Number.isFinite(portfolioNum) ? ((portfolioNum - portfolioPrevNum) / portfolioPrevNum) * 100 : null;
     const monthlyTargetGrowth = 10 / 12;
     const weight5 = standards[4]?.weight ?? 0.05;
-    const weightScored5 = growthPct != null ? (Math.min(100, (growthPct / monthlyTargetGrowth) * 100) / 100) * weight5 : 0;
+    const weightScored5 = growthPct != null ? scoreFraction(growthPct, monthlyTargetGrowth) * weight5 : 0;
     const sheet5Tables = [{
       title: `Portfolio growth 10% annually — ${monthLabel}`,
       data: [
@@ -921,7 +973,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const annualizedGrowth = monthlyGrowthPct != null ? monthlyGrowthPct * 12 : null;
     const weight7 = getWeightForKpiKey(standards, 'growth') || 0.02;
     const targetGrowth20 = 20;
-    const weightScored7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / targetGrowth20) * 100) / 100) * weight7 : 0;
+    const weightScored7 = annualizedGrowth != null ? scoreFraction(annualizedGrowth, targetGrowth20) * weight7 : 0;
     const sheet7Tables = [{
       title: `Growth of active client base 20% annually — ${monthLabel}`,
       data: [
@@ -975,7 +1027,7 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const regionsHit = supervisionRows.filter(r => r.hit).length;
     const clustersHit = clusterRows.filter(r => r.hit).length;
     const regionsClustersPct = (totalRegions + totalClusters) > 0 ? ((regionsHit + clustersHit) / (totalRegions + totalClusters)) * 100 : null;
-    const weightScored8 = regionsClustersPct != null ? (Math.min(100, regionsClustersPct) / 100) * weight8 : 0;
+    const weightScored8 = regionsClustersPct != null ? scoreFraction(regionsClustersPct) * weight8 : 0;
     const sheet8SupervisionData = sortedSupervisionRows.map(({ Supervision, Target, Sales, '%': p }) => ({ Supervision, Target, Sales, '%': p }));
     const sheet8SupervisionRowFillColors = sortedSupervisionRows.map(r => getColorForPct(r.pct ?? 0));
     if (sheet8SupervisionData.length > 0) {
@@ -1042,11 +1094,11 @@ const KpiAnalysisReport = ({ initialProduct = 'CS', lockProduct = false }) => {
     const crmUsageTotalRow = { 'Date': 'Total', 'Role': '—', 'Total workforce': totalWorkforce, 'Logged in': totalLoggedIn, 'Percentage logged in': overallUsagePct != null ? formatPercentAccounting(overallUsagePct) : '—' };
     const weight9 = getWeightForKpiKey(standards, 'crm') || 0.05;
     const targetUsage90 = 90;
-    const weightScored9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / targetUsage90) * 100) / 100) * weight9 : 0;
+    const weightScored9 = overallUsagePct != null ? scoreFraction(overallUsagePct, targetUsage90) * weight9 : 0;
     const avgConsentPct = totalLeadsSum > 0 ? (totalConsentedSum / totalLeadsSum) * 100 : null;
     const weight10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
     const targetConsent65 = 65;
-    const weightScored10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / targetConsent65) * 100) / 100) * weight10 : 0;
+    const weightScored10 = avgConsentPct != null ? scoreFraction(avgConsentPct, targetConsent65) * weight10 : 0;
     const sheet9Data = crmUsageRows.length ? [...crmUsageRows, crmUsageTotalRow] : [{ 'Date': '—', 'Role': '—', 'Total workforce': '—', 'Logged in': '—', 'Percentage logged in': '—' }];
     const sheet9RowFillColors = crmUsageRows.length ? crmUsageRows.map((r) => r['Role'] === 'Team Leader' ? blendHexWithWhite('FFEB3B', 0.6) : blendHexWithWhite('87CEEB', 0.6)) : [];
     const sheet10TotalRow = { __totalRow: true, 'Date': 'Total', 'Total Leads': totalLeadsSum, 'Rejected Leads': '—', 'Not Provided Leads': '—', 'Consented Leads': avgConsentPct != null ? `${formatTzs(totalConsentedSum)} (${formatPercentAccounting(avgConsentPct)})` : String(formatTzs(totalConsentedSum)) };

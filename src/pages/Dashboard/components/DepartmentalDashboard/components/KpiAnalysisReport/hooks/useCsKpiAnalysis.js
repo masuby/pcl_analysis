@@ -4,6 +4,7 @@ import { buildRSMData, buildRSMDataFromBranches } from '../../GapAnalysis/utils/
 import { aggregateCrmForCluster } from '../utils/parseCrmClusterSheets';
 import { extractMetrics } from '../../../../CRMdashboard/utils/crmUtils';
 import { getWeightForKpiKey } from '../utils/csKpiTargets';
+import { scoreFraction } from '../utils/kpiScore';
 
 export function useCsKpiAnalysis({
   product,
@@ -23,6 +24,8 @@ export function useCsKpiAnalysis({
   latestManagementReport,
   previousMonthManagementReport,
   crmParsedDataForMonth,
+  csAggregatedUsagePct,
+  csAggregatedConsentPct,
   toMonthKey,
   normalizeParToPercentage,
   formatTzs,
@@ -261,22 +264,22 @@ export function useCsKpiAnalysis({
       const w = Number(std?.weight) ?? 0;
       if (!name) continue;
       if (match(name, ['100%', 'overall cluster', 'sales target']) || match(name, ['cluster', 'sales target'])) {
-        rows.push({ kpi: name, target: salesTarget, achievedDisplay: Number.isFinite(salesAchievedNum) ? formatTzs(salesAchievedNum) : '—', pct: pctSales, weight: w, weightScored: pctSales != null ? (Math.min(100, pctSales) / 100) * w : 0 });
+        rows.push({ kpi: name, target: salesTarget, achievedDisplay: Number.isFinite(salesAchievedNum) ? formatTzs(salesAchievedNum) : '—', pct: pctSales, weight: w, weightScored: pctSales != null ? scoreFraction(pctSales) * w : 0 });
       } else if (match(name, ['regions', 'new business', '100%']) || match(name, ['regions hit', 'new business'])) {
-        rows.push({ kpi: name, target: '100%', achievedDisplay: pctRegionsNewBiz100 != null ? formatPercentAccounting(pctRegionsNewBiz100) : '—', pct: pctRegionsNewBiz100, weight: w, weightScored: pctRegionsNewBiz100 != null ? (Math.min(100, pctRegionsNewBiz100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '100%', achievedDisplay: pctRegionsNewBiz100 != null ? formatPercentAccounting(pctRegionsNewBiz100) : '—', pct: pctRegionsNewBiz100, weight: w, weightScored: pctRegionsNewBiz100 != null ? scoreFraction(pctRegionsNewBiz100) * w : 0 });
       } else if (match(name, ['90%', 'branches']) || match(name, ['branches', 'sales target'])) {
-        rows.push({ kpi: name, target: '90%', achievedDisplay: pctBranches100 != null ? formatPercentAccounting(pctBranches100) : '—', pct: pctBranches100, weight: w, weightScored: pctBranches100 != null ? (Math.min(100, (pctBranches100 / 90) * 100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '90%', achievedDisplay: pctBranches100 != null ? formatPercentAccounting(pctBranches100) : '—', pct: pctBranches100, weight: w, weightScored: pctBranches100 != null ? scoreFraction(pctBranches100, 90) * w : 0 });
       } else if (match(name, ['85%', 'recruitment']) || match(name, ['recruitment', 'sales agents'])) {
-        rows.push({ kpi: name, target: '85%', achievedDisplay: pctRecruitment != null ? formatPercentAccounting(pctRecruitment) : '—', pct: pctRecruitment, weight: w, weightScored: pctRecruitment != null ? (Math.min(100, (pctRecruitment / 85) * 100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '85%', achievedDisplay: pctRecruitment != null ? formatPercentAccounting(pctRecruitment) : '—', pct: pctRecruitment, weight: w, weightScored: pctRecruitment != null ? scoreFraction(pctRecruitment, 85) * w : 0 });
       } else if (match(name, ['growth', 'portfolio', '20%']) || match(name, ['portfolio', 'client base', '20%'])) {
-        rows.push({ kpi: name, target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—', pct: annualizedGrowth, weight: w, weightScored: annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / 20) * 100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '20% (annualized)', achievedDisplay: annualizedGrowth != null ? formatPercentAccounting(annualizedGrowth) : '—', pct: annualizedGrowth, weight: w, weightScored: annualizedGrowth != null ? scoreFraction(annualizedGrowth, 20) * w : 0 });
       } else if (match(name, ['par', '30', '5%']) || match(name, ['maintain par'])) {
         const par30Under5 = Number.isFinite(par30Num) && par30Num < 5;
         rows.push({ kpi: name, target: '≤ 5%', achievedDisplay: Number.isFinite(par30Num) ? formatPercentAccounting(par30Num) : '—', pct: Number.isFinite(par30Num) ? par30Num : null, weight: w, weightScored: par30Under5 ? w : 0 });
       } else if (match(name, ['95%', 'location', 'completion']) || match(name, ['on location', 'plans'])) {
-        rows.push({ kpi: name, target: '95%', achievedDisplay: onLocationPct != null ? formatPercentAccounting(onLocationPct) : '—', pct: onLocationPct, weight: w, weightScored: onLocationPct != null ? (Math.min(100, (onLocationPct / 95) * 100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '95%', achievedDisplay: onLocationPct != null ? formatPercentAccounting(onLocationPct) : '—', pct: onLocationPct, weight: w, weightScored: onLocationPct != null ? scoreFraction(onLocationPct, 95) * w : 0 });
       } else if (match(name, ['80%', 'data consent']) || match(name, ['data consent', 'region'])) {
-        rows.push({ kpi: name, target: '80%', achievedDisplay: dataConsentPct != null ? formatPercentAccounting(dataConsentPct) : '—', pct: dataConsentPct, weight: w, weightScored: dataConsentPct != null ? (Math.min(100, (dataConsentPct / 80) * 100) / 100) * w : 0 });
+        rows.push({ kpi: name, target: '80%', achievedDisplay: dataConsentPct != null ? formatPercentAccounting(dataConsentPct) : '—', pct: dataConsentPct, weight: w, weightScored: dataConsentPct != null ? scoreFraction(dataConsentPct, 80) * w : 0 });
       } else {
         rows.push({ kpi: name, target: '—', achievedDisplay: '—', pct: null, weight: w, weightScored: 0 });
       }
@@ -297,26 +300,26 @@ export function useCsKpiAnalysis({
     const salesAchieved = typeof mtdSalesAchievedForView === 'number' ? mtdSalesAchievedForView : (mtdSalesAchievedForView != null ? parseFloat(mtdSalesAchievedForView) : NaN);
     const pctSales = Number.isFinite(salesAchieved) && salesTarget > 0 ? (salesAchieved / salesTarget) * 100 : null;
     const w1 = standards[0]?.weight ?? 0.1;
-    const ws1 = pctSales != null ? (Math.min(100, pctSales) / 100) * w1 : 0;
+    const ws1 = pctSales != null ? scoreFraction(pctSales) * w1 : 0;
     const totalBranches = (filteredBranchSummaryData?.achieved100Count ?? 0) + (filteredBranchSummaryData?.notAchieved100Count ?? 0);
     const pctBranches100 = totalBranches > 0 ? ((filteredBranchSummaryData?.achieved100Count ?? 0) / totalBranches) * 100 : null;
     const w2 = standards[1]?.weight ?? 0.1;
-    const ws2 = pctBranches100 != null ? (Math.min(100, (pctBranches100 / 85) * 100) / 100) * w2 : 0;
+    const ws2 = pctBranches100 != null ? scoreFraction(pctBranches100, 85) * w2 : 0;
     const newBizMainlandTarget = mainT?.newBusiness ?? null;
     const newBizMainlandNum = Number(latestManagementReport?.cs?.['New Business'] ?? latestManagementReport?.cs?.['New business']);
     const pctMainland65 = newBizMainlandTarget > 0 && Number.isFinite(newBizMainlandNum) ? (newBizMainlandNum / newBizMainlandTarget) * 100 : null;
     const w3 = standards[2]?.weight ?? 0.15;
-    const ws3 = pctMainland65 != null ? (Math.min(100, (pctMainland65 / 65) * 100) / 100) * w3 : 0;
+    const ws3 = pctMainland65 != null ? scoreFraction(pctMainland65, 65) * w3 : 0;
     const newBizZanTarget = zanT?.newBusiness ?? null;
     const newBizZanNum = Number(latestManagementReport?.zanzibar?.['New Business'] ?? latestManagementReport?.zanzibar?.['New business']);
     const pctZan70 = newBizZanTarget > 0 && Number.isFinite(newBizZanNum) ? (newBizZanNum / newBizZanTarget) * 100 : null;
     const w4 = standards[3]?.weight ?? 0.05;
-    const ws4 = pctZan70 != null ? (Math.min(100, (pctZan70 / 70) * 100) / 100) * w4 : 0;
+    const ws4 = pctZan70 != null ? scoreFraction(pctZan70, 70) * w4 : 0;
     const portfolioNum = Number(latestManagementReport?.cs?.['Portfolio'] ?? latestManagementReport?.cs?.['Total Portfolio'] ?? latestManagementReport?.cs?.['Principle Balance']);
     const portfolioPrevNum = Number(previousMonthManagementReport?.cs?.['Portfolio'] ?? previousMonthManagementReport?.cs?.['Total Portfolio'] ?? previousMonthManagementReport?.cs?.['Principle Balance']);
     const growthPct = Number.isFinite(portfolioPrevNum) && portfolioPrevNum > 0 && Number.isFinite(portfolioNum) ? ((portfolioNum - portfolioPrevNum) / portfolioPrevNum) * 100 : null;
     const w5 = standards[4]?.weight ?? 0.05;
-    const ws5 = growthPct != null ? (Math.min(100, (growthPct / (10 / 12)) * 100) / 100) * w5 : 0;
+    const ws5 = growthPct != null ? scoreFraction(growthPct, (10 / 12)) * w5 : 0;
     const par30Num = normalizeParToPercentage(latestManagementReport?.cs?.['PAR >30'] ?? latestManagementReport?.cs?.['PAR>30'] ?? null);
     const par30PrevNum = normalizeParToPercentage(previousMonthManagementReport?.cs?.['PAR >30'] ?? previousMonthManagementReport?.cs?.['PAR>30'] ?? null);
     const par30Improvement = Number.isFinite(par30PrevNum) && Number.isFinite(par30Num) ? par30PrevNum - par30Num : null;
@@ -329,7 +332,7 @@ export function useCsKpiAnalysis({
     const monthlyGrowth = Number.isFinite(activeNumPrev) && activeNumPrev > 0 && Number.isFinite(activeNumCur) ? ((activeNumCur - activeNumPrev) / activeNumPrev) * 100 : null;
     const annualizedGrowth = monthlyGrowth != null ? monthlyGrowth * 12 : null;
     const w7 = getWeightForKpiKey(standards, 'growth') || 0.02;
-    const ws7 = annualizedGrowth != null ? (Math.min(100, (annualizedGrowth / 20) * 100) / 100) * w7 : 0;
+    const ws7 = annualizedGrowth != null ? scoreFraction(annualizedGrowth, 20) * w7 : 0;
 
     const supervisionsList = mtdParsedData?.groupedData ? Object.entries(mtdParsedData.groupedData) : [];
     const getTarget = (d) => Number(d?.['MONTH TARGET'] ?? d?.['Month Target'] ?? d?.Target ?? 0) || 0;
@@ -341,21 +344,27 @@ export function useCsKpiAnalysis({
     const totalC = clusterBranches.length;
     const regionsClustersPct = (totalR + totalC) > 0 ? ((regionsHit + clustersHit) / (totalR + totalC)) * 100 : null;
     const w8 = getWeightForKpiKey(standards, 'regions_clusters') || 0.05;
-    const ws8 = regionsClustersPct != null ? (Math.min(100, regionsClustersPct) / 100) * w8 : 0;
+    const ws8 = regionsClustersPct != null ? scoreFraction(regionsClustersPct) * w8 : 0;
 
     const crmForMonth = crmParsedDataForMonth && toMonthKey(crmParsedDataForMonth.reportDate) === effectiveMonthKey ? crmParsedDataForMonth : null;
     const crmMetrics = crmForMonth?.emailData ? extractMetrics(crmForMonth.emailData) : {};
     const toN = (v) => (typeof v === 'number' && !isNaN(v)) ? v : (v != null ? parseFloat(String(v).replace(/%|,/g, '')) : 0);
     const totalWorkforce = toN(crmMetrics.count_team_leaders ?? crmMetrics['count team leaders']) + toN(crmMetrics.total_agent ?? crmMetrics['total agent']);
     const totalLogged = toN(crmMetrics.logged_in_team_leaders ?? crmMetrics['logged in team leaders']) + toN(crmMetrics.total_agent_logged_in ?? crmMetrics['total agent logged in']);
-    const overallUsagePct = totalWorkforce > 0 ? (totalLogged / totalWorkforce) * 100 : null;
+    // Prefer the month-wide rollup (every CRM report in the month); the single
+    // latest report is only a fallback for when that has not loaded yet.
+    const overallUsagePct = csAggregatedUsagePct != null
+      ? csAggregatedUsagePct
+      : (totalWorkforce > 0 ? (totalLogged / totalWorkforce) * 100 : null);
     const w9 = getWeightForKpiKey(standards, 'crm') || 0.05;
-    const ws9 = overallUsagePct != null ? (Math.min(100, (overallUsagePct / 90) * 100) / 100) * w9 : 0;
+    const ws9 = overallUsagePct != null ? scoreFraction(overallUsagePct, 90) * w9 : 0;
     const totalLeads = toN(crmMetrics.lead ?? crmMetrics.count_leads ?? crmMetrics['lead']);
     const consented = toN(crmMetrics.accepted_lead ?? crmMetrics['accepted lead']);
-    const avgConsentPct = totalLeads > 0 ? (consented / totalLeads) * 100 : null;
+    const avgConsentPct = csAggregatedConsentPct != null
+      ? csAggregatedConsentPct
+      : (totalLeads > 0 ? (consented / totalLeads) * 100 : null);
     const w10 = getWeightForKpiKey(standards, 'data_consent') || 0.05;
-    const ws10 = avgConsentPct != null ? (Math.min(100, (avgConsentPct / 65) * 100) / 100) * w10 : 0;
+    const ws10 = avgConsentPct != null ? scoreFraction(avgConsentPct, 65) * w10 : 0;
 
     const rows = [
       { kpi: standards[0]?.name ?? 'Sales target', target: salesTarget, achievedDisplay: Number.isFinite(salesAchieved) ? formatTzs(salesAchieved) : '—', pct: pctSales, weight: w1, weightScored: ws1 },
@@ -371,7 +380,7 @@ export function useCsKpiAnalysis({
     ];
     return rows.map((r) => ({ ...r, pctWeightScored: (Number(r.weight) || 0) > 0 ? ((Number(r.weightScored) || 0) / Number(r.weight)) * 100 : 0 }))
       .sort((a, b) => (b.pctWeightScored ?? 0) - (a.pctWeightScored ?? 0));
-  }, [clusterDashboardRows, targets, effectiveTargetsForKpi, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, mtdSalesAchievedForView, filteredBranchSummaryData, crmParsedDataForMonth, toMonthKey, normalizeParToPercentage, formatTzs, formatPercentAccounting]);
+  }, [clusterDashboardRows, targets, effectiveTargetsForKpi, effectiveMonthKey, latestManagementReport, previousMonthManagementReport, mtdParsedData, mtdSalesAchievedForView, filteredBranchSummaryData, crmParsedDataForMonth, csAggregatedUsagePct, csAggregatedConsentPct, toMonthKey, normalizeParToPercentage, formatTzs, formatPercentAccounting]);
 
   return {
     filteredBranchSummaryData,

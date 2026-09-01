@@ -2,6 +2,7 @@ import { extractMetrics } from '../../../../CRMdashboard/utils/crmUtils';
 import { getMTDTotalsManagementStyle } from '../../SalesReviewReport/utils/summaryDataUtils';
 import { getLbfKpiSectionKey } from './lbfKpiSectionKeys';
 import { normalizeCrmMetricsForKpi } from './crmMetricsFromReport';
+import { scoreFraction } from './kpiScore';
 
 /**
  * Shared row builder for LBF/SME generic KPI target workbooks (KPI + TARGET sheets).
@@ -167,7 +168,7 @@ export function buildNonCsSummaryRows({
       target = '100% (CRM reps vs ACTUAL LOAN OFFICER)';
       achieved = smeCrmVsActualLoPct;
       pct = smeCrmVsActualLoPct;
-      wScoredOverride = Number.isFinite(smeCrmVsActualLoPct) ? (Math.min(100, smeCrmVsActualLoPct) / 100) * weight : 0;
+      wScoredOverride = Number.isFinite(smeCrmVsActualLoPct) ? scoreFraction(smeCrmVsActualLoPct) * weight : 0;
       achievedDisplayOverride = Number.isFinite(smeCrmVsActualLoPct)
         ? `${smeCrmVsActualLoPct.toFixed(2)}% (${formatTzs(crmTotalAgentsSme)} CRM reps ÷ ${formatTzs(actualLoanOfficerTarget)} ACTUAL LO)`
         : '—';
@@ -190,7 +191,7 @@ export function buildNonCsSummaryRows({
       achieved = smeMgmtActiveOverCrmPct;
       pct = smeMgmtActiveOverCrmPct;
       wScoredOverride = Number.isFinite(smeMgmtActiveOverCrmPct)
-        ? (Math.min(100, (smeMgmtActiveOverCrmPct / 90) * 100) / 100) * weight
+        ? scoreFraction(smeMgmtActiveOverCrmPct, 90) * weight
         : 0;
       achievedDisplayOverride = Number.isFinite(smeMgmtActiveOverCrmPct)
         ? `${smeMgmtActiveOverCrmPct.toFixed(2)}% (${formatTzs(activeAchieved)} mgmt Active Reps ÷ ${formatTzs(crmTotalAgentsSme)} CRM reps; target ≥90%)`
@@ -454,7 +455,7 @@ export function buildNonCsSummaryRows({
         target = '95%';
         achieved = crmUsagePct;
         pct = crmUsagePct;
-        wScoredOverride = Number.isFinite(crmUsagePct) ? (Math.min(100, (crmUsagePct / 95) * 100) / 100) * weight : 0;
+        wScoredOverride = Number.isFinite(crmUsagePct) ? scoreFraction(crmUsagePct, 95) * weight : 0;
         achievedDisplayOverride = Number.isFinite(crmUsagePct) ? `${crmUsagePct.toFixed(2)}%` : '—';
       } else {
         target = '90%';
@@ -519,16 +520,16 @@ export function buildNonCsSummaryRows({
 
     let wScored = wScoredOverride != null
       ? wScoredOverride
-      : (Number.isFinite(pct) ? (Math.min(100, Math.max(0, pct)) / 100) * weight : 0);
+      : (Number.isFinite(pct) ? scoreFraction(pct) * weight : 0);
 
     if (product === 'LBF' && l.includes('data consent') && Number.isFinite(pct)) {
-      wScored = (Math.min(100, (pct / 65) * 100) / 100) * weight;
+      wScored = scoreFraction(pct, 65) * weight;
     }
     if (product === 'SME' && (l.includes('data consent') || (l.includes('data collected') && l.includes('consent'))) && Number.isFinite(pct)) {
-      wScored = (Math.min(100, (pct / 65) * 100) / 100) * weight;
+      wScored = scoreFraction(pct, 65) * weight;
     }
     if (product === 'LBF' && l.includes('proper usage of crm') && Number.isFinite(pct)) {
-      wScored = (Math.min(100, (pct / 90) * 100) / 100) * weight;
+      wScored = scoreFraction(pct, 90) * weight;
     }
 
     const achievedDisplay = achievedDisplayOverride != null
