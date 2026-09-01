@@ -47,6 +47,7 @@ export const useSummaryData = () => {
   const mtdCS = useMTDData('CS');
   const mtdLBF = useMTDData('LBF');
   const mtdSME = useMTDData('SME');
+  const mtdAGRI = useMTDData('AGRI');
 
   // Helper function to process department data
   const processDepartmentData = (dataArray, departmentName) => {
@@ -336,7 +337,7 @@ export const useSummaryData = () => {
   const processMTDData = useCallback(() => {
     const cached = summaryCache.get('mtd_data');
     if (cached && Object.keys(cached).length > 0) {
-      const hasNewData = Object.values({ CS: mtdCS, LBF: mtdLBF, SME: mtdSME }).some(
+      const hasNewData = Object.values({ CS: mtdCS, LBF: mtdLBF, SME: mtdSME, AGRI: mtdAGRI }).some(
         hook => hook.parsedData && !hook.loading
       );
       if (!hasNewData) {
@@ -345,8 +346,8 @@ export const useSummaryData = () => {
     }
 
     try {
-      const departments = ['CS', 'LBF', 'SME'];
-      const mtdHooks = { CS: mtdCS, LBF: mtdLBF, SME: mtdSME };
+      const departments = ['CS', 'LBF', 'SME', 'AGRI'];
+      const mtdHooks = { CS: mtdCS, LBF: mtdLBF, SME: mtdSME, AGRI: mtdAGRI };
       const result = {};
 
       for (const dept of departments) {
@@ -417,7 +418,7 @@ export const useSummaryData = () => {
         setMtdData(cached);
       }
     }
-  }, [mtdCS, mtdLBF, mtdSME]);
+  }, [mtdCS, mtdLBF, mtdSME, mtdAGRI]);
 
   // Track previous data to detect actual changes
   const prevDataRef = useRef({
@@ -430,7 +431,8 @@ export const useSummaryData = () => {
     callCenterSME: null,
     mtdCS: null,
     mtdLBF: null,
-    mtdSME: null
+    mtdSME: null,
+    mtdAGRI: null
   });
 
   // Process all data when hooks have data - only when data actually changes

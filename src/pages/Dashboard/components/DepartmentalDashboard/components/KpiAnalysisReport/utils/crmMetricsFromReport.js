@@ -1,10 +1,12 @@
 /**
- * Fetch a single CRM report file and extract metrics from the Email sheet.
+ * Fetch a single CRM report file and extract metrics from its email sheet —
+ * either the legacy "Email" sheet or the current "Email Summary" one.
  * LBF uses different Text labels than CS — see CRMAnalysis renderLBFContent (number_consented_lead, total_count_agent, …).
  */
 import * as XLSX from 'xlsx';
 import { getReportFileUrl } from '../../../../../../../services/supabase';
 import { extractMetrics } from '../../../../CRMdashboard/utils/crmUtils';
+import { findSheet, extractEmailSummarySheet } from '../../../../CRMdashboard/hooks/useCRMData';
 
 function toNum(v) {
   if (v == null || v === '') return 0;
@@ -163,13 +165,25 @@ export async function getCrmEmailMetrics(report, departmentOverride) {
 
   const arrayBuffer = await response.arrayBuffer();
   const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
-  if (!wb.SheetNames || !wb.SheetNames.includes('Email')) {
+
+  // Two report shapes are in circulation: the older one carries an "Email"
+  // sheet of Text/Value pairs, the current one an "Email Summary" sheet of
+  // Section/Metric/Value. Reading only the former left every CRM-derived KPI
+  // (proper usage of CRM, data consent) empty once the reports changed over.
+  // Both are read through the CRM dashboard's own helpers so there is one
+  // implementation, not two that can drift.
+  let emailData = null;
+  const emailSheet = findSheet(wb.SheetNames || [], 'Email');
+  if (emailSheet) emailData = XLSX.utils.sheet_to_json(wb.Sheets[emailSheet]);
+  if (!emailData || emailData.length === 0) {
+    const summarySheet = findSheet(wb.SheetNames || [], 'Email Summary', 'Email_Summary');
+    if (summarySheet) emailData = extractEmailSummarySheet(wb, summarySheet);
+  }
+  if (!emailData || emailData.length === 0) {
     return { date: report?.date, metrics: {} };
   }
 
-  const emailSheet = wb.Sheets['Email'];
-  const emailData = XLSX.utils.sheet_to_json(emailSheet);
-  const raw = extractMetrics(emailData || []);
+  const raw = extractMetrics(emailData);
   const department = departmentOverride ?? report?.department ?? 'CS';
   const metrics = normalizeCrmMetricsForKpi(raw, department);
 

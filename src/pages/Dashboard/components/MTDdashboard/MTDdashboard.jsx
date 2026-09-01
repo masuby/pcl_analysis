@@ -1,32 +1,23 @@
-import MTDCS from './components/MTDCS/MTDCS';
-import MTDLBF from './components/MTDLBF/MTDLBF';
-import MTDSME from './components/MTDSME/MTDSME';
+import MTDDepartment from './components/MTDDepartment/MTDDepartment';
 import './MTDdashboard.css';
+
+// Department code → the name shown in the view. Agribusiness is filed under the
+// AGRI code its MTD workbooks and report records use.
+const LABELS = { AGRI: 'Agribusiness' };
 
 const MTDdashboard = ({ reports, selectedDepartment, onDepartmentChange, userData }) => {
   // Determine which department to show
   // Priority: selectedDepartment > userData.department > 'CS' as default
-  const department = selectedDepartment !== 'ALL' 
-    ? selectedDepartment 
+  const department = selectedDepartment !== 'ALL'
+    ? selectedDepartment
     : (userData?.department || 'CS');
 
-  // Route to appropriate department component
-  const renderDepartmentView = () => {
-    switch (department.toUpperCase()) {
-      case 'LBF':
-        return <MTDLBF />;
-      case 'CS':
-        return <MTDCS />;
-      case 'SME':
-        return <MTDSME />;
-      default:
-        return <MTDCS />;
-    }
-  };
+  const code = String(department || 'CS').toUpperCase();
+  const known = ['CS', 'LBF', 'SME', 'AGRI'].includes(code) ? code : 'CS';
 
   return (
     <div className="dashboard-view">
-      {renderDepartmentView()}
+      <MTDDepartment department={known} label={LABELS[known]} />
     </div>
   );
 };

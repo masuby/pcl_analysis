@@ -2,11 +2,19 @@ import { useState } from 'react';
 import { useMTDData } from '../../hooks/useMTDData';
 import LoadingSpinner from '../../../../../../components/Common/Loading/LoadingSpinner';
 import MTDAnalysis from '../MTDAnalysis/MTDAnalysis';
-import '../MTDCS/MTDCS.css';
+import './MTDDepartment.css';
 
-const MTDSME = () => {
+/**
+ * One department's MTD view: a report-date picker plus the analysis.
+ *
+ * CS, LBF, SME and AGRI all read the same MTD workbook shape, so they share
+ * this component rather than each keeping a copy that drifts. `label` is the
+ * name shown to the reader when it should differ from the department code.
+ */
+const MTDDepartment = ({ department, label }) => {
   const [selectedDate, setSelectedDate] = useState(null);
-  const { reports, parsedData, loading, error, hasData } = useMTDData('SME', selectedDate);
+  const { reports, parsedData, loading, error, hasData } = useMTDData(department, selectedDate);
+  const name = label || department;
 
   if (loading && !parsedData) {
     return (
@@ -30,9 +38,9 @@ const MTDSME = () => {
     return (
       <div className="mtd-empty-wrap">
         <div className="mtd-empty-icon">📊</div>
-        <h2>No SME MTD Reports Found</h2>
+        <h2>No {name} MTD Reports Found</h2>
         <p className="mtd-empty-sub">
-          Upload SME MTD reports in the Administration page to see analysis.
+          Upload {name} MTD reports in the Administration page to see analysis.
         </p>
       </div>
     );
@@ -60,6 +68,12 @@ const MTDSME = () => {
     }
   };
 
+  const formatDate = (d) => (d instanceof Date ? d : new Date(d)).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
     <div className="mtd-dept-view">
       {parsedData && (
@@ -79,29 +93,19 @@ const MTDSME = () => {
             </select>
           </div>
           <span className="mtd-date-text">
-            SME MTD - {parsedData.reportDate instanceof Date
-              ? parsedData.reportDate.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })
-              : new Date(parsedData.reportDate).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
+            {name} MTD - {formatDate(parsedData.reportDate)}
           </span>
         </div>
       )}
-      
+
       {parsedData && (
-        <MTDAnalysis 
+        <MTDAnalysis
           parsedData={parsedData}
-          department="SME"
+          department={department}
         />
       )}
     </div>
   );
 };
 
-export default MTDSME;
+export default MTDDepartment;

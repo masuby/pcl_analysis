@@ -27,7 +27,7 @@ func InitReportHandlers(cfg *config.StorageConfig) {
 	maxFileSize = cfg.MaxFileSize
 
 	// Create upload directories
-	departments := []string{"CS", "LBF", "SME", "MANAGEMENT", "ALL", "CHALLENGE"}
+	departments := []string{"CS", "LBF", "SME", "AGRI", "MANAGEMENT", "ALL", "CHALLENGE"}
 	for _, dept := range departments {
 		dir := filepath.Join(uploadPath, dept)
 		if err := os.MkdirAll(dir, 0755); err != nil {

@@ -48,6 +48,7 @@ const AddReportModal = ({ onClose, onReportAdded, showToast }) => {
     { value: 'CS', label: 'Civil Servant' },
     { value: 'LBF', label: 'Log Book Finance' },
     { value: 'SME', label: 'Small & Medium Enterprise' },
+    { value: 'AGRI', label: 'Agribusiness' },
     { value: 'ALL', label: 'All Departments' }
   ];
 

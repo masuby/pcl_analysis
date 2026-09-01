@@ -93,7 +93,7 @@ const GapAnalysis = () => {
   const [branchSearchQuery, setBranchSearchQuery] = useState('');
   const [rsmSearchQuery, setRsmSearchQuery] = useState('');
 
-  // Fetch MTD report by product: CS → CS MTD, LBF → LBF MTD, SME → SME MTD (same as MTDCS/MTDLBF/MTDSME)
+  // Fetch MTD report by product: CS → CS MTD, LBF → LBF MTD, SME → SME MTD (same as MTDDepartment)
   const { reports, parsedData, monthlyParsedData, loading, error, hasData } = useMTDData(product, selectedDate);
   const reportId = parsedData?.reportId;
   const reportDate = parsedData?.reportDate;

@@ -60,7 +60,7 @@ const ReportManagement = () => {
     && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
-  const departments = ['CS', 'SME', 'LBF'];
+  const departments = ['CS', 'SME', 'LBF', 'AGRI'];
 
   // Fetch reports
   useEffect(() => {

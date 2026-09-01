@@ -26,6 +26,11 @@ const ReportTypeSelector = ({
   
   // Departments - only show CS, LBF, SME to Admin or users with ALL access
   const departments = isAdmin ? ['CS', 'LBF', 'SME'] : [];
+
+  // Agribusiness files MTD reports only — it has no CRM, call-centre or
+  // departmental feed — so it is offered under MTD rather than on every type.
+  const getDepartmentsFor = (type) =>
+    (type === 'MTD' && isAdmin ? [...departments, 'AGRI'] : departments);
   
   // Get available departments for Challenge based on user role
   const getChallengeDepartments = () => {
@@ -199,7 +204,7 @@ const ReportTypeSelector = ({
             <span className="menu-report-type">{hoveredButton}</span>
           </div>
           <div className="department-options">
-            {(hoveredButton === 'CHALLENGE' ? getChallengeDepartments() : departments).map(dept => (
+            {(hoveredButton === 'CHALLENGE' ? getChallengeDepartments() : getDepartmentsFor(hoveredButton)).map(dept => (
               <button
                 key={dept}
                 className={`department-option ${selectedDepartment === dept && selectedType === hoveredButton ? 'selected' : ''}`}

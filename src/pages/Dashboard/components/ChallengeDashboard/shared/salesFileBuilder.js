@@ -32,13 +32,21 @@ import { getReportFileUrl } from '../../../../../services/supabase';
 import { localTripAPI, lbfCallCenterAPI, reportsAPI } from '../../../../../services/api';
 import { injectFreezePanes } from '../../DepartmentalDashboard/utils/excelFreezePanes';
 
-const DEPARTMENTS = ['CS', 'LBF', 'SME'];
+const DEPARTMENTS = ['CS', 'LBF', 'SME', 'AGRI'];
 
-const REPS_TARGET = { CS: 3_000_000, LBF: 8_500_000, SME: 8_500_000 };
+// AGRI: the Agri MTD's own "Minimum No. Required" arithmetic — a 20,000,000
+// team target divided by the 2 reps it says are needed — implies 10,000,000
+// per rep per month.
+const REPS_TARGET = { CS: 3_000_000, LBF: 8_500_000, SME: 8_500_000, AGRI: 10_000_000 };
 
 // Per-rep monthly target used to derive the Loan Count / Reps targets on the
 // Target sheet: CS = 3,000,000 ; LBF & SME = 8,500,000.
-const repRate = (product) => (String(product).toUpperCase() === 'CS' ? 3_000_000 : 8_500_000);
+const repRate = (product) => {
+  const p = String(product).toUpperCase();
+  if (p === 'CS') return 3_000_000;
+  if (p === 'AGRI') return 10_000_000;
+  return 8_500_000;
+};
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -314,6 +322,63 @@ function extractListing(wb) {
     });
   }
   return rows;
+}
+
+/**
+ * Agrifinance listings need two fixes before they can be judged like any other
+ * product.
+ *
+ * 1. Rows credited to "Unallocated <place>" are the team's own unattributed
+ *    business. They are credited to the team leader named in the TEAM column,
+ *    so a real person carries them instead of a bucket competing as a rep.
+ * 2. Agrifinance ran as one undivided branch until the teams were split, so the
+ *    earlier months carry the place name ("Tukuyu") in TEAM for every row
+ *    rather than a leader. Where a whole month has a single TEAM value, each
+ *    rep is placed under the leader they appear beneath in a month that does
+ *    name one; the unallocated rows follow the leader who carries the
+ *    unallocated business elsewhere.
+ *
+ * Rows are [rep, fullName, term, number, day, month, target, amount, status,
+ * branch, supervision, product]; branch (9) is the TEAM value.
+ */
+function normaliseAgriRows(rows) {
+  const AGRI = (r) => String(r[11] ?? '').toUpperCase() === 'AGRI';
+  const agri = rows.filter(AGRI);
+  if (!agri.length) return;
+
+  const isUnallocated = (name) => /^unallocated/i.test(String(name ?? '').trim());
+
+  // Months whose TEAM column names a leader (more than one distinct value).
+  const teamsByMonth = new Map();
+  for (const r of agri) {
+    const set = teamsByMonth.get(r[5]) ?? teamsByMonth.set(r[5], new Set()).get(r[5]);
+    set.add(String(r[9] ?? '').trim());
+  }
+  const named = new Set([...teamsByMonth].filter(([, v]) => v.size > 1).map(([m]) => m));
+
+  // rep → leader, and the leader who carries the unallocated business.
+  const leaderOf = new Map();
+  let unallocatedLeader = '';
+  for (const r of agri) {
+    if (!named.has(r[5])) continue;
+    const team = String(r[9] ?? '').trim();
+    if (!team) continue;
+    if (isUnallocated(r[0])) { unallocatedLeader ||= team; continue; }
+    const k = normKey(r[0]);
+    if (k && !leaderOf.has(k)) leaderOf.set(k, team);
+  }
+
+  for (const r of rows) {
+    if (!AGRI(r)) continue;
+    if (!named.has(r[5])) {
+      const team = isUnallocated(r[0]) ? unallocatedLeader : leaderOf.get(normKey(r[0]));
+      if (team) r[9] = team;
+    }
+    if (isUnallocated(r[0]) && String(r[9] ?? '').trim()) {
+      r[0] = r[9];          // the leader carries the team's unattributed sales
+      r[1] = r[1] || r[9];
+    }
+  }
 }
 
 /** Preserve the `Target` sheet from the currently-active Sales file (if any). */
@@ -741,10 +806,10 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, existingF
   for (const dept of DEPARTMENTS) deptReports[dept] = await loadDeptReports(dept);
 
   const newRows = [];
-  const byDept = { CS: 0, LBF: 0, SME: 0 };
+  const byDept = { CS: 0, LBF: 0, SME: 0, AGRI: 0 };
   const skipped = [];
   // Branch/TL → MONTH TARGET, accumulated from each processed MTD's first sheet.
-  const mtdTargets = { CS: new Map(), LBF: new Map(), SME: new Map() };
+  const mtdTargets = { CS: new Map(), LBF: new Map(), SME: new Map(), AGRI: new Map() };
   // firstName → actual full name, for LBF reps under CALL CENTER supervision.
   const ccRepByFirst = new Map();
 
@@ -800,6 +865,10 @@ export async function refreshSalesFileFromMTD({ existingFileId = null, existingF
       }
     }
   }
+
+  // Agrifinance rows need their team/leader columns settled before anything
+  // downstream reads them.
+  normaliseAgriRows(newRows);
 
   // Keep the existing rows for every month we are NOT reprocessing.
   const processedNames = new Set(months.map((c) => c.name));

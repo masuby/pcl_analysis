@@ -429,7 +429,7 @@ const extractTableFromRange = (allData, startRow, endRow, startCol, endCol, maxC
  * Find a sheet by name, tolerant of case / spacing / underscore differences.
  * @returns {string|null} the actual sheet name, or null
  */
-const findSheet = (sheetNames, ...candidates) => {
+export const findSheet = (sheetNames, ...candidates) => {
   const norm = (s) => String(s || '').trim().toLowerCase().replace(/[\s_]+/g, ' ');
   const wanted = candidates.map(norm);
   return sheetNames.find((n) => wanted.includes(norm(n))) || null;
@@ -492,7 +492,7 @@ const EMAIL_SUMMARY_MAP = {
  * the existing UI (extractMetrics / getValue) works unchanged. Unmapped rows
  * are still exposed under a generated snake_case key so nothing is lost.
  */
-const extractEmailSummarySheet = (workbook, sheetName) => {
+export const extractEmailSummarySheet = (workbook, sheetName) => {
   try {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: '' });
     const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');

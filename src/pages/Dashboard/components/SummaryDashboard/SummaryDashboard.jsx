@@ -338,6 +338,9 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
   const [mtdViewType, setMtdViewType] = useState('supervision'); // 'supervision' or 'teamleader'
   
   const availableDepts = isAdmin ? ['CS', 'LBF', 'SME'] : [userDept];
+  // Agribusiness reports MTD only — it has no CRM or call-centre feed, so it
+  // is offered on the MTD selector alone rather than everywhere.
+  const mtdDepts = isAdmin ? ['CS', 'LBF', 'SME', 'AGRI'] : [userDept];
 
   const { 
     managementData, 
@@ -713,7 +716,7 @@ const SummaryDashboard = ({ selectedDepartment = 'ALL', userData }) => {
                 <span className="sd-report-date">{formatReportDate(currentMtdData.reportDate)}</span>
               )}
               <DepartmentSelector 
-                departments={availableDepts}
+                departments={mtdDepts}
                 activeDept={mtdDept}
                 onDeptChange={setMtdDept}
                 isAdmin={isAdmin}
