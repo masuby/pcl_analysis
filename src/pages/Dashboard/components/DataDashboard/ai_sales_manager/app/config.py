@@ -89,6 +89,7 @@ class Settings:
     # as Editor, and puts its id (or full URL) here.
     lbf_sheet_id = _sheet_id(os.getenv("AISM_LBF_SHEET_ID"))
     sme_sheet_id = _sheet_id(os.getenv("AISM_SME_SHEET_ID"))
+    cs_sheet_id = _sheet_id(os.getenv("AISM_CS_SHEET_ID") or os.getenv("CS_AI_AGENT_DATA_SHEET_LINK"))
     leads_sheet_id = _sheet_id(os.getenv("AISM_LEADS_SHEET_ID"))
 
     env_path = str(ENV_PATH) if ENV_PATH else None

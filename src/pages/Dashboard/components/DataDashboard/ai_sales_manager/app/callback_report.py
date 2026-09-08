@@ -40,6 +40,7 @@ from .tools.sheets import _services
 PRODUCT_SHEETS = {
     "LBF": lambda: settings.lbf_sheet_id,
     "SME": lambda: settings.sme_sheet_id,
+    "CS": lambda: settings.cs_sheet_id,
 }
 
 # The dropdown the call centre is meant to use.

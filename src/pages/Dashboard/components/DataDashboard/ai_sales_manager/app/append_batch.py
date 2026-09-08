@@ -24,7 +24,8 @@ from datetime import date
 
 from . import db
 from .config import settings
-from .distribute import (COLUMNS, DIVIDER_BG, FEEDBACK_OPTIONS, _ensure_tab, _format,
+from .distribute import (COLUMNS, DIVIDER_BG, FEEDBACK_OPTIONS, SHEET_ENV, _ensure_tab, _format,
+                         sheet_id_for,
                          _gid, _display_name, _value, tab_name)
 from .tools.sheets import _services
 
@@ -124,9 +125,9 @@ def _unhide_columns(sheets, sid: str, gid: int, tab: str, log=print) -> list[str
 
 def repair_columns(product: str, month: str = "", log=print) -> dict:
     """Put back any of the standard columns the sheet has lost."""
-    sid = settings.lbf_sheet_id if product == "LBF" else settings.sme_sheet_id
+    sid = sheet_id_for(product)
     if not sid:
-        return {"ok": False, "error": f"AISM_{product}_SHEET_ID is not set"}
+        return {"ok": False, "error": f"{SHEET_ENV.get(product, product)} is not set"}
 
     sheets, _ = _services()
     tab = tab_name(month)
@@ -228,7 +229,9 @@ def apply_feedback(product: str, records: list[dict], month: str = "",
     is not on the list was not distributed from here and silently adding it
     would misstate what the call centre was given.
     """
-    sid = settings.lbf_sheet_id if product == "LBF" else settings.sme_sheet_id
+    sid = sheet_id_for(product)
+    if not sid:
+        return {"ok": False, "error": f"{SHEET_ENV.get(product, product)} is not set"}
     sheets, _ = _services()
     tab = tab_name(month)
     gid = _gid(sheets, sid, tab)
@@ -297,7 +300,9 @@ def apply_feedback(product: str, records: list[dict], month: str = "",
 def append_batch(product: str, leads: list[dict], label: str = "",
                  month: str = "", log=print) -> dict:
     """Add a dark blue divider and write the new leads underneath it."""
-    sid = settings.lbf_sheet_id if product == "LBF" else settings.sme_sheet_id
+    sid = sheet_id_for(product)
+    if not sid:
+        return {"ok": False, "error": f"{SHEET_ENV.get(product, product)} is not set"}
     sheets, _ = _services()
     tab = tab_name(month)
     gid, _ = _ensure_tab(sheets, sid, tab)

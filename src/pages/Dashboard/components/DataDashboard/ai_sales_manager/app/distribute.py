@@ -39,6 +39,19 @@ from .tools.sheets import _services, service_account_email
 # imports it from here so both files paint the same colour.
 DIVIDER_BG = {"red": 0.12, "green": 0.22, "blue": 0.39}
 
+# The call-centre distribution workbook for each product. CS was added on
+# 2026-09-08 (CS_AI_AGENT_DATA_SHEET_LINK in DataDashboard/.env).
+PRODUCTS = ("LBF", "SME", "CS")
+SHEET_ENV = {"LBF": "AISM_LBF_SHEET_ID", "SME": "AISM_SME_SHEET_ID", "CS": "AISM_CS_SHEET_ID"}
+
+
+def sheet_id_for(product: str) -> str | None:
+    """The distribution workbook id for a product, or None when it is not configured."""
+    p = str(product or "").upper()
+    return {"LBF": settings.lbf_sheet_id, "SME": settings.sme_sheet_id,
+            "CS": settings.cs_sheet_id}.get(p)
+
+
 COLUMNS = [
     ("Product", "product"),
     ("Location", "location"),
@@ -380,14 +393,14 @@ def _share(drive, sid: str, email: str | None) -> None:
 
 
 def _sheet_id_for(product: str) -> str | None:
-    return settings.lbf_sheet_id if product == "LBF" else settings.sme_sheet_id
+    return sheet_id_for(product)
 
 
 def distribute_product(product: str, month: str = "", log=print) -> dict:
     """Append this product's not-yet-distributed unique leads to its workbook."""
     sid = _sheet_id_for(product)
     if not sid:
-        env = "AISM_LBF_SHEET_ID" if product == "LBF" else "AISM_SME_SHEET_ID"
+        env = SHEET_ENV.get(product, f"AISM_{product}_SHEET_ID")
         return {"product": product, "ok": False,
                 "error": (f"{env} is not set. Create the \"{product} AI Digital Agent Data\" "
                           f"workbook, share it with {service_account_email()} as Editor, "
@@ -430,7 +443,7 @@ def distribute_product(product: str, month: str = "", log=print) -> dict:
 
 def distribute(month: str = "", log=print) -> dict:
     """Distribute both products; each reports independently."""
-    results = [distribute_product(p, month, log) for p in ("LBF", "SME")]
+    results = [distribute_product(p, month, log) for p in PRODUCTS]
     return {
         "ok": any(r.get("ok") for r in results),
         "month": tab_name(month),
