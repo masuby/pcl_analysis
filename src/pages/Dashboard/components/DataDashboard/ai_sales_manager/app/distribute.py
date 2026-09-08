@@ -35,6 +35,10 @@ from .config import settings
 from .tools.sheets import _services, service_account_email
 
 # (header, lead field) — "" means the call centre fills it in.
+# Dark blue batch-divider band — the navy the header uses. append_batch
+# imports it from here so both files paint the same colour.
+DIVIDER_BG = {"red": 0.12, "green": 0.22, "blue": 0.39}
+
 COLUMNS = [
     ("Product", "product"),
     ("Location", "location"),
@@ -184,6 +188,51 @@ def _colour_rule(gid: int, col: int, end_row: int, value: str, bg, fg) -> dict:
                        "textFormat": {"foregroundColor": _rgb(fg), "bold": True}}}}}}
 
 
+def _tab_title(sheets, sid: str, gid: int) -> str | None:
+    meta = sheets.spreadsheets().get(spreadsheetId=sid).execute()
+    for s in meta.get("sheets", []):
+        if s["properties"]["sheetId"] == gid:
+            return s["properties"]["title"]
+    return None
+
+
+def _restyle_dividers(sheets, sid: str, gid: int) -> int:
+    """Put the navy band back on every batch divider.
+
+    _format paints the whole tab white before it does anything else, so each
+    call had been wiping the bands of every earlier batch — by 8 Sep 2026 only
+    one of nine dividers across the two sheets was still navy. A divider is the
+    one kind of row that holds a value in column A and nothing anywhere else.
+    Returns how many were restyled.
+    """
+    tab = _tab_title(sheets, sid, gid)
+    if not tab:
+        return 0
+    grid = sheets.spreadsheets().values().get(
+        spreadsheetId=sid, range=f"'{tab}'!A1:Z100000").execute().get("values", [])
+    rows = [i for i, r in enumerate(grid) if i > 0 and len(r) == 1 and str(r[0]).strip()]
+    if not rows:
+        return 0
+    ncols = len(COLUMNS)
+    white = {"red": 1, "green": 1, "blue": 1}
+    reqs = []
+    for r0 in rows:
+        reqs.append({"repeatCell": {
+            "range": {"sheetId": gid, "startRowIndex": r0, "endRowIndex": r0 + 1,
+                      "startColumnIndex": 0, "endColumnIndex": ncols},
+            "cell": {"userEnteredFormat": {
+                "backgroundColor": DIVIDER_BG, "horizontalAlignment": "LEFT",
+                "verticalAlignment": "MIDDLE",
+                "textFormat": {"bold": True, "fontSize": 11, "foregroundColor": white}}},
+            "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,"
+                      "verticalAlignment,textFormat)"}})
+        reqs.append({"updateDimensionProperties": {
+            "range": {"sheetId": gid, "dimension": "ROWS", "startIndex": r0, "endIndex": r0 + 1},
+            "properties": {"pixelSize": 28}, "fields": "pixelSize"}})
+    sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": reqs}).execute()
+    return len(rows)
+
+
 def _format(sheets, sid: str, gid: int, nrows: int) -> None:
     """Make the tab readable at a glance and workable for a whole month.
 
@@ -297,6 +346,7 @@ def _format(sheets, sid: str, gid: int, nrows: int) -> None:
         reqs.append(_colour_rule(gid, fb_col, last, value, bg, fg))
 
     sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": reqs}).execute()
+    _restyle_dividers(sheets, sid, gid)
 
 
 def _drop_default_sheet(sheets, sid: str, keep_tab: str) -> None:

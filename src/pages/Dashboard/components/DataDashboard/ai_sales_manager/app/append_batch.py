@@ -24,14 +24,12 @@ from datetime import date
 
 from . import db
 from .config import settings
-from .distribute import (COLUMNS, FEEDBACK_OPTIONS, _ensure_tab, _format,
+from .distribute import (COLUMNS, DIVIDER_BG, FEEDBACK_OPTIONS, _ensure_tab, _format,
                          _gid, _display_name, _value, tab_name)
 from .tools.sheets import _services
 
 HEADERS = [h for h, _ in COLUMNS]
 
-# Dark blue divider, white bold text — the same navy the header band uses.
-DIVIDER_BG = {"red": 0.12, "green": 0.22, "blue": 0.39}
 
 
 def _norm(phone: str) -> str:
@@ -358,27 +356,8 @@ def append_batch(product: str, leads: list[dict], label: str = "",
     # range, so colouring the divider first would simply be overwritten.
     _format(sheets, sid, gid, last_row)
 
-    # The band is a coloured ROW, not a merged cell. Merging across the full
-    # width breaks the frozen first column — Sheets refuses to freeze a column
-    # holding only part of a merge — and the colour alone reads identically.
-    sheets.spreadsheets().batchUpdate(spreadsheetId=sid, body={"requests": [
-        {"repeatCell": {
-            "range": {"sheetId": gid,
-                      "startRowIndex": divider_row - 1, "endRowIndex": divider_row,
-                      "startColumnIndex": 0, "endColumnIndex": ncols},
-            "cell": {"userEnteredFormat": {
-                "backgroundColor": DIVIDER_BG,
-                "horizontalAlignment": "LEFT",
-                "verticalAlignment": "MIDDLE",
-                "textFormat": {"bold": True, "fontSize": 11,
-                               "foregroundColor": {"red": 1, "green": 1, "blue": 1}}}},
-            "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,"
-                      "verticalAlignment,textFormat)"}},
-        {"updateDimensionProperties": {
-            "range": {"sheetId": gid, "dimension": "ROWS",
-                      "startIndex": divider_row - 1, "endIndex": divider_row},
-            "properties": {"pixelSize": 28}, "fields": "pixelSize"}},
-    ]}).execute()
+    # _format has already restored every divider band on the tab, the new one
+    # included — see _restyle_dividers in distribute.py.
 
     log(f"[{product}] divider at row {divider_row}, {len(fresh)} new rows "
         f"({dupes} already there)")
