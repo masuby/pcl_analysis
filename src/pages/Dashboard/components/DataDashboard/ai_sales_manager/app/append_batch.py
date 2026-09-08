@@ -309,6 +309,17 @@ def append_batch(product: str, leads: list[dict], label: str = "",
 
     grid = sheets.spreadsheets().values().get(
         spreadsheetId=sid, range=f"'{tab}'!A1:Z100000").execute().get("values", [])
+    # A tab that was just created — or one that exists but is empty, as a new
+    # workbook's first month is — has no header row yet. Give it the standard
+    # one; there is nothing on it to misalign. (The CS workbook's first batch
+    # failed here on 2026-09-08: _ensure_tab made the tab, then this check
+    # found no header and refused it.)
+    if not grid:
+        sheets.spreadsheets().values().update(
+            spreadsheetId=sid, range=f"'{tab}'!A1",
+            valueInputOption="RAW", body={"values": [HEADERS]}).execute()
+        grid = [list(HEADERS)]
+        log(f"[{product}] new tab {tab!r}: wrote the header row")
     header = [str(h).strip() for h in grid[0]] if grid else []
     if header != HEADERS:
         return {"ok": False,
