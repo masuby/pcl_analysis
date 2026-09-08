@@ -147,20 +147,31 @@ def repair_columns(product: str, month: str = "", log=print) -> dict:
     # and touch nothing else.
     unhidden = _unhide_columns(sheets, sid, gid, tab, log)
 
-    if len(current) == len(HEADERS) and any(not h for h in current):
-        sheets.spreadsheets().values().update(
-            spreadsheetId=sid, range=f"'{tab}'!A1",
-            valueInputOption="RAW", body={"values": [HEADERS]}).execute()
-        relabelled = [HEADERS[i] for i, h in enumerate(current) if not h]
-        log(f"[{product}] header only: relabelled {', '.join(relabelled)}")
-        return {"ok": True, "product": product, "inserted": [],
-                "relabelled": relabelled, "unhidden": unhidden, "headers": HEADERS}
-
     missing = [h for h in HEADERS if h and h not in current]
     if not missing:
         log(f"[{product}] all {len(HEADERS)} columns present")
         return {"ok": True, "product": product, "inserted": [],
                 "unhidden": unhidden, "headers": current}
+
+    # Inserting a column is only ever safe on an EMPTY tab. On a populated one
+    # it shifts every existing value one cell right — which is exactly what
+    # happened, twice, to the LBF sheet while the call centre was working it:
+    # a blanked A1 (2026-08) and later a stray 12th header cell (2026-09-08)
+    # both sent the header past the relabel branch and into an insert. So on a
+    # populated tab the standard headers are written over A1:K1 in place — the
+    # data underneath is already in those positions, it is only the labels
+    # that drifted — and nothing is moved. The only case that still inserts is
+    # a tab with no data rows at all, where there is nothing to misalign.
+    nrows = len(sheets.spreadsheets().values().get(
+        spreadsheetId=sid, range=f"'{tab}'!A1:K100000").execute().get("values", []))
+    if nrows > 1:
+        sheets.spreadsheets().values().update(
+            spreadsheetId=sid, range=f"'{tab}'!A1",
+            valueInputOption="RAW", body={"values": [HEADERS]}).execute()
+        log(f"[{product}] populated tab: relabelled the header in place "
+            f"({', '.join(missing)} were missing); no columns moved")
+        return {"ok": True, "product": product, "inserted": [],
+                "relabelled": missing, "unhidden": unhidden, "headers": HEADERS}
 
     # Insert each missing column at the position it should occupy, working left
     # to right so earlier inserts do not shift the ones that follow.
