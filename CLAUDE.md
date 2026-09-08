@@ -247,6 +247,44 @@ row banding, no accent stripes or gradient fills. See
 `DataDashboard/DigitalData/utils/digitalDataExport.js` for the reference
 implementation.
 
+### Emails — always HTML, never plain text
+
+**"Send an email" means a properly designed HTML email.** Confirmed by the user
+on 2026-09-01 after a report went out as plain text. A bare text body is not
+acceptable for anything that reaches a colleague or a manager, whether it is
+sent from the app or ad hoc from a script.
+
+Build it the way the existing templates do — see
+`ChallengeDashboard/TeamBuildingReport/utils/teamBuildingEmailTemplate.js`
+(and the EA Trip / Local Trip / Consent Incentive siblings) for the reference
+implementation:
+
+- **Inline styles on every element**, laid out with `<table>`. Mail clients
+  strip `<style>` blocks and ignore flexbox and grid.
+- Same restraint as the rest of the product: a solid `#1f3864` header band,
+  `1px solid #e5e7eb` cell borders, `#1f2937` body text, `#6b7280` for notes,
+  alternating `#f8fafc` / `#ffffff` rows. No gradients, no accent stripes.
+- Figures belong in a table with the number right-aligned and bold, never in a
+  sentence — the reader is scanning for them.
+- Colour only where it carries meaning (green `#166534` on a target met, red
+  `#991b1b` on a gap, amber `#b45309` on a warning), never as decoration.
+- Set a plain-text alternative as well, so the message degrades cleanly; the
+  HTML is what people actually see.
+- Keep the width to about 720px and do not rely on background images.
+
+**Say less.** A short greeting and the summary — nothing else. Confirmed by the
+user on 2026-09-01: paragraphs of narration around the figures make the work
+look vibe coded. The recipient is a manager who wants the numbers.
+
+- No interpretive prose. Do not explain what the figures mean, what is
+  interesting about them, or what the reader should conclude — the tables say it.
+- No methodology, no caveats, no "two notes on reading it", no description of
+  what the attachment contains. If a caveat genuinely changes a decision it
+  belongs in the report itself, not the covering email.
+- One line of greeting, one line of context (period and what is attached at
+  most), the tables, a sign-off. That is the whole email.
+- Anything a reader would skip should not have been written.
+
 ---
 
 ## Past Decisions / Gotchas
@@ -256,3 +294,5 @@ implementation.
 - The Lead "CALLING DATE" column has 46+ wildly inconsistent date formats. `bootstrap_may2026.py` has a smart parser; don't reinvent.
 - EA Trip Excel report: Qualified / Not Qualified sheets show MANAGERS ONLY (LBF Branch Managers + CS/SME Regional Managers). Sales agents go in `All Agents` sheet only.
 - Always use `Title` from the Users file (not `Role`) for the agent identifier — confirmed by user on 2026-05-23.
+- **AI-agent distribution sheets — batch dividers.** A divider is a row with text in A and NOTHING in B–K. Two things silently un-navy them: (1) `_format` repaints the tab, so the navy must be re-applied by `_restyle_dividers` (it is, inside `_format`); (2) the even-row banding is a *conditional format*, which displays over the cell colour, so the rule excludes rows with nothing in B–K — never write an empty string `""` into a divider row's cells (Sheets' `COUNTA` counts it and the banding wins). Clear, don't write. Fixed 2026-09-08 after all nine dividers had gone grey.
+- **`repair_columns` must never insert a column into a populated tab** — it shifted the live LBF sheet one column right twice (Aug and 8 Sep 2026). On a populated tab it only relabels A1:K1 in place.

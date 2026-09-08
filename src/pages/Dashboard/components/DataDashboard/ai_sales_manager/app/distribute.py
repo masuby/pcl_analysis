@@ -334,7 +334,7 @@ def _format(sheets, sid: str, gid: int, nrows: int) -> None:
                         "startColumnIndex": 0, "endColumnIndex": ncols}],
             "booleanRule": {
                 "condition": {"type": "CUSTOM_FORMULA",
-                              "values": [{"userEnteredValue": "=ISEVEN(ROW())"}]},
+                              "values": [{"userEnteredValue": "=AND(ISEVEN(ROW()), COUNTA($B2:$K2)>0)"}]},
                 "format": {"backgroundColor": BAND},
             },
         }}})
