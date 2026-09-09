@@ -400,6 +400,21 @@ KUPATANA_LBF_CATEGORIES = [
 
 # Categories whose sellers are running a business rather than clearing a shelf:
 # commercial supplies, trade equipment, wholesale stock, plant and machinery.
+# The sub-categories above are narrow and, as of 2026-09-02, fully mined: three
+# of them ran 45 minutes without a single new person. Kupatana's TOP-LEVEL
+# categories are far larger and untouched. They are broader than "a business",
+# so the AI clean step still has to decide who is a trader and who is a
+# household selling one item — but that is what it is there for.
+KUPATANA_SME_TOP_LEVEL = [
+    "everything-else",
+    "for-the-home",
+    "real-estate",
+    "jobs",
+    "multimedia",
+    "health-beauty",
+    "hobby-sports",
+]
+
 KUPATANA_SME_CATEGORIES = [
     "commercial-appliances-supplies",
     "generators-transformers-compressors",
@@ -418,6 +433,19 @@ for _cat in KUPATANA_LBF_CATEGORIES:
         key=f"kupatana_{_cat.replace('-', '_')}",
         label=f"Kupatana — {_cat.replace('-', ' ')}",
         product=LBF,
+        base=KUPATANA_BASE,
+        index_url=_kupatana_index(_cat),
+        listing_re=KUPATANA_LISTING_RE,
+        extract=kupatana_extract,
+        robots_note=_ROBOTS_KUPATANA,
+        categories=[_cat],
+    )
+
+for _cat in KUPATANA_SME_TOP_LEVEL:
+    SOURCES[f"kupatana_{_cat.replace('-', '_')}"] = Source(
+        key=f"kupatana_{_cat.replace('-', '_')}",
+        label=f"Kupatana — {_cat.replace('-', ' ')} (top level)",
+        product=SME,
         base=KUPATANA_BASE,
         index_url=_kupatana_index(_cat),
         listing_re=KUPATANA_LISTING_RE,
