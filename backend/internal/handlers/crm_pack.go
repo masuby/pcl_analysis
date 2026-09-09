@@ -57,6 +57,7 @@ type crmPackRow struct {
 
 	product, branch, cluster, zone string
 	tlName, tlEmail, tlPhone       string
+	viaCallCentre                  bool // zone/cluster fell through to the call centre
 }
 
 type crmPackProduct struct {
@@ -65,7 +66,8 @@ type crmPackProduct struct {
 	BranchFiles  int    `json:"branchFiles"`
 	ClusterFiles int    `json:"clusterFiles"`
 	ZoneFiles    int    `json:"zoneFiles"`
-	OffRoster    int    `json:"offRoster"` // rows whose branch is not on the roster map
+	OffRoster    int    `json:"offRoster"`    // rows with no cluster or zone anywhere
+	ToCallCentre int    `json:"toCallCentre"` // rows routed to the call centre for want of a zone/cluster
 
 	files      []rrOutFile
 	fileErrors []string
@@ -194,37 +196,135 @@ func runCRMPackJob(id uuid.UUID, products []string, filter map[string]string) {
 // branchGeo is where a branch sits on the roster map.
 type branchGeo struct{ cluster, zone string }
 
-// rosterGeo indexes the roster by product and branch, keyed the CRM way —
+// zoneAliases: the same zone under a different word. The map tab says Pwani
+// and Northern; Team Leader rows and the CRM export say Coastal and Northen.
+var zoneAliases = map[string]string{"COASTAL": "PWANI", "NORTHEN": "NORTHERN"}
+
+// zoneMatchKey compares zones loosely. The map tab writes "Central Zone",
+// the people tabs "Central Region", the CRM export "Zanzibar Zone" against
+// the map's "ZANZIBAR" — one place, three spellings. The word Region/Zone is
+// dropped, Centre becomes Center, and the aliases above are applied, so all
+// of those meet on one key. Confirmed against the live sheet on 2026-09-09.
+func zoneMatchKey(s string) string {
+	k := zoneKey(s)
+	k = strings.ReplaceAll(k, "CENTRE", "CENTER")
+	for _, suf := range []string{" REGION", " ZONE"} {
+		k = strings.TrimSpace(strings.TrimSuffix(k, suf))
+	}
+	if a, ok := zoneAliases[k]; ok {
+		k = a
+	}
+	return k
+}
+
+// productGeo is one product's slice of the roster, indexed for lookups.
+type productGeo struct {
+	byBranch    map[string]branchGeo // crmdata.BranchKey(branch) -> cluster, zone
+	zoneName    map[string]string    // zoneMatchKey -> the map tab's spelling
+	zoneCluster map[string]string    // zoneMatchKey -> its one cluster ("" if several)
+	ccZone      string               // the call centre, where leads with no home go
+	ccCluster   string
+}
+
+// canonZone turns any spelling of a zone into the map tab's, or "" if the
+// roster has no such zone at all.
+func (g *productGeo) canonZone(s string) string {
+	if g == nil {
+		return ""
+	}
+	k := zoneMatchKey(s)
+	if k == "" {
+		return ""
+	}
+	return g.zoneName[k]
+}
+
+// rosterGeo indexes the roster by product. Branches are keyed the CRM way —
 // crmdata.BranchKey strips the product prefix and the word "Branch", so the
 // export's "CS Mbeya Branch" and the sheet's "Mbeya" meet on one key. The map
-// tab is read first; people tabs fill in branches the map does not list.
-func rosterGeo(zc *ZoneClusters) map[string]map[string]branchGeo {
-	out := map[string]map[string]branchGeo{}
-	put := func(product, branch, cluster, zone string) {
+// tab is read first and sets the spelling; people tabs only fill gaps.
+func rosterGeo(zc *ZoneClusters) map[string]*productGeo {
+	out := map[string]*productGeo{}
+	get := func(product string) *productGeo {
 		p := normaliseProduct(product)
-		k := crmdata.BranchKey(branch)
-		if p == "" || k == "" {
-			return
+		if p == "" {
+			return nil
 		}
 		if out[p] == nil {
-			out[p] = map[string]branchGeo{}
+			out[p] = &productGeo{byBranch: map[string]branchGeo{},
+				zoneName: map[string]string{}, zoneCluster: map[string]string{}}
 		}
-		g := out[p][k]
-		if g.cluster == "" {
-			g.cluster = cluster
+		return out[p]
+	}
+	conflict := map[string]bool{}
+	put := func(product, branch, cluster, zone string, fromMap bool) {
+		g := get(product)
+		if g == nil {
+			return
 		}
-		if g.zone == "" {
-			g.zone = zone
+		if k := crmdata.BranchKey(branch); k != "" {
+			bg := g.byBranch[k]
+			if bg.cluster == "" {
+				bg.cluster = cluster
+			}
+			if bg.zone == "" {
+				bg.zone = zone
+			}
+			g.byBranch[k] = bg
 		}
-		out[p][k] = g
+		zk := zoneMatchKey(zone)
+		if zk == "" {
+			return
+		}
+		if _, ok := g.zoneName[zk]; !ok {
+			g.zoneName[zk] = zone
+		}
+		// A zone's cluster is only trusted from the map tab, and only when the
+		// map never contradicts itself about it.
+		if fromMap && cluster != "" {
+			ck := product + "|" + zk
+			if prev, ok := g.zoneCluster[zk]; ok && zoneKey(prev) != zoneKey(cluster) {
+				conflict[ck] = true
+			} else if !ok {
+				g.zoneCluster[zk] = cluster
+			}
+			if conflict[ck] {
+				g.zoneCluster[zk] = ""
+			}
+		}
+		if fromMap && g.ccZone == "" &&
+			(strings.Contains(zk, "CALL CENTER") || strings.Contains(zoneMatchKey(branch), "CALL CENTER")) {
+			g.ccZone, g.ccCluster = zone, cluster
+		}
 	}
 	for _, r := range zc.Map {
-		put(r.Product, r.Branch, r.Cluster, r.Zone)
+		put(r.Product, r.Branch, r.Cluster, r.Zone, true)
 	}
 	for _, p := range zc.People {
-		put(p.Product, p.Branch, p.Cluster, p.Zone)
+		put(p.Product, p.Branch, p.Cluster, p.Zone, false)
 	}
 	return out
+}
+
+// crmZoneRecipients is ZoneRecipients with the loose zone key, so a manager
+// listed under "Central Zone" is found for a file labelled from a Team
+// Leader's "Central Region".
+func crmZoneRecipients(zc *ZoneClusters, product, zone string) []ZonePerson {
+	pk, zk := zoneKey(product), zoneMatchKey(zone)
+	sub := zc.peopleWhere(func(p ZonePerson) bool {
+		return p.ProductKey == pk && zoneMatchKey(p.Zone) == zk
+	})
+	if pk == "CS" {
+		return firstNonEmpty(
+			withRole(sub, "regional sales manager"),
+			withRole(sub, "cluster manager"),
+			withRole(sub, "branch manager"),
+			withRole(sub, "team leader"))
+	}
+	return firstNonEmpty(
+		withRole(sub, "cluster sales manager", "cluster manager"),
+		withRole(sub, "branch manager"),
+		withRole(sub, "team leader"))
 }
 
 func buildCRMPack(ctx context.Context, zc *ZoneClusters, products []string,
@@ -280,8 +380,8 @@ func buildCRMPack(ctx context.Context, zc *ZoneClusters, products []string,
 		}
 		if r.product == "" {
 			var hits []string
-			for p, m := range geo {
-				if _, ok := m[crmdata.BranchKey(r.leadBranch)]; ok {
+			for p, g := range geo {
+				if _, ok := g.byBranch[crmdata.BranchKey(r.leadBranch)]; ok {
 					hits = append(hits, p)
 				}
 			}
@@ -302,27 +402,52 @@ func buildCRMPack(ctx context.Context, zc *ZoneClusters, products []string,
 		if r.branch == "" {
 			r.branch = r.leadBranch
 		}
-		// Cluster and zone: the map tab by branch first (roster spelling, then
-		// the export's) — that is the vocabulary the cluster and zone managers
-		// are listed under, so it is what makes them findable. The Team
-		// Leader's own row is the fallback for a branch the map does not list;
-		// people tabs spell zones loosely ("Highland Region" for "Highland
-		// Zone"), so it is a fallback, not the first choice.
+		// Cluster and zone, most specific source first:
+		//   1. the map tab, by branch (roster spelling, then the export's);
+		//   2. the Team Leader's own roster row — its zone may be spelled
+		//      "Central Region", so it is read through the loose key and
+		//      written back in the map tab's spelling;
+		//   3. the lead's own Region column from the CRM export, same way;
+		//   4. a zone's one cluster on the map, when only the cluster is missing;
+		//   5. the product's call centre, for whatever still has no home —
+		//      an "ERR" zone, a branch nobody mapped. Nothing is left unrouted
+		//      where the product has a call centre.
+		g := geo[r.product]
 		for _, b := range []string{ddBranch, r.leadBranch} {
-			if g, ok := geo[r.product][crmdata.BranchKey(b)]; ok {
+			if g == nil {
+				break
+			}
+			if bg, ok := g.byBranch[crmdata.BranchKey(b)]; ok {
 				if r.cluster == "" {
-					r.cluster = g.cluster
+					r.cluster = bg.cluster
 				}
 				if r.zone == "" {
-					r.zone = g.zone
+					r.zone = bg.zone
+				}
+			}
+		}
+		if r.zone == "" {
+			for _, cand := range []string{ddZone, r.region} {
+				if z := g.canonZone(cand); z != "" {
+					r.zone = z
+					break
 				}
 			}
 		}
 		if r.cluster == "" {
 			r.cluster = ddCluster
 		}
-		if r.zone == "" {
-			r.zone = ddZone
+		if r.cluster == "" && r.zone != "" && g != nil {
+			r.cluster = g.zoneCluster[zoneMatchKey(r.zone)]
+		}
+		if g != nil && (r.zone == "" || r.cluster == "") && g.ccZone != "" {
+			if r.zone == "" {
+				r.zone = g.ccZone
+			}
+			if r.cluster == "" {
+				r.cluster = g.ccCluster
+			}
+			r.viaCallCentre = true
 		}
 		byProduct[r.product] = append(byProduct[r.product], r)
 	}
@@ -337,10 +462,17 @@ func buildCRMPack(ctx context.Context, zc *ZoneClusters, products []string,
 	for _, p := range products {
 		res := buildCRMPackProduct(zc, p, byProduct[p])
 		out.Products = append(out.Products, res)
+		if res.ToCallCentre > 0 {
+			out.Warnings = append(out.Warnings, fmt.Sprintf(
+				"%s: %d lead(s) had no zone or cluster on the Zone and Clusters sheet "+
+					"(an ERR zone, or a branch the map does not list), so they roll up to the call centre.",
+				p, res.ToCallCentre))
+		}
 		if res.OffRoster > 0 {
 			out.Warnings = append(out.Warnings, fmt.Sprintf(
-				"%s: %d lead(s) sit in a branch the Zone and Clusters map does not list, "+
-					"so they are in the FULL and branch files but under an Unknown cluster and zone.",
+				"%s: %d lead(s) sit in a branch the Zone and Clusters map does not list and the "+
+					"product has no call centre, so they are in the FULL and branch files but under "+
+					"an Unknown cluster and zone.",
 				p, res.OffRoster))
 		}
 		if len(res.fileErrors) > 0 {
@@ -510,8 +642,12 @@ func buildCRMPackProduct(zc *ZoneClusters, product string, rows []crmPackRow) *c
 				return p.ProductKey == zoneKey(product) && crmdata.BranchKey(p.Branch) == bk
 			}), "tl", "itl", "blo")
 		}
-		if sub[0].cluster == "" {
-			res.OffRoster += len(sub)
+		for _, r := range sub {
+			if r.viaCallCentre {
+				res.ToCallCentre++
+			} else if r.cluster == "" || r.zone == "" {
+				res.OffRoster++
+			}
 		}
 		res.addWorkbook(rrOutFile{
 			RelPath: fmt.Sprintf("%s/By_Branch/%s_%s.xlsx", base, base, safe),
@@ -549,7 +685,7 @@ func buildCRMPackProduct(zc *ZoneClusters, product string, rows []crmPackRow) *c
 		}
 		var recips []ZonePerson
 		if z != "Unknown" {
-			recips = zc.ZoneRecipients(product, z)
+			recips = crmZoneRecipients(zc, product, z)
 		}
 		res.addWorkbook(rrOutFile{
 			RelPath: fmt.Sprintf("%s/By_Zone/%s_%s.xlsx", base, base, safe),
