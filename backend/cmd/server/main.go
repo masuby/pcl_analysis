@@ -259,6 +259,16 @@ func main() {
 				crm.GET("/distributions", handlers.GetCRMDistributions)
 				crm.POST("/send", handlers.SendCRMDistribution)
 				crm.GET("/send-log", handlers.GetCRMSendLog)
+
+				// Distribution packs — per branch / cluster / zone workbooks,
+				// zipped, then emailed the way MAMBU runs are
+				crm.POST("/packs", handlers.BuildCRMPack)
+				crm.GET("/packs", handlers.ListCRMPacks)
+				crm.GET("/packs/:id", handlers.GetCRMPack)
+				crm.GET("/packs/:id/download", handlers.DownloadCRMPack)
+				crm.GET("/packs/:id/sends", handlers.ListCRMPackSends)
+				crm.POST("/pack-send/preview", handlers.PreviewCRMPackDistribution)
+				crm.POST("/pack-send", handlers.SendCRMPackDistribution)
 			}
 
 			// LBF Call Centre monthly targets — reads the Performance Dashboard sheet

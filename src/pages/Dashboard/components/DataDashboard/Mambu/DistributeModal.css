@@ -112,3 +112,33 @@
 .dark-mode .dist-sec { color: #e2e8f0; }
 .dark-mode .dist-btn--ghost { background: #1e293b; border-color: #334155; color: #cbd5e1; }
 .dark-mode .dist-x { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+
+/* Cc chips — operator-added copies for one send. */
+.dist-cc { margin-bottom: 12px; }
+.dist-cc-label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: #475569; }
+.dist-cc-box {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 6px 8px; background: #fff; border: 1px solid #d0d7e2; border-radius: 8px;
+}
+.dist-cc-box:focus-within { border-color: #1e3a8a; }
+.dist-cc-box.is-disabled { background: #f8fafc; opacity: .7; }
+.dist-cc-box input {
+  flex: 1 1 180px; min-width: 120px; padding: 4px 2px;
+  font-size: 12.5px; color: #1f2937; border: none; outline: none; background: transparent;
+}
+.dist-cc-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 4px 2px 9px; font-size: 12px; color: #1f2937;
+  background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px;
+}
+.dist-cc-chip button {
+  width: 18px; height: 18px; line-height: 1; padding: 0;
+  font-size: 14px; color: #64748b; background: transparent; border: none; cursor: pointer;
+}
+.dist-cc-chip button:hover:not(:disabled) { color: #b91c1c; }
+.dist-cc-bad { margin-top: 5px; font-size: 12px; color: #b91c1c; }
+
+.dark-mode .dist-cc-label { color: #94a3b8; }
+.dark-mode .dist-cc-box { background: #172033; border-color: #334155; }
+.dark-mode .dist-cc-box input { color: #e2e8f0; }
+.dark-mode .dist-cc-chip { background: #1e293b; border-color: #334155; color: #e2e8f0; }

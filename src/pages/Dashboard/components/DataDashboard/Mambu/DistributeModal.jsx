@@ -13,9 +13,15 @@ import './DistributeModal.css';
  *
  * "Send a test copy to me instead" redirects every email to the operator, so a
  * distribution can be rehearsed before it reaches anyone.
+ *
+ * "Also copy" adds Cc addresses — a manager who should see the distribution
+ * without being on the roster for it — to every email of this send.
+ *
+ * Shared by MAMBU runs and CRM packs: `api` supplies the preview/send calls
+ * and `texts` the wording, so the two flows look and behave identically.
  */
 
-const MODE_TEXT = {
+export const MAMBU_MODE_TEXT = {
   branch: {
     title: 'Distribute to branches',
     what: 'Each branch gets its own workbook, sent to that branch’s team leaders and branch loan officers.',
@@ -30,23 +36,87 @@ const MODE_TEXT = {
   },
 };
 
+const MAMBU_API = {
+  preview: (p) => mambuAPI.previewDistribution(p),
+  send: (p) => mambuAPI.sendDistribution(p),
+};
+
 const fmtNum = (n) => Number(n || 0).toLocaleString();
 
-const DistributeModal = ({ runId, mode, product, label, onClose }) => {
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Cc addresses as chips: type, press Enter/comma/space, click × to remove. */
+const CcInput = ({ value, onChange, disabled }) => {
+  const [draft, setDraft] = useState('');
+  const [bad, setBad] = useState('');
+
+  const commit = (raw) => {
+    const parts = String(raw || '').split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (!parts.length) return;
+    const invalid = parts.find((p) => !EMAIL_SHAPE.test(p));
+    if (invalid) {
+      setBad(`“${invalid}” is not an email address`);
+      return;
+    }
+    setBad('');
+    onChange(Array.from(new Set([...value, ...parts])));
+    setDraft('');
+  };
+
+  return (
+    <div className="dist-cc">
+      <label className="dist-cc-label" htmlFor="dist-cc-input">
+        Also copy (Cc) — people who should see this distribution
+      </label>
+      <div className={`dist-cc-box ${disabled ? 'is-disabled' : ''}`}>
+        {value.map((e) => (
+          <span key={e} className="dist-cc-chip">
+            {e}
+            <button
+              type="button" aria-label={`Remove ${e}`} disabled={disabled}
+              onClick={() => onChange(value.filter((x) => x !== e))}
+            >×</button>
+          </span>
+        ))}
+        <input
+          id="dist-cc-input"
+          value={draft}
+          disabled={disabled}
+          placeholder={value.length ? 'add another…' : 'name@platinumcredit.co.tz'}
+          onChange={(e) => { setDraft(e.target.value); if (bad) setBad(''); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',' || e.key === ' ') { e.preventDefault(); commit(draft); }
+            if (e.key === 'Backspace' && !draft && value.length) onChange(value.slice(0, -1));
+          }}
+          onBlur={() => commit(draft)}
+          onPaste={(e) => { e.preventDefault(); commit(e.clipboardData.getData('text')); }}
+        />
+      </div>
+      {bad && <div className="dist-cc-bad">{bad}</div>}
+    </div>
+  );
+};
+
+const DistributeModal = ({
+  runId, mode, product, label, onClose,
+  api = MAMBU_API, texts = MAMBU_MODE_TEXT, idKey = 'runId',
+}) => {
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
   const [testMode, setTestMode] = useState(false);
+  const [cc, setCc] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-  const text = MODE_TEXT[mode] || MODE_TEXT.branch;
+  const text = texts[mode] || texts.branch;
+  const idPayload = { [idKey]: runId };
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await mambuAPI.previewDistribution({ runId, mode, product });
+      const res = await api.preview({ ...idPayload, mode, product });
       if (!res?.success) throw new Error(res?.error || 'Could not build the preview');
       setPreview(res);
     } catch (e) {
@@ -54,7 +124,8 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
     } finally {
       setLoading(false);
     }
-  }, [runId, mode, product]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, mode, product, api]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,7 +139,7 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
     setSending(true);
     setError('');
     try {
-      const res = await mambuAPI.sendDistribution({ runId, mode, product, testMode });
+      const res = await api.send({ ...idPayload, mode, product, testMode, cc });
       if (!res?.success) throw new Error(res?.error || 'Send failed');
       setResult(res);
     } catch (e) {
@@ -87,7 +158,7 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
       <div className="dist-modal" role="dialog" aria-modal="true" aria-label={text.title}>
         <div className="dist-head">
           <div>
-            <h3 className="dist-title">{text.title} — {label}</h3>
+            <h3 className="dist-title">{text.title}{label ? ` — ${label}` : ''}</h3>
             <p className="dist-sub">{text.what}</p>
           </div>
           <button className="dist-x" onClick={onClose} disabled={sending} aria-label="Close">×</button>
@@ -208,6 +279,10 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
             </div>
 
             <div className="dist-foot">
+              {!nothingToSend && (
+                <CcInput value={cc} onChange={setCc} disabled={sending || testMode} />
+              )}
+
               <label className="dist-check">
                 <input
                   type="checkbox"
@@ -218,7 +293,7 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
                 <span>
                   Send a test copy to me instead
                   {preview.testRecipient ? ` (${preview.testRecipient})` : ''} — nothing
-                  reaches the branches
+                  reaches the branches{cc.length ? ' or the Cc list' : ''}
                 </span>
               </label>
 
@@ -235,7 +310,8 @@ const DistributeModal = ({ runId, mode, product, label, onClose }) => {
                     ? 'Sending…'
                     : testMode
                       ? `Send ${fmtNum(preview.emailCount)} test email${preview.emailCount === 1 ? '' : 's'} to me`
-                      : `Send ${fmtNum(preview.emailCount)} email${preview.emailCount === 1 ? '' : 's'} now`}
+                      : `Send ${fmtNum(preview.emailCount)} email${preview.emailCount === 1 ? '' : 's'} now`
+                        + (cc.length ? `, copying ${cc.length}` : '')}
                 </button>
               </div>
 

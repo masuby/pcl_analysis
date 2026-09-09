@@ -85,6 +85,7 @@ type rrOutFile struct {
 	Scope   string
 	Name    string // branch / cluster / zone name
 	Cluster string // for BRANCH files: the cluster it rolls up into
+	Zone    string // for BRANCH files: the zone it rolls up into (CRM packs)
 	Rows    int
 	Emails  []string
 	Names   []string

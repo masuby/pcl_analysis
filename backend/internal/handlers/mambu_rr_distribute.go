@@ -266,11 +266,12 @@ func buildDistribution(runID, mode, product string) ([]distTarget, []string, err
 }
 
 type distRequest struct {
-	RunID    string `json:"runId"`
-	Mode     string `json:"mode"`    // branch | cluster | unallocated
-	Product  string `json:"product"` // optional filter
-	TestMode bool   `json:"testMode"`
-	Confirm  bool   `json:"confirm"`
+	RunID    string   `json:"runId"`
+	Mode     string   `json:"mode"`    // branch | cluster | unallocated
+	Product  string   `json:"product"` // optional filter
+	CC       []string `json:"cc"`      // operator-added copies, on every email of the send
+	TestMode bool     `json:"testMode"`
+	Confirm  bool     `json:"confirm"`
 }
 
 func normaliseDistMode(s string) string {
@@ -355,6 +356,13 @@ func SendMambuDistribution(c *gin.Context) {
 		return
 	}
 
+	cc, bad := cleanEmailList(req.CC)
+	if len(bad) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false,
+			"error": "Not an email address: " + strings.Join(bad, ", ")})
+		return
+	}
+
 	sender, password := emailCreds()
 	if sender == "" || password == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false,
@@ -416,13 +424,14 @@ func SendMambuDistribution(c *gin.Context) {
 	var results []gin.H
 
 	for _, t := range targets {
-		to := t.Emails
+		to, copyTo := t.Emails, cc
 		if req.TestMode {
-			to = []string{operatorEmail()}
+			// A rehearsal reaches nobody but the operator — not even the Cc.
+			to, copyTo = []string{operatorEmail()}, nil
 		}
 		if len(to) == 0 {
 			skipped++
-			logDistSend(req.RunID, t, mode, "", "SKIPPED",
+			logDistSend(req.RunID, t, mode, cc, "", "SKIPPED",
 				"nobody on the roster has an email address", req.TestMode, sentBy)
 			results = append(results, gin.H{"target": t.Target, "product": t.Product,
 				"status": "SKIPPED", "reason": "no email address on the roster"})
@@ -432,40 +441,47 @@ func SendMambuDistribution(c *gin.Context) {
 		attachName, attach, err := attachmentFor(zr, t, mode, label)
 		if err != nil {
 			failed++
-			logDistSend(req.RunID, t, mode, "", "FAILED", err.Error(), req.TestMode, sentBy)
+			logDistSend(req.RunID, t, mode, cc, "", "FAILED", err.Error(), req.TestMode, sentBy)
 			results = append(results, gin.H{"target": t.Target, "product": t.Product,
 				"status": "FAILED", "reason": err.Error()})
 			continue
 		}
 
-		err = sendDistEmail(auth, sender, to, t, mode, label, attachName, attach, req.TestMode)
+		subject := fmt.Sprintf("%s Data — %s (%s)", titleWord(label), t.Target, t.Product)
+		if req.TestMode {
+			subject = "[TEST] " + subject
+		}
+		err = sendDistEmail(auth, sender, to, copyTo, subject,
+			distEmailHTML(t, mode, label, req.TestMode), attachName, attach)
 		if err != nil {
 			failed++
-			logDistSend(req.RunID, t, mode, attachName, "FAILED", err.Error(), req.TestMode, sentBy)
+			logDistSend(req.RunID, t, mode, cc, attachName, "FAILED", err.Error(), req.TestMode, sentBy)
 			results = append(results, gin.H{"target": t.Target, "product": t.Product,
 				"status": "FAILED", "reason": err.Error()})
 			continue
 		}
 		sent++
-		logDistSend(req.RunID, t, mode, attachName, "SENT", "", req.TestMode, sentBy)
+		logDistSend(req.RunID, t, mode, cc, attachName, "SENT", "", req.TestMode, sentBy)
 		results = append(results, gin.H{"target": t.Target, "product": t.Product,
-			"status": "SENT", "to": to, "rows": t.Rows})
+			"status": "SENT", "to": to, "cc": copyTo, "rows": t.Rows})
 	}
 
 	msg := fmt.Sprintf("%d email(s) sent, %d failed, %d skipped.", sent, failed, skipped)
 	if req.TestMode {
 		msg = fmt.Sprintf("Test run — every email went to %s. %s", operatorEmail(), msg)
+	} else if len(cc) > 0 {
+		msg += fmt.Sprintf(" Copied to %s.", strings.Join(cc, ", "))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true, "mode": mode, "testMode": req.TestMode,
-		"sent": sent, "failed": failed, "skipped": skipped,
+		"sent": sent, "failed": failed, "skipped": skipped, "cc": cc,
 		"results": results, "message": msg,
 	})
 }
 
 // attachmentFor pulls the file(s) for one target out of the run's zip. Cluster
-// sends bundle several workbooks into a fresh zip; everything else is a single
-// workbook.
+// and zone sends bundle several workbooks into a fresh zip; everything else is
+// a single workbook.
 func attachmentFor(zr *zip.ReadCloser, t distTarget, mode, label string) (string, []byte, error) {
 	read := func(rel string) ([]byte, error) {
 		want := strings.ReplaceAll(rel, string(os.PathSeparator), "/")
@@ -482,7 +498,7 @@ func attachmentFor(zr *zip.ReadCloser, t distTarget, mode, label string) (string
 		return nil, fmt.Errorf("%s is missing from the run's files", filepath.Base(rel))
 	}
 
-	if mode == "CLUSTER" {
+	if mode == "CLUSTER" || mode == "ZONE" || len(t.relPaths) > 1 {
 		var buf bytes.Buffer
 		zw := zip.NewWriter(&buf)
 		for _, rel := range t.relPaths {
@@ -519,15 +535,11 @@ func attachmentFor(zr *zip.ReadCloser, t distTarget, mode, label string) (string
 	return filepath.Base(t.relPaths[0]), b, nil
 }
 
-func sendDistEmail(auth smtp.Auth, sender string, to []string, t distTarget,
-	mode, label, attachName string, attach []byte, testMode bool) error {
-
-	subject := fmt.Sprintf("%s Data — %s (%s)", titleWord(label), t.Target, t.Product)
-	if testMode {
-		subject = "[TEST] " + subject
-	}
-
-	html := distEmailHTML(t, mode, label, testMode)
+// sendDistEmail delivers one HTML email with one attachment. The Cc list is
+// written to the header and added to the envelope, so copied people receive
+// the same message the branch does.
+func sendDistEmail(auth smtp.Auth, sender string, to, cc []string, subject, html,
+	attachName string, attach []byte) error {
 
 	bodyBuf := &bytes.Buffer{}
 	mw := multipart.NewWriter(bodyBuf)
@@ -563,13 +575,17 @@ func sendDistEmail(auth smtp.Auth, sender string, to []string, t distTarget,
 	msg := &bytes.Buffer{}
 	fmt.Fprintf(msg, "From: %s\r\n", sender)
 	fmt.Fprintf(msg, "To: %s\r\n", strings.Join(to, ", "))
+	if len(cc) > 0 {
+		fmt.Fprintf(msg, "Cc: %s\r\n", strings.Join(cc, ", "))
+	}
 	fmt.Fprintf(msg, "Subject: %s\r\n",
 		strings.NewReplacer("\r", "", "\n", " ").Replace(subject))
 	fmt.Fprintf(msg, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(msg, "Content-Type: multipart/mixed; boundary=%s\r\n\r\n", mw.Boundary())
 	msg.Write(bodyBuf.Bytes())
 
-	return smtp.SendMail("smtp.gmail.com:587", auth, from, to, msg.Bytes())
+	rcpt := append(append([]string{}, to...), cc...)
+	return smtp.SendMail("smtp.gmail.com:587", auth, from, rcpt, msg.Bytes())
 }
 
 func distEmailHTML(t distTarget, mode, label string, testMode bool) string {
@@ -623,8 +639,8 @@ func distEmailHTML(t distTarget, mode, label string, testMode bool) string {
 	return b.String()
 }
 
-func logDistSend(runID string, t distTarget, mode, attachment, status, errText string,
-	testMode bool, sentBy interface{}) {
+func logDistSend(runID string, t distTarget, mode string, cc []string, attachment, status,
+	errText string, testMode bool, sentBy interface{}) {
 
 	var fileID interface{}
 	if len(t.fileIDs) == 1 {
@@ -636,17 +652,18 @@ func logDistSend(runID string, t distTarget, mode, attachment, status, errText s
 	}
 	database.DB.Exec(
 		`INSERT INTO mambu_rr_sends
-		   (id, run_id, file_id, mode, product, target, recipients, rows,
+		   (id, run_id, file_id, mode, product, target, recipients, cc, rows,
 		    attachment, status, error, test_mode, sent_by)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		uuid.New(), runID, fileID, mode, t.Product, t.Target,
-		strings.Join(t.Emails, ","), t.Rows, attachment, status, errVal, testMode, sentBy)
+		strings.Join(t.Emails, ","), nullIfEmpty(strings.Join(cc, ",")), t.Rows,
+		attachment, status, errVal, testMode, sentBy)
 }
 
 // ListMambuDistributions — GET /api/mambu/rr/runs/:id/sends
 func ListMambuDistributions(c *gin.Context) {
 	rows, err := database.DB.Query(
-		`SELECT mode, product, target, recipients, rows, status,
+		`SELECT mode, product, target, recipients, COALESCE(cc,''), rows, status,
 		        COALESCE(error,''), test_mode, sent_at
 		   FROM mambu_rr_sends WHERE run_id = $1
 		  ORDER BY sent_at DESC LIMIT 500`, c.Param("id"))
@@ -658,17 +675,17 @@ func ListMambuDistributions(c *gin.Context) {
 
 	out := []gin.H{}
 	for rows.Next() {
-		var mode, product, target, recipients, status, errText string
+		var mode, product, target, recipients, cc, status, errText string
 		var n int
 		var testMode bool
 		var at time.Time
-		if err := rows.Scan(&mode, &product, &target, &recipients, &n,
+		if err := rows.Scan(&mode, &product, &target, &recipients, &cc, &n,
 			&status, &errText, &testMode, &at); err != nil {
 			continue
 		}
 		out = append(out, gin.H{
 			"mode": mode, "product": product, "target": target,
-			"recipients": splitNonEmpty(recipients), "rows": n,
+			"recipients": splitNonEmpty(recipients), "cc": splitNonEmpty(cc), "rows": n,
 			"status": status, "error": errText, "testMode": testMode, "sentAt": at,
 		})
 	}

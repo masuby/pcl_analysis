@@ -102,6 +102,41 @@ const crmDataService = {
   send: (payload) => apiFetch('/api/crm/send', { method: 'POST', body: JSON.stringify(payload) }),
 
   getSendLog: (limit = 30) => apiFetch(`/api/crm/send-log?limit=${limit}`),
+
+  /* ---- Distribution packs: per branch / cluster / zone workbooks, zipped,
+     then emailed the way MAMBU runs are. ---- */
+
+  /** Build a pack from the assigned leads matching `filter`. Async: poll getPack(packId). */
+  buildPack: (payload) =>
+    apiFetch('/api/crm/packs', { method: 'POST', body: JSON.stringify(payload) }),
+  getPacks: () => apiFetch('/api/crm/packs'),
+  getPack: (id) => apiFetch(`/api/crm/packs/${id}`),
+  getPackSends: (id) => apiFetch(`/api/crm/packs/${id}/sends`),
+
+  /** Preview sends nothing; it says exactly who would receive which file. */
+  previewPackSend: (payload) =>
+    apiFetch('/api/crm/pack-send/preview', { method: 'POST', body: JSON.stringify(payload) }),
+  /** The send itself. confirm:true because it puts client lists in branch inboxes. */
+  sendPack: (payload) =>
+    apiFetch('/api/crm/pack-send', { method: 'POST', body: JSON.stringify({ ...payload, confirm: true }) }),
+
+  // Fetched with the auth header and handed to the browser as a blob — a plain
+  // link would drop the token and get a 401.
+  downloadPack: async (id, fileName) => {
+    const res = await fetch(`${API_URL}/api/crm/packs/${id}/download`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Could not download that pack');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName || `crm_pack_${id}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export default crmDataService;

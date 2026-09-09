@@ -15,6 +15,7 @@ import crmDataService from '../../../../../services/crmData';
 import LoadingSpinner from '../../../../../components/Common/Loading/LoadingSpinner';
 import { Toast, ConfirmDialog } from '../../../../../components/feedback/Feedback';
 import { downloadCRMReport } from './utils/crmExport';
+import CRMPack from './CRMPack';
 import '../DigitalData/DigitalData.css';   // shared visual language
 import './CRMData.css';
 
@@ -800,6 +801,10 @@ const Distribution = ({ filters, notify, onDone }) => {
           </div>
         </>
       )}
+
+      {/* Once leads are assigned, split them per branch / cluster / zone and
+          email the files — the same pack and buttons MAMBU DATA has. */}
+      <CRMPack filters={filters} notify={notify} />
 
       <ConfirmDialog
         open={confirm}
