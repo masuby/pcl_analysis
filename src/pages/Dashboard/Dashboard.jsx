@@ -121,7 +121,7 @@ const Dashboard = () => {
         );
       case 'DATA':
         return <DataDashboard />;
-      case 'COLLECTION':
+      case 'RECRUITMENTS':
         return <CollectionDashboard />;
       default:
         return (
