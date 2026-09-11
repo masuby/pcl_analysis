@@ -181,6 +181,42 @@ def test_a_job_seeker_is_nobody_to_call():
     assert verdict == "NEITHER"
 
 
+@pytest.mark.parametrize("title,desc,seller", [
+    ("NOC ENGINEER",
+     "On behalf of our Client, we are looking for a NOC ENGINEER to oversee our "
+     "telecommunication Industry", "Blue R."),
+    ("CUSTOMER CARE ASSISTANT NEEDED",
+     "We are looking for a female customer care representative to join our team. "
+     "We are based In Dar es salaam", "Almasishop"),
+    ("Chef required",
+     "We are looking for Tanzanian chef with great knowledge", "+255623092637"),
+    ("Receptionist",
+     "We are looking for a Receptionist. Email CV to: iqtechtz@gmail.com", "IQ Tech Ltd"),
+])
+def test_a_vacancy_is_not_a_business_even_without_the_jobs_form(title, desc, seller):
+    """These four reached the SME upload set before the rule was tightened: the
+    company IS a business, but the advert offers a job, so the number answers to
+    an HR inbox, not to somebody who wants working capital. "We are looking
+    for…" had been matching the trade-wording rule through the bare "we are"."""
+    verdict, _, reason = classify(
+        advert(title=title, description=desc, seller_name=seller), lone_seller())
+    assert verdict == "NEITHER", f"{title} -> {reason}"
+
+
+@pytest.mark.parametrize("title,desc,seller", [
+    ("Kontena 20ft", "Tunauza kontena za aina zote", "Juma M."),
+    ("Balcony za kisasa", "Balcon zakisasa tunafanya dizaini zote, wasiliana nasi",
+     "Bidhaa b. z."),
+    ("Generator 330KVA", "We supply generators, brand new with warranty",
+     "POWERHOUSE INTERNATIONAL"),
+])
+def test_the_hiring_rule_does_not_swallow_real_businesses(title, desc, seller):
+    verdict, _, _ = classify(
+        advert(title=title, description=desc, seller_name=seller, price_tzs=500_000),
+        lone_seller())
+    assert verdict == "SME"
+
+
 def test_a_trade_advertising_itself_on_the_jobs_form_is_a_business():
     """A craftsman filed under Jobs with "we do all designs" is selling a
     service, not offering a vacancy — the body overrides the form."""
@@ -188,6 +224,81 @@ def test_a_trade_advertising_itself_on_the_jobs_form_is_a_business():
         title="Fundi wa balcony", description="Balcon zakisasa tunafanya dizaini zote",
         attributes={"Business/Employer name": "Fundi"}), lone_seller())
     assert verdict == "SME"
+
+
+# ── what the first audit of a live upload set caught ─────────────────────────
+
+@pytest.mark.parametrize("title,desc", [
+    ("Massey furguson", "massey ferguson small"),
+    ("Kubota tractor", ""),
+    ("CAT 950H", "Imported from Germany"),
+    ("JCB 3CX", "backhoe loader REG Number: DHN"),
+    ("Caterpillar Ex 6088", "wheel loader"),
+])
+def test_farm_and_construction_plant_is_not_a_logbook_asset(title, desc):
+    """13 of 17 wrongly-selected LBF leads in the first audit were plant sold
+    under a brand name alone — an advert reading "Massey furguson" never says
+    the word tractor, so the make has to be matched, not just the noun."""
+    verdict, _, _ = classify(
+        advert(title=title, description=desc, price_tzs=48_000_000), lone_seller())
+    assert verdict != "LBF"
+
+
+@pytest.mark.parametrize("title,desc", [
+    ("Catapiller Olympian GEPX30-1", "Nauza generator yangu Iko kahama"),
+    ("Zoomlion RK704", "Trekta ya zoomlion yenye 70hp, 4WD na compressor"),
+    ("FORD 4610 +255699877202", "Tractor ni used kutoka canada"),
+    ("New Holland FIAT 80-66S (4WD)", "Trekta nzima na inafanya kazi"),
+    ("used farm yractor", "imported from Uk"),
+    ("Massey Furgoson Tractor", "Tractors Type Massey Ferguson Make 3070"),
+    ("Articulated Dump Truck CAT 730", "Articulated Dump Truck CATERPILLAR 730"),
+])
+def test_plant_hiding_behind_a_model_number(title, desc):
+    """Six of 25 LBF leads in one upload set were tractors and generators whose
+    TITLE names only a model — the description is what gives them away."""
+    assert not is_vehicle(title, desc)
+
+
+def test_plant_named_only_in_the_attributes():
+    """"Hii Wheelie" says nothing; Make=Caterpillar, Model=Ex 6088 says it is a
+    140-million-shilling wheel loader. It reached the LBF upload as "private
+    car" because only the title and description were being read."""
+    assert not is_vehicle("Hii Wheelie", "Imenyooka kabisa haina kipengele",
+                          {"Make": "Caterpillar", "Model": "Ex 6088",
+                           "Year": "1999", "Mileage": "150000 km",
+                           "Transmission": "Automatic"})
+
+
+def test_a_wanted_advert_is_not_a_seller():
+    verdict, _, reason = classify(advert(
+        title="piki piki", price_tzs=600_000,
+        description="nataka piki piki yakuchaji mwenye nayo anicheki bei"), lone_seller())
+    assert verdict == "NEITHER" and "buying" in reason
+
+
+def test_a_four_year_old_advert_is_not_a_lead():
+    verdict, _, reason = classify(advert(
+        title="Boxer 150", price_tzs=1_500_000, posted="20.05.2022"), lone_seller())
+    assert verdict == "NEITHER" and "old" in reason
+
+
+def test_a_recent_advert_survives():
+    from datetime import date, timedelta
+    recent = (date.today() - timedelta(days=30)).strftime("%d.%m.%Y")
+    verdict, _, _ = classify(advert(
+        title="Boxer 150", price_tzs=1_500_000, posted=recent,
+        description="pkpk full documents"), lone_seller())
+    assert verdict == "LBF"
+
+
+def test_a_redacted_email_is_not_a_trading_name():
+    """Kupatana redacts some sellers to "[email protected]"; four reached the
+    first upload set as businesses, one selling a single used office chair."""
+    assert not name_is_business("[email protected]")
+    verdict, _, _ = classify(advert(
+        title="kiti cha ofisini kilichotumika", price_tzs=100_000,
+        seller_name="[email protected]"), lone_seller())
+    assert verdict == "NEITHER"
 
 
 def test_no_phone_is_no_lead():

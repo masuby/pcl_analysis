@@ -60,7 +60,10 @@ _CHROME = {
 }
 
 _DATE_RE = re.compile(r"^\d{2}\.\d{2}\.\d{4}$")
-_TZS_RE = re.compile(r"TZS\s*([\d\s]+)")
+# Space, never a newline: `\s` let the match run past the end of the price line
+# and swallow the numbers below it, so a butchery advertising goat liver at
+# "TZS 4 500" came out at TZS 4,500,000,000.
+_TZS_RE = re.compile(r"TZS[ \t]*([\d][\d ]*)")
 _YEAR_RE = re.compile(r"\b(19[89]\d|20[0-4]\d)\b")
 
 # Kupatana writes prices with spaces as the thousands separator ("TZS 1 650 000"),
@@ -226,16 +229,29 @@ _TITLE_LINE = re.compile(r"^Title:\s*(.+?)(?:\|\s*Kupatana\.com)?\s*$", re.M)
 _PHONE_LINE = re.compile(r"^Phone:\s*(\S+)\s*$", re.M)
 
 
-def _index_facts(raw: str) -> tuple[str, str]:
-    """(phone, title) from any source's raw text — both write the same two labels.
+_SELLER_LINE = re.compile(r"^Seller:\s*(.+?)\s*$", re.M)
+
+
+def _index_facts(raw: str) -> tuple[str, str, str]:
+    """(phone, title, seller) from any source's raw text.
 
     Deliberately not the full Kupatana parser: the index has to span every site,
     because a dealer is a dealer whichever site they post on. Jiji's car section
-    alone carries 1,400 adverts from 29 phone numbers.
+    alone carries 1,400 adverts from 29 phone numbers. Kupatana puts the seller
+    before "Member since"; jiji labels it outright.
     """
     t = _TITLE_LINE.search(raw or "")
     p = _PHONE_LINE.search(raw or "")
-    return (p.group(1).strip() if p else ""), (t.group(1).strip() if t else "")
+    sel = _SELLER_LINE.search(raw or "")
+    name = sel.group(1).strip() if sel else ""
+    if not name:
+        lines = _lines(raw)
+        if "Member since" in lines:
+            i = lines.index("Member since")
+            if i > 0:
+                name = lines[i - 1]
+    return ((p.group(1).strip() if p else ""),
+            (t.group(1).strip() if t else ""), name)
 
 
 def build_seller_index(log=print) -> SellerIndex:
@@ -252,8 +268,8 @@ def build_seller_index(log=print) -> SellerIndex:
             index = SellerIndex()
             n = 0
             for (raw,) in cur:
-                phone, title = _index_facts(raw)
-                index.add(phone, title, is_vehicle(title, "", None))
+                phone, title, seller = _index_facts(raw)
+                index.add(phone, title, is_vehicle(title, "", None), seller)
                 n += 1
     finally:
         conn.close()

@@ -37,12 +37,45 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from datetime import date
 from difflib import SequenceMatcher
 
 
 def _title_key(title: str) -> str:
     """Lower-case, punctuation-free form used to recognise a re-listed item."""
     return " ".join(re.sub(r"[^a-z0-9 ]+", " ", (title or "").lower()).split())
+
+
+def is_redacted_name(name: str) -> bool:
+    """Kupatana hides some sellers behind the literal text "[email protected]".
+
+    It is a redaction token, not a person and not a company: 88 different phone
+    numbers carry it. Four of them reached the first upload set as "trading
+    name", one selling a single used office chair. Note the token does not
+    always contain a literal "@", so the bracket form has to be matched too.
+    """
+    n = (name or "").strip().lower()
+    return "@" in n or n.startswith("[email") or n.endswith("protected]")
+
+
+def name_key(name: str) -> str:
+    """A seller name reduced so "Donny M." and "Donny" collide — but ONLY when
+    the name is distinctive enough that a collision means the same seller.
+
+    Grouping on a bare given name is worthless and dangerous: measured on the
+    corpus, "yusuph" spans 46 different phone numbers, "joseph" 21 and "james"
+    20. Those are unrelated people, and treating them as one dealer would throw
+    away genuine private sellers by the dozen. So a key is only issued for a
+    trading name, or for a name with two real words in it.
+    """
+    n = re.sub(r"\s+", " ", (name or "").strip())
+    n = re.sub(r"(\s+[A-Za-z]\.?)+$", "", n).strip()
+    if len(n) < 5 or is_redacted_name(n):
+        return ""
+    words = [w for w in n.split() if len(w) >= 3]
+    if len(words) >= 2 or name_is_business(n):
+        return n.lower()
+    return ""
 
 
 def _same_item(a: str, b: str) -> bool:
@@ -74,12 +107,22 @@ class SellerIndex:
     # vehicles from one number was unanimous among the reviewers.
     VEHICLE_TRADER_ADVERTS = 2
 
+    # A dealer who buys a new SIM is still the same dealer. "Donny" trades
+    # under 255753975454 and 255754975454 — one digit apart — and "Ramadhan"
+    # sold the same motorcycle model under three consecutive numbers. Where one
+    # trading name spans this many numbers AND sells vehicles, it is a yard.
+    NAME_PHONES_FOR_DEALER = 2
+
     def __init__(self) -> None:
         self.adverts: dict[str, int] = defaultdict(int)
         self.vehicles: dict[str, int] = defaultdict(int)
         self.titles: dict[str, set[str]] = defaultdict(set)
+        self.name_phones: dict[str, set[str]] = defaultdict(set)
+        self.name_vehicles: dict[str, int] = defaultdict(int)
+        self._phone_name: dict[str, str] = {}
 
-    def add(self, phone: str, title: str, is_vehicle: bool) -> None:
+    def add(self, phone: str, title: str, is_vehicle: bool,
+            seller_name: str = "") -> None:
         if not phone:
             return
         key = phone[-9:]
@@ -96,6 +139,12 @@ class SellerIndex:
         self.adverts[key] += 1
         if is_vehicle:
             self.vehicles[key] += 1
+        nk = name_key(seller_name)
+        if nk:
+            self._phone_name[key] = nk
+            self.name_phones[nk].add(key)
+            if is_vehicle:
+                self.name_vehicles[nk] += 1
 
     def count(self, phone: str) -> int:
         return self.adverts.get((phone or "")[-9:], 0)
@@ -107,7 +156,12 @@ class SellerIndex:
         return self.count(phone) >= self.TRADER_ADVERTS
 
     def is_vehicle_dealer(self, phone: str) -> bool:
-        return self.vehicle_count(phone) >= self.VEHICLE_TRADER_ADVERTS
+        if self.vehicle_count(phone) >= self.VEHICLE_TRADER_ADVERTS:
+            return True
+        nk = self._phone_name.get((phone or "")[-9:], "")
+        return bool(nk
+                    and len(self.name_phones[nk]) >= self.NAME_PHONES_FOR_DEALER
+                    and self.name_vehicles[nk] >= self.VEHICLE_TRADER_ADVERTS)
 
 
 # ── 2. seller names ──────────────────────────────────────────────────────────
@@ -133,6 +187,8 @@ _PERSON_SHAPE = re.compile(r"^[A-Za-z][\w'’-]*(\s+[A-Za-z]\.?){0,3}\s*$")
 def name_is_business(name: str) -> bool:
     n = (name or "").strip()
     if not n:
+        return False
+    if is_redacted_name(n):
         return False
     if _TRADE_NAME.search(n) or _BRAND_GLYPH.search(n):
         return True
@@ -176,9 +232,30 @@ _PART_NOUN = re.compile(
 _PART_OF = re.compile(r"\b(injini|engine|body|chasis|chassis)\s+ya\b", re.I)
 
 # Plant that is valuable but cannot carry a logbook — an SME asset, never LBF.
+#
+# The MAKES matter as much as the nouns: an advert reading "Massey furguson" or
+# "CAT 950H" never says the word tractor, and 13 of 17 wrongly-selected LBF
+# leads in the first audit were farm and construction plant sold under a brand
+# name alone, each stamped "private car".
 _NOT_ROAD_GOING = re.compile(
     r"\b(generator|genset|\bkva\b|alternator|compressor|welding|incubator|"
-    r"tractor|excavator|grader|bulldozer|dozer|forklift)\b", re.I)
+    r"tractors?|yractor|trekta|plough|plow|harrow|excavator|grader|bulldozer|"
+    r"dozer|forklift|backhoe|wheel\s?loader|loader|crusher|roller|kijiko|"
+    r"articulated\s?dump|\badt\b|crane|"
+    # The makes matter as much as the nouns, and the spelling is unreliable:
+    # "Massey Furgoson", "Catapiller", "used farm yractor" all appeared.
+    r"massey|fergu?son|furgu?oson|furguson|kubota|\bjcb\b|cat[ae]rpill?ar|"
+    r"catapiller|\bcat\s?\d|komatsu|shantui|\bsdlg\b|bobcat|powerscreen|"
+    r"tatahitachi|hitachi|zoomlion|new\s?holland|olympian|landini|sonalika)\b",
+    re.I)
+
+# Somebody asking to BUY, not offering to sell. "nataka piki piki yakuchaji …
+# mwenye nayo anicheki bei" — I want a charging motorcycle, whoever has one
+# should quote me. They own nothing.
+_WANTED_AD = re.compile(
+    r"\b(nataka|natafuta|nahitaji|ninahitaji|nataka\s?kununua|"
+    r"wanted|looking\s?to\s?buy|i\s?want\s?to\s?buy|mwenye\s?nayo|mwenyew?\s?nayo)\b",
+    re.I)
 
 
 def is_part(text: str) -> bool:
@@ -186,19 +263,28 @@ def is_part(text: str) -> bool:
 
 
 def is_vehicle(title: str, description: str = "", attributes: dict | None = None) -> bool:
-    """A whole, road-going vehicle — judged on the TITLE.
+    """A whole, road-going vehicle — QUALIFIED on the title, DISQUALIFIED on either.
 
     The description must not qualify an advert on its own: "chaji betri ya gari
     lako" ("charge your car's battery") contains the word for car and is a
     TZS 28,000 charger.
+
+    Disqualifying, though, reads both. A title of "Catapiller Olympian
+    GEPX30-1" or "Zoomlion RK704" names no machine class at all; it is the
+    description that says "Nauza generator yangu" and "Trekta ya zoomlion".
+    Six of 25 leads in one upload set were plant hiding behind a model number.
     """
     t = title or ""
-    if is_part(t) or _NOT_ROAD_GOING.search(t):
+    attrs = attributes or {}
+    # The make and model are where plant gives itself away when the title is
+    # only a nickname: "Hii Wheelie" carries Make=Caterpillar, Model=Ex 6088,
+    # and it is a 140-million-shilling wheel loader, not a car.
+    attr_text = " ".join(str(v) for v in attrs.values())
+    if is_part(t) or _NOT_ROAD_GOING.search(f"{t} {description or ''} {attr_text}"):
         return False
     if _VEHICLE_NOUN.search(t) or _CC_RE.search(t):
         return True
     # Site-enforced vehicle attributes are trustworthy where free text is not.
-    attrs = attributes or {}
     if any(k in attrs for k in ("Mileage", "Transmission")):
         return not is_part(f"{t} {description}")
     return False
@@ -221,7 +307,8 @@ _BUSINESS_TALK = re.compile(
     r"wasiliana\s?nasi|tumeshusha\s?bei|punguzo|zipo\s?nyingi|vipo\s?vingi|"
     r"bei\s?ya\s?jumla|\bjumla\b|reja\s?reja|rejareja|mteja\s?wangu|"
     r"dalali\s?\d+\s?%|brokerage\s?\d+\s?%|\bwholesale\b|\bretail\b|"
-    r"we\s(sell|supply|offer|provide|deliver|install|have|are)\b|our\s(shop|company|customers|team|services)|"
+    r"we\s(sell|supply|offer|provide|deliver|install|have|stock|import)\b|"
+    r"our\s(shop|company|customers|products?|services?)|"
     r"in\s?stock|available\s?in\s?stock|order\s?now|free\s?delivery|"
     r"delivery\s?(bure|countrywide|popote)|warrant(y|ies)|dhamana|"
     r"\bvat\b|\befd\b|\btin\b|per\s?piece|kwa\s?kipande|kila\s?kimoja)", re.I)
@@ -244,8 +331,16 @@ _JOB_SEEKER = re.compile(
 _JOB_ATTRS = ("Application deadline", "Salary Range (Tsh)", "Salary Range",
               "Job level", "Business/Employer name")
 _JOB_TALK = re.compile(
-    r"(send\s?your\s?cv|sent\s?your\s?cvs?|\bapply\b|application\s?deadline|"
-    r"vacanc(y|ies)|nafasi\s?za?\s?kazi|\bajira\b|recruitment|job\s?level)", re.I)
+    r"(send\s?your\s?cv|sent\s?your\s?cvs?|email\s?(your\s?)?cv|cv\s?to\b|"
+    r"\bapply\b|application\s?deadline|vacanc(y|ies)|nafasi\s?za?\s?kazi|"
+    r"\bajira\b|recruitment|job\s?level|\bjob\s?in\b|"
+    # An advert SEEKING A PERSON. "We are looking for a Receptionist" is a
+    # vacancy, and "we are" alone had been reading as trade wording — which put
+    # 46 job adverts into the SME upload before this was caught.
+    r"(we\s?are|tunahitaji|tunatafuta)\s?(currently\s?)?(looking|seeking|in\s?need|hiring)|"
+    r"looking\s?for\s?(a|an|\d+)?\s?[\w\s]{0,24}\bto\s?join\b|join\s?our\s?team|"
+    r"\b(needed|required|wanted|hiring)\b\s*$|"
+    r"^[\w\s/&-]{0,40}\b(needed|required|wanted)\b)", re.I | re.M)
 
 
 def is_job_advert(f: dict) -> bool:
@@ -283,6 +378,32 @@ FLOORS = {
 # A motorcycle advertised above this is a typo, not a superbike — accept the
 # asset, distrust the figure, and let the call centre confirm.
 IMPLAUSIBLE = {"motorcycle": 4_500_000, "bajaji": 8_000_000}
+
+# How old an advert may be and still be worth a call. Kupatana never expires a
+# listing, so the corpus reaches back to 2018 and 4,254 of the adverts held were
+# posted in 2022 — ringing somebody about a motorcycle they sold four years ago
+# wastes the call and annoys the person.
+#
+# The two products age differently, so they get different floors. An LBF lead
+# is about ONE SPECIFIC VEHICLE: once it is sold the lead is worthless, so the
+# window is short. An SME lead is about a GOING CONCERN — a hardware shop that
+# advertised stock two years ago is very likely still trading, and the pitch is
+# working capital rather than that particular item.
+STALE_AFTER_DAYS = 548           # 18 months — a vehicle, and the default
+STALE_AFTER_DAYS_BUSINESS = 1095  # 3 years — a business outlives its advert
+
+
+def advert_age_days(f: dict) -> int | None:
+    """Days since the advert was posted, or None when the date is unreadable."""
+    posted = (f.get("posted") or "").strip()
+    if not posted:
+        return None
+    try:
+        d = date(int(posted[6:10]), int(posted[3:5]), int(posted[0:2]))
+    except (ValueError, IndexError):
+        return None
+    return (date.today() - d).days
+
 
 _BIG_BIKE = re.compile(r"\b([6-9]\d{2}|1\d{3})\s?cc\b", re.I)
 _BAJAJI = re.compile(r"\b(bajaji|bajaj|three\s?wheel|tuk\s?tuk|\bking\b)\b", re.I)
@@ -335,6 +456,17 @@ def classify(f: dict, index: SellerIndex, crawl_product: str = "") -> tuple[str,
     if is_job_advert(f):
         return "NEITHER", "Cold", "job advert — a recruiter's inbox, not a borrower"
 
+    if _WANTED_AD.search(blob) and not _BUSINESS_TALK.search(blob):
+        return "NEITHER", "Cold", "a wanted advert — this person is buying, not selling"
+
+    # An advert has to be recent enough to be worth acting on. The floor that
+    # applies depends on what is being sold, so it is checked inside each
+    # branch below; this is only the outer bound that nothing survives.
+    age = advert_age_days(f)
+    if age is not None and age > max(STALE_AFTER_DAYS, STALE_AFTER_DAYS_BUSINESS):
+        return "NEITHER", "Cold", \
+            f"advert is {age // 365} year(s) old — posted {f.get('posted','')}"
+
     business_talk = bool(_BUSINESS_TALK.search(blob))
     private_talk = bool(_PRIVATE_TALK.search(blob))
     business_name = name_is_business(name)
@@ -344,6 +476,11 @@ def classify(f: dict, index: SellerIndex, crawl_product: str = "") -> tuple[str,
     if is_vehicle(title, desc, f.get("attributes")):
         kind = vehicle_kind(title)
         floor = FLOORS[kind]
+
+        # The lead IS this vehicle; once it is sold there is nothing to secure.
+        if age is not None and age > STALE_AFTER_DAYS:
+            return "NEITHER", "Cold", \
+                f"vehicle advertised {age // 30} months ago — probably long sold"
 
         if index.is_vehicle_dealer(phone):
             n = index.vehicle_count(phone)
