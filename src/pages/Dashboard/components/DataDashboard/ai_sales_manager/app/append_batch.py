@@ -37,6 +37,33 @@ def _norm(phone: str) -> str:
     return db.normalize_phone(str(phone or ""))
 
 
+def _ensure_rows(sheets, sid: str, gid: int, needed: int, log=print) -> None:
+    """Grow the tab so `needed` rows fit.
+
+    A Sheets tab has a fixed grid, and writing past it fails outright rather
+    than extending it: the LBF September tab stood at exactly 2,140 rows and
+    the whole batch was rejected with "exceeds grid limits". Nothing had been
+    written at that point, so the failure was clean — but the batch was lost,
+    so the grid is now grown before anything is written.
+    """
+    meta = sheets.spreadsheets().get(spreadsheetId=sid).execute()
+    for sh in meta.get("sheets", []):
+        props = sh.get("properties", {})
+        if props.get("sheetId") != gid:
+            continue
+        have = props.get("gridProperties", {}).get("rowCount", 0)
+        if have >= needed:
+            return
+        # A little headroom, so a run of small batches does not call this every time.
+        extra = max(needed - have, 200)
+        sheets.spreadsheets().batchUpdate(
+            spreadsheetId=sid,
+            body={"requests": [{"appendDimension": {
+                "sheetId": gid, "dimension": "ROWS", "length": extra}}]}).execute()
+        log(f"   grew the tab by {extra} rows (was {have}, needed {needed})")
+        return
+
+
 # ---------------------------------------------------------------------------
 # Free-text feedback -> the dropdown
 # ---------------------------------------------------------------------------
@@ -356,6 +383,9 @@ def append_batch(product: str, leads: list[dict], label: str = "",
     # eight had gone missing.
     text = label or f"{product} batch — {date.today():%d %b %Y}"
     text = f"{text} — {len(fresh)} new" if not label else f"{label} — {len(fresh)} added"
+
+    # The divider plus the rows under it have to fit inside the tab's grid.
+    _ensure_rows(sheets, sid, gid, divider_row + len(fresh) + 1, log)
 
     sheets.spreadsheets().values().update(
         spreadsheetId=sid, range=f"'{tab}'!A{divider_row}",
