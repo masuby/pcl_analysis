@@ -523,3 +523,65 @@
 .dark-mode .aism-dl-opt.is-primary { border-color: #93c5fd; }
 .dark-mode .aism-dl-opt.is-primary .aism-dl-label { color: #93c5fd; }
 .dark-mode .aism-dl-sub, .dark-mode .aism-dl-hint, .dark-mode .aism-dl-note { color: #94a3b8; }
+
+/* ── Paste capture: Marketplace and group posts ─────────────────────────────
+   Meta has no API for these, so the reading is manual and the parsing is not.
+   Plain card, colour only on the score pill, in keeping with the rest. */
+
+.aism-paste {
+  margin: 18px 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+}
+.aism-paste-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.aism-paste-head h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #1e3a8a; }
+.aism-paste-head p { margin: 0; font-size: 12px; line-height: 1.55; color: #6b7280; max-width: 620px; }
+.aism-paste-group {
+  flex: 0 1 260px; padding: 7px 10px; font-size: 12.5px; color: #1f2937;
+  border: 1px solid #cbd5e1; border-radius: 8px;
+}
+
+.aism-paste-box {
+  width: 100%; box-sizing: border-box; padding: 11px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; line-height: 1.55; color: #1f2937;
+  border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical;
+}
+.aism-paste-box:focus { outline: none; border-color: #1e3a8a; }
+.aism-paste-box:disabled { background: #f8fafc; }
+
+.aism-paste-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.aism-run--save { background: #166534; border-color: #166534; }
+.aism-run--save:hover:not(:disabled) { background: #14532d; }
+.aism-paste-count { font-size: 12px; color: #6b7280; }
+
+.aism-paste-err {
+  margin-top: 10px; padding: 9px 12px; font-size: 12.5px;
+  color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+}
+.aism-paste-ok {
+  margin-top: 10px; padding: 9px 12px; font-size: 12.5px;
+  color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;
+}
+.aism-paste-ok code { padding: 1px 5px; background: #dcfce7; border-radius: 4px; font-size: 11.5px; }
+
+.aism-paste-table { margin-top: 12px; }
+.aism-paste-table .aism-table { min-width: 780px; }
+.aism-paste-why { font-size: 11.5px; color: #6b7280; }
+
+.aism-paste-turned { margin-top: 10px; font-size: 12.5px; color: #475569; }
+.aism-paste-turned summary { cursor: pointer; font-weight: 600; color: #1f2937; }
+.aism-paste-turned ul { margin: 8px 0 0; padding-left: 18px; }
+.aism-paste-turned li { line-height: 1.6; }
+
+.aism-paste-nophone {
+  margin-top: 10px; padding: 9px 12px; font-size: 12.5px; line-height: 1.5;
+  color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+}
+.aism-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+.aism-num  { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

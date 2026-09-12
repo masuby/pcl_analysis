@@ -22,6 +22,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import threading
+import time
 from datetime import date
 
 from app import db
@@ -200,11 +202,37 @@ def capture(text: str, product: str = "", captured_by: str = "", group: str = ""
             "no_phone": no_phone, "posts": len(posts)}
 
 
-def build_index(log=print) -> SellerIndex:
+# The dealer index is built by re-parsing every raw advert held, which takes
+# about 20 seconds on 22,779 of them. That is fine for a nightly clean and
+# hopeless for an agent pasting one post after another, so it is built once and
+# kept. Ten minutes is short enough that a dealer captured earlier in the shift
+# is recognised, and long enough that the wait is paid once.
+_INDEX_TTL_SECONDS = 600
+_index: SellerIndex | None = None
+_index_built_at = 0.0
+_index_lock = threading.Lock()
+
+
+def build_index(log=print, force: bool = False) -> SellerIndex:
     """The dealer index, so a group's regular trader is recognised on the first
     paste rather than after somebody notices."""
-    from .parse_kupatana import build_seller_index
-    return build_seller_index(log)
+    global _index, _index_built_at
+    with _index_lock:
+        fresh = _index is not None and (time.time() - _index_built_at) < _INDEX_TTL_SECONDS
+        if fresh and not force:
+            return _index
+        from .parse_kupatana import build_seller_index
+        _index = build_seller_index(log)
+        _index_built_at = time.time()
+        return _index
+
+
+def invalidate_index() -> None:
+    """Drop the cached index — call after storing leads, so the next paste sees
+    the seller who was just captured."""
+    global _index_built_at
+    with _index_lock:
+        _index_built_at = 0.0
 
 
 def to_lead(f: dict) -> dict:

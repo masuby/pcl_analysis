@@ -11,6 +11,154 @@ const SCORE_STYLE = {
   Cold: { bg: '#f3f4f6', fg: '#6b7280' },
 };
 
+/**
+ * Capture posts an agent has copied out of Facebook Marketplace or a buy-and-sell
+ * group.
+ *
+ * Meta publishes no API for either, and scraping them breaches their terms, so
+ * the reading stays manual: whoever is already in the group copies a post and
+ * pastes it here. Everything after that is automatic — the number, the price,
+ * the place, and the same dealer test the crawled sources go through. Nothing
+ * is stored until Save, and the paste is re-read on the server at that point
+ * rather than trusting what the screen sends back.
+ */
+const PasteCapture = ({ online }) => {
+  const [text, setText] = useState('');
+  const [group, setGroup] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(null);
+  const [err, setErr] = useState('');
+
+  // Deliberately NOT tied to the Product dropdown above. A car group throws up
+  // the occasional shop, and each lead is labelled LBF or SME on its own
+  // evidence anyway, so filtering here only loses good leads silently.
+  const body = () => JSON.stringify({ text, product: '', group, captured_by: '' });
+
+  const look = async () => {
+    setBusy(true); setErr(''); setSaved(null);
+    try {
+      const r = await fetch(`${API}/paste/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(),
+      });
+      if (!r.ok) throw new Error(`service returned ${r.status}`);
+      setPreview(await r.json());
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setBusy(false); }
+  };
+
+  const save = async () => {
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch(`${API}/paste/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body(),
+      });
+      if (!r.ok) throw new Error(`service returned ${r.status}`);
+      const res = await r.json();
+      setSaved(res); setPreview(null); setText('');
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setBusy(false); }
+  };
+
+  const rows = preview?.new || [];
+  const turned = [...(preview?.duplicates || []), ...(preview?.rejected || [])];
+
+  return (
+    <div className="aism-paste">
+      <div className="aism-paste-head">
+        <div>
+          <h3>Paste from Marketplace or a group</h3>
+          <p>
+            Copy a post and paste it below. Several at a time is fine, separated by a
+            blank line. The seller&apos;s own number is read from the post; nothing is
+            collected from Facebook itself.
+          </p>
+        </div>
+        <input
+          className="aism-paste-group"
+          placeholder="Which group? e.g. Magari Tanzania"
+          value={group}
+          onChange={(e) => setGroup(e.target.value)}
+        />
+      </div>
+
+      <textarea
+        className="aism-paste-box"
+        rows={8}
+        placeholder={'Toyota IST 2006 silver\nBei 13,500,000\nIpo Mwenge Dar es Salaam\nPiga 0754 123 456'}
+        value={text}
+        onChange={(e) => { setText(e.target.value); setPreview(null); setSaved(null); }}
+        disabled={busy}
+      />
+
+      <div className="aism-paste-actions">
+        <button className="aism-run" onClick={look} disabled={!online || busy || !text.trim()}>
+          {busy ? 'Reading…' : 'Read the posts'}
+        </button>
+        {rows.length > 0 && (
+          <button className="aism-run aism-run--save" onClick={save} disabled={busy}>
+            Save {rows.length} lead{rows.length === 1 ? '' : 's'}
+          </button>
+        )}
+        {preview && <span className="aism-paste-count">{preview.posts} post(s) read</span>}
+      </div>
+
+      {err && <div className="aism-paste-err">{err}</div>}
+      {saved && (
+        <div className="aism-paste-ok">
+          Saved {saved.saved}. {saved.skipped} already held, {saved.rejected} not a prospect.
+          Send them to the call centre with <code>python -m scraper.to_sheets --confirm</code>.
+        </div>
+      )}
+
+      {rows.length > 0 && (
+        <div className="aism-table-wrap aism-paste-table">
+          <table className="aism-table">
+            <thead>
+              <tr><th>Phone</th><th>For</th><th>Score</th><th>Item</th>
+                <th>Price</th><th>Where</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.phone}>
+                  <td className="aism-mono">{r.phone}</td>
+                  <td>{r.product}</td>
+                  <td><ScoreBadge score={r.score} /></td>
+                  <td>{r.title}</td>
+                  <td className="aism-num">{r.price_tzs ? r.price_tzs.toLocaleString() : '—'}</td>
+                  <td>{r.location || '—'}</td>
+                  <td className="aism-paste-why">{r.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {turned.length > 0 && (
+        <details className="aism-paste-turned">
+          <summary>{turned.length} post(s) not taken</summary>
+          <ul>
+            {turned.map((r, i) => (
+              <li key={`${r.phone}-${i}`}>
+                <span className="aism-mono">{r.phone || 'no number'}</span>
+                {' — '}{r.reason}
+                {r.title ? <span className="aism-paste-why"> ({r.title.slice(0, 50)})</span> : null}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {preview?.no_phone?.length > 0 && (
+        <div className="aism-paste-nophone">
+          {preview.no_phone.length} post(s) had no phone number in them, so there is
+          nobody to call. Copy the post again including the seller&apos;s number.
+        </div>
+      )}
+    </div>
+  );
+};
+
 // All 31 Tanzanian regions (26 mainland + 5 Zanzibar) plus a nationwide option.
 const TZ_REGIONS = [
   'Arusha', 'Dar es Salaam', 'Dodoma', 'Geita', 'Iringa', 'Kagera', 'Katavi',
@@ -491,6 +639,10 @@ const AISalesAgent = () => {
           </button>
         )}
       </div>
+
+      {/* Marketplace and group posts, which have no API and cannot be crawled,
+          so an agent pastes them and the service does the rest. */}
+      <PasteCapture online={online} />
 
       {/* Where the agent will look. Unticked = every source for the product.
           Each source shows the robots.txt basis it was added on. */}

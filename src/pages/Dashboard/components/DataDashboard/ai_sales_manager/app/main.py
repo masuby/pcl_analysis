@@ -272,6 +272,75 @@ def scrape(req: ScrapeRequest):
             "sources": req.sources or [s.key for s in source_registry.for_product(product)]}
 
 
+# ── pasted Marketplace / group posts ─────────────────────────────────────────
+#
+# Meta publishes no API for Marketplace or for public group posts, and scraping
+# either breaches their terms, so capture is deliberately manual at the reading
+# end: an agent who is already in the group copies a post and pastes it here.
+# Everything after that is automatic — the number, the price, the place, and the
+# same dealer-and-prospect judgement the crawled sources go through.
+
+class PasteRequest(BaseModel):
+    text: str = ""
+    product: str = ""        # 'LBF' | 'SME' | '' to accept either
+    group: str = ""          # which group or page the posts came from
+    captured_by: str = ""    # who pasted them
+
+
+def _paste_view(f: dict) -> dict:
+    """Only the fields the screen shows — the raw post is not sent back."""
+    return {
+        "phone": f.get("phone", ""),
+        "title": f.get("title", ""),
+        "location": f.get("location", ""),
+        "price_tzs": f.get("price_tzs", 0),
+        "product": f.get("verdict", ""),
+        "score": f.get("score", ""),
+        # `why` is the reason a lead was TURNED AWAY and must win over `reason`,
+        # which is only the verdict's own wording. Showing the verdict on a
+        # rejected row read as though a good SME lead had been refused for
+        # "trade wording".
+        "reason": f.get("why") or f.get("reason", ""),
+        "source_url": f.get("source_url", ""),
+        "seller_name": f.get("seller_name", ""),
+    }
+
+
+@app.post("/paste/preview")
+def paste_preview(req: PasteRequest):
+    """Read a paste and say what it holds. Writes nothing."""
+    from scraper.paste_capture import capture
+    res = capture(req.text or "", req.product, req.captured_by, req.group,
+                  log=lambda *a: None)
+    return {
+        "posts": res["posts"],
+        "new": [_paste_view(f) for f in res["new"]],
+        "duplicates": [_paste_view(f) for f in res["duplicates"]],
+        "rejected": [_paste_view(f) for f in res["rejected"]],
+        "no_phone": [{"title": f.get("title", "")} for f in res["no_phone"]],
+    }
+
+
+@app.post("/paste/save")
+def paste_save(req: PasteRequest):
+    """Re-read the paste and store what qualifies.
+
+    The paste is parsed again rather than trusting anything the browser sends
+    back, so nothing can be edited into the store on its way through.
+    """
+    from scraper.paste_capture import capture, invalidate_index, to_lead
+    res = capture(req.text or "", req.product, req.captured_by, req.group,
+                  log=lambda *a: None)
+    saved = 0
+    if res["new"]:
+        saved = db.insert_clean_many([to_lead(f) for f in res["new"]])
+        # So the next paste already knows about the seller just captured.
+        invalidate_index()
+    return {"saved": saved, "skipped": len(res["duplicates"]),
+            "rejected": len(res["rejected"]),
+            "new": [_paste_view(f) for f in res["new"]]}
+
+
 @app.post("/scrape/stop")
 def scrape_stop():
     """Signal the running job to stop at the next safe point (progress is kept)."""
