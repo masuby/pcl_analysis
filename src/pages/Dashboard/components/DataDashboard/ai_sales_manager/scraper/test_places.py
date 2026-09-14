@@ -140,3 +140,34 @@ def test_a_tanzanian_trader_calling_their_shop_a_head_office_is_still_a_lead(nam
 def test_an_outlet_or_agent_is_still_a_lead(name):
     """A mobile money agent is precisely PCL's customer."""
     assert to_lead(place(displayName={"text": name}), "mobile money agent", "Ilala") is not None
+
+
+# ── what the sheet says about a row ──────────────────────────────────────────
+#
+# The call-centre sheet has no score column, so the Comments text is the only
+# thing telling an agent how solid a lead is. It must never be silent about
+# weak evidence: "hardware store" alone read exactly like a full-strength lead.
+
+def test_an_unreviewed_listing_says_so():
+    p = place(userRatingCount=0)
+    p.pop("rating", None)
+    assert "not yet reviewed on Google" in to_lead(p, "hardware shop", "Ilala")["reason"]
+
+
+def test_a_reviewed_listing_gives_the_rating_and_the_count():
+    r = to_lead(place(rating=4.8, userRatingCount=83), "hardware shop", "Ilala")["reason"]
+    assert "4.8" in r and "83 reviews" in r
+
+
+def test_a_single_review_is_not_called_reviews():
+    r = to_lead(place(rating=5.0, userRatingCount=1), "hardware shop", "Ilala")["reason"]
+    assert "1 review;" in r and "1 reviews" not in r
+
+
+def test_every_row_says_the_business_is_trading_with_a_published_number():
+    """Why a lead with no reviews is still worth a call."""
+    for n in (0, 1, 40):
+        p = place(userRatingCount=n)
+        if not n:
+            p.pop("rating", None)
+        assert "listed as trading" in to_lead(p, "bakery", "Temeke")["reason"]

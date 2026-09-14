@@ -283,9 +283,18 @@ def to_lead(place: dict, category: str, town: str) -> dict | None:
     # A business that people review is one that trades; reviews are the only
     # activity signal Places gives us, so they set the temperature.
     flag = "Hot" if n_rev >= 20 else ("Warm" if n_rev >= 3 else "Cold")
+    # The Comments column is the only place an agent sees how solid a row is -
+    # the sheet carries no score column - so it always states the evidence,
+    # including its absence. A listing with no reviews said only "hardware
+    # store", which reads like a full-strength lead rather than an unrated one.
     reason = f"Google Maps listing — {ptype or category}"
-    if rating:
-        reason += f", {rating}★ from {n_rev} reviews"
+    if n_rev and rating:
+        reason += f", {rating}★ from {n_rev} review" + ("s" if n_rev != 1 else "")
+    elif n_rev:
+        reason += f", {n_rev} review" + ("s" if n_rev != 1 else "") + ", unrated"
+    else:
+        reason += ", not yet reviewed on Google"
+    reason += "; listed as trading, with a published phone and address"
     return {
         "source_url": place.get("googleMapsUri") or f"https://www.google.com/maps/place/?q=place_id:{place.get('id')}",
         "product": PRODUCT, "source": SOURCE,
