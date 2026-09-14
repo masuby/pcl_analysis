@@ -159,6 +159,151 @@ const PasteCapture = ({ online }) => {
   );
 };
 
+// Registered businesses from their own Google Maps listing. Unlike every other
+// source here this one bills per request, so the screen shows the ceiling in
+// dollars before the button can be pressed, and the cap is always sent.
+const GoogleBusinesses = ({ online }) => {
+  const [check, setCheck] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [cap, setCap] = useState(300);
+  const [job, setJob] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const refresh = useCallback(async () => {
+    setBusy(true); setErr('');
+    try {
+      const [c, p] = await Promise.all([
+        fetch(`${API}/places/check`).then((r) => r.json()),
+        fetch(`${API}/places/plan?max_requests=${cap}`).then((r) => r.json()),
+      ]);
+      setCheck(c); setPlan(p);
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setBusy(false); }
+  }, [cap]);
+
+  useEffect(() => { if (online) refresh(); }, [online, refresh]);
+
+  // Poll only while a sweep is actually running; this costs money per request
+  // and the log is the only sight the operator has of it.
+  useEffect(() => {
+    if (job?.state !== 'running') return undefined;
+    const t = setInterval(async () => {
+      try { setJob(await fetch(`${API}/places/status`).then((r) => r.json())); }
+      catch { /* a dropped poll is not worth surfacing */ }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [job?.state]);
+
+  const start = async () => {
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch(`${API}/places/run`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_requests: Number(cap) || 300 }),
+      });
+      if (!r.ok) throw new Error(`service returned ${r.status}`);
+      await r.json();
+      setJob({ state: 'running', log: [], summary: null });
+    } catch (e) { setErr(e.message || String(e)); }
+    finally { setBusy(false); }
+  };
+
+  const stop = async () => {
+    try { await fetch(`${API}/places/stop`, { method: 'POST' }); } catch { /* ignore */ }
+  };
+
+  const running = job?.state === 'running';
+  const sum = job?.summary;
+
+  return (
+    <div className="aism-paste aism-gmb">
+      <div className="aism-paste-head">
+        <div>
+          <h3>Registered businesses from Google</h3>
+          <p>
+            Every listed business in a PCL branch town, by trade, with the phone
+            number the owner published to be called on. SME only. This source is
+            billed per request, so it always runs under a cap.
+          </p>
+        </div>
+      </div>
+
+      {check && !check.ok && (
+        <div className="aism-gmb-blocked">
+          <strong>Not available yet — {check.reason}</strong>
+          {check.project ? <span> on project {check.project}</span> : null}
+          <div>{check.problem}</div>
+          <div className="aism-gmb-fix">{check.fix}</div>
+        </div>
+      )}
+      {check?.ok && (
+        <div className="aism-paste-ok">
+          Key {check.key_tail} can read business phone numbers.
+        </div>
+      )}
+
+      <div className="aism-gmb-controls">
+        <label htmlFor="aism-gmb-cap">Stop after</label>
+        <input
+          id="aism-gmb-cap"
+          type="number"
+          min={1}
+          max={5000}
+          value={cap}
+          onChange={(e) => setCap(e.target.value)}
+          onBlur={refresh}
+          disabled={running}
+        />
+        <span className="aism-muted">requests</span>
+        {plan && (
+          <span className="aism-gmb-cost">
+            {plan.categories} trades × {plan.towns} towns · up to{' '}
+            {plan.max_places.toLocaleString()} listings ·{' '}
+            <strong>max US${plan.max_usd}</strong>
+            {plan.billable_requests === 0
+              ? ' (inside the free monthly allowance)'
+              : ` (${plan.billable_requests.toLocaleString()} billable)`}
+          </span>
+        )}
+      </div>
+
+      <div className="aism-paste-actions">
+        {running ? (
+          <button className="aism-run" onClick={stop}>Stop the sweep</button>
+        ) : (
+          <button
+            className="aism-run"
+            onClick={start}
+            disabled={!online || busy || !check?.ok}
+          >
+            {busy ? 'Checking…' : 'Fetch businesses'}
+          </button>
+        )}
+      </div>
+
+      {err && <div className="aism-paste-err">{err}</div>}
+
+      {job && (job.log || []).length > 0 && (
+        <pre className="aism-gmb-log">
+          {job.log.slice(-12).map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </pre>
+      )}
+
+      {sum && (
+        <div className="aism-paste-ok">
+          {sum.requests} request(s), {sum.places_found} listing(s) found,{' '}
+          {sum.with_phone} with a mobile number, {sum.already_held} already held,{' '}
+          <strong>{sum.inserted_new} new lead(s)</strong>. Cost US${sum.spent_usd}.
+          Send them with <code>python -m scraper.to_sheets --confirm</code>.
+        </div>
+      )}
+    </div>
+  );
+};
+
 // All 31 Tanzanian regions (26 mainland + 5 Zanzibar) plus a nationwide option.
 const TZ_REGIONS = [
   'Arusha', 'Dar es Salaam', 'Dodoma', 'Geita', 'Iringa', 'Kagera', 'Katavi',
@@ -643,6 +788,9 @@ const AISalesAgent = () => {
       {/* Marketplace and group posts, which have no API and cannot be crawled,
           so an agent pastes them and the service does the rest. */}
       <PasteCapture online={online} />
+
+      {/* Registered businesses, from the number the owner published on Maps. */}
+      <GoogleBusinesses online={online} />
 
       {/* Where the agent will look. Unticked = every source for the product.
           Each source shows the robots.txt basis it was added on. */}

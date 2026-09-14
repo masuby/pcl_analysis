@@ -585,3 +585,31 @@
 }
 .aism-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
 .aism-num  { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Registered businesses from Google Maps. Same flat card as the paste box; the
+   only colour is on the blocked notice, where it carries meaning. */
+.aism-gmb-controls {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px;
+}
+.aism-gmb-controls label { font-size: 12.5px; color: #1f2937; }
+.aism-gmb-controls input {
+  width: 88px; padding: 6px 8px; font-size: 12.5px; color: #1f2937;
+  border: 1px solid #cbd5e1; border-radius: 8px;
+}
+.aism-gmb-cost { font-size: 12px; color: #6b7280; }
+.aism-gmb-cost strong { color: #1f2937; }
+
+.aism-gmb-blocked {
+  margin-bottom: 12px; padding: 10px 12px; font-size: 12.5px; line-height: 1.6;
+  color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+}
+.aism-gmb-blocked strong { color: #78350f; }
+.aism-gmb-fix { margin-top: 6px; color: #713f12; }
+
+.aism-gmb-log {
+  margin: 10px 0 0; padding: 10px 12px; max-height: 200px; overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px; line-height: 1.6; color: #334155;
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  white-space: pre-wrap;
+}

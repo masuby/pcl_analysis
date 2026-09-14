@@ -341,6 +341,108 @@ def paste_save(req: PasteRequest):
             "new": [_paste_view(f) for f in res["new"]]}
 
 
+# -- Google business listings (Places API) ------------------------------------
+#
+# A Maps listing's phone number is the line the owner published to be called on,
+# which is why this sits alongside the classifieds and not with the social
+# sources we will not touch. It runs as its own background job rather than
+# inside /scrape: it costs real money per request, so it is started
+# deliberately, bounded by --max-requests, and never as a side effect of a crawl.
+
+class PlacesRequest(BaseModel):
+    towns: list[str] = []        # default: every PCL branch town
+    categories: list[str] = []   # default: the small-business trades
+    max_requests: int = 300      # billing guard; the UI always sends one
+    dry_run: bool = False
+
+
+_PLACES_JOB = {"state": "idle", "log": [], "summary": None}
+_PLACES_LOCK = threading.Lock()
+_PLACES_CANCEL = threading.Event()
+
+
+def _places_log(msg: str):
+    with _PLACES_LOCK:
+        _PLACES_JOB["log"].append(str(msg))
+        if len(_PLACES_JOB["log"]) > _LOG_CAP:
+            del _PLACES_JOB["log"][: len(_PLACES_JOB["log"]) - _LOG_CAP]
+
+
+def _run_places_job(towns, categories, max_requests, dry_run):
+    from scraper import places
+    try:
+        summary = places.run(towns, categories, max_requests=max_requests,
+                             dry_run=dry_run, log=_places_log,
+                             should_stop=_PLACES_CANCEL.is_set)
+        with _PLACES_LOCK:
+            _PLACES_JOB["summary"] = summary
+            _PLACES_JOB["state"] = "cancelled" if summary.get("cancelled") else "done"
+    except SystemExit as exc:        # preflight refused, before any spend
+        _places_log(f"ERROR: {exc}")
+        with _PLACES_LOCK:
+            _PLACES_JOB["state"] = "error"
+    except Exception as exc:  # noqa: BLE001
+        _places_log(f"ERROR: {exc}")
+        with _PLACES_LOCK:
+            _PLACES_JOB["state"] = "error"
+
+
+@app.get("/places/check")
+def places_check():
+    """Can the key read business phone numbers? Names the exact thing to fix."""
+    from scraper import places
+    return places.preflight()
+
+
+@app.get("/places/plan")
+def places_plan(towns: str = "", categories: str = "", max_requests: int = 300):
+    """The grid and the bill for a sweep of this shape, before it is started."""
+    from scraper import places
+    t = [x.strip() for x in towns.split(";") if x.strip()] or places.TOWNS
+    c = [x.strip() for x in categories.split(";") if x.strip()] or places.CATEGORIES
+    return {"towns": len(t), "categories": len(c),
+            "usd_per_1000": places.USD_PER_1000,
+            **places.estimate(len(t) * len(c), max_requests)}
+
+
+@app.post("/places/run")
+def places_run(req: PlacesRequest):
+    """Start a Places sweep in the background. Poll /places/status."""
+    from scraper import places
+    with _PLACES_LOCK:
+        if _PLACES_JOB["state"] == "running":
+            return {"state": "running", "detail": "a sweep is already running"}
+        _PLACES_JOB.update(state="running", log=[], summary=None)
+    _PLACES_CANCEL.clear()
+    towns = [t.strip() for t in (req.towns or []) if t.strip()] or places.TOWNS
+    cats = [c.strip() for c in (req.categories or []) if c.strip()] or places.CATEGORIES
+    # Clamped, not trusted: a typo in the box must not become a five-figure bill.
+    max_requests = max(1, min(5000, req.max_requests or 300))
+    threading.Thread(target=_run_places_job,
+                     args=(towns, cats, max_requests, bool(req.dry_run)),
+                     daemon=True).start()
+    return {"state": "running", "towns": len(towns), "categories": len(cats),
+            **places.estimate(len(towns) * len(cats), max_requests)}
+
+
+@app.post("/places/stop")
+def places_stop():
+    with _PLACES_LOCK:
+        running = _PLACES_JOB["state"] == "running"
+    if running:
+        _PLACES_CANCEL.set()
+        _places_log("STOP requested - finishing the current query...")
+        return {"state": "stopping"}
+    return {"state": _PLACES_JOB["state"], "detail": "no sweep running"}
+
+
+@app.get("/places/status")
+def places_status():
+    with _PLACES_LOCK:
+        return {"state": _PLACES_JOB["state"], "log": list(_PLACES_JOB["log"]),
+                "summary": _PLACES_JOB["summary"]}
+
+
 @app.post("/scrape/stop")
 def scrape_stop():
     """Signal the running job to stop at the next safe point (progress is kept)."""

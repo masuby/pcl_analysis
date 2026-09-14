@@ -298,5 +298,23 @@ look vibe coded. The recipient is a manager who wants the numbers.
 - **CRM distribution packs** (`backend/internal/handlers/crm_pack*.go`, `CRM/CRMPack.jsx`) mirror the MAMBU run: assigned CRM leads → FULL / By_Branch / By_Cluster / By_Zone workbooks, zipped under `crm/packs/`, emailed by the shared `DistributeModal`. Cluster and zone are taken from the roster's **map tab by branch first**; the Team Leader's own row is only the fallback, because people tabs spell zones loosely ("Highland Region" vs "Highland Zone") and the zone managers are listed under the map tab's names. Branches missing from the map (person-named CS sub-branches such as "Mwanza - Amidiana") land in an Unknown cluster/zone and can only be sent by branch — fix that on the sheet, not in code. Both MAMBU and CRM sends accept an operator Cc list; test mode drops it.
 - **AI-agent cleaning no longer needs an LLM.** `scraper/parse_kupatana.py` reads the advert (every Kupatana page is one template, so extraction is just reading labelled fields) and `scraper/qualify.py` decides what it is worth. The rules in qualify.py were derived by having 300 real adverts read and scored, and are pinned in `scraper/test_qualify.py` — that reading is not repeatable on demand, so **a rule change that breaks a test is undoing a decision, not refining one**. `--rescore` re-judges rows the old LLM pass scored. What matters most: the same phone number posts hundreds of adverts (one carries 530), so counting adverts per phone across the whole corpus is what separates a dealer from an owner; Kupatana's own category is noise and must never be branched on; `tunauza` (we sell) is a business and `nauza` (I sell) is a person.
 - **Never trust a stored score at the point of upload.** Re-derive the verdict from the advert text for every lead about to be sent. Leads cleaned in an earlier pass keep that pass's judgement, which is how a tractor sat in the LBF pile marked "individual seller". Audit a sample of any batch before it reaches the call centre — doing so on 80 leads found six separate defects, including four-year-old adverts and a butchery listed at TZS 4,500,000,000 because the price regex used `\s` and ran past the end of its line.
+- **Google Places is billed by its most expensive field.** A Text Search is
+  charged at the highest SKU any field in the mask belongs to, and
+  `nationalPhoneNumber` is an ENTERPRISE field ($35/1,000). The phone number is
+  the entire reason this source exists, so there is no cheaper tier available —
+  trimming `rating`/`userRatingCount` to "drop to Pro" saves nothing, because
+  those are Enterprise too, and it would lose the only activity signal Places
+  gives us. The pooled $200 monthly credit ended on 1 Mar 2025; Enterprise now
+  gets 1,000 free calls a month with no roll-over. Full national sweep (25
+  trades × 46 towns × 3 pages) = 3,450 requests ≈ US$86.
+- **Three separate gates stand between the key and a Places result**, and
+  Google reports each as a 403 with a different `reason`: the API enabled on
+  the project (`SERVICE_DISABLED`), the API on the key's allowed list
+  (`API_KEY_SERVICE_BLOCKED`), and billing linked. The project's key trips the
+  first two at once, and the API returns whichever it checks first — so fixing
+  only the one named in the error sends you back a second time.
+  `python -m scraper.places --check` names the gate and the fix; `run()` calls
+  the same preflight and refuses before spending anything. Any GCP project will
+  do; 509704387275 is just where the existing GOOGLE_API_KEY happens to live.
 - **A Sheets tab has a fixed grid.** Writing past `rowCount` fails the whole batch rather than extending it; `append_batch` grows the tab first. The LBF September tab hit this at exactly 2,140 rows.
 - **`repair_columns` must never insert a column into a populated tab** — it shifted the live LBF sheet one column right twice (Aug and 8 Sep 2026). On a populated tab it only relabels A1:K1 in place.
