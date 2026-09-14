@@ -68,8 +68,11 @@ def test_a_closed_business_is_not_a_lead(status):
                                           (19, "Warm"), (20, "Hot"), (140, "Hot")])
 def test_reviews_set_the_temperature(reviews, flag):
     """Reviews are the only activity signal Places gives us: a business people
-    review is one that trades."""
-    assert to_lead(place(userRatingCount=reviews), "butchery", "Dodoma")["flag"] == flag
+    review is one that trades. The word goes in `score`, which is what the
+    upload gate filters on - not in `flag`, which says whether it is new."""
+    lead = to_lead(place(userRatingCount=reviews), "butchery", "Dodoma")
+    assert lead["score"] == flag
+    assert lead["flag"] == "NEW DATA"
 
 
 def test_the_reason_says_where_the_lead_came_from():

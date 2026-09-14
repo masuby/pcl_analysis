@@ -5,10 +5,14 @@ when it was cleaned. This is the gate between that store and the two sheets the
 call centre actually works, and it does not trust the store:
 
   1. Only Hot and Warm leads for LBF or SME are considered at all.
-  2. Every candidate is RE-READ from its own advert text and re-judged. A row
-     whose stored product or score no longer matches what the advert says is
-     dropped — that is how a tractor marked "individual seller, phone present"
-     by the old LLM pass was caught still sitting in the LBF pile.
+  2. Every candidate is RE-DERIVED, by the means its source allows. An advert
+     is re-read from its own text and re-judged, and a row whose stored product
+     or score no longer matches what the advert says is dropped — that is how a
+     tractor marked "individual seller, phone present" by the old LLM pass was
+     caught still sitting in the LBF pile. A Google Places listing has no text
+     to re-read: it was built by code from Google's structured fields and no
+     LLM ever touched it, so what is re-checked is that the stored facts still
+     describe a business. See `_verify`.
   3. Anything from a phone that has advertised several vehicles is dropped as
      dealer stock, whoever scored it.
   4. One row per phone, best score first, so a person is offered once.
@@ -62,6 +66,44 @@ def phones_on_sheet(product: str, log=print) -> set[str]:
     return held
 
 
+# Re-deriving the verdict means something different for each source, and the
+# difference is where the judgement came from in the first place.
+#
+#   kupatana / jiji   free text, judged by rules that have since changed (and
+#                     before that, by an LLM that got it wrong 76% of the time).
+#                     Never trusted: the advert is read again from scratch.
+#   google_places     no free text ever existed. The lead was built by code from
+#                     Google's own structured fields - name, phone, type, trading
+#                     status - so there is no stale judgement to distrust. What
+#                     is re-checked is that those facts still describe a business
+#                     we can lend to.
+#   facebook_paste    free text, and the post is kept, so it is re-read exactly
+#                     as a classifieds advert is.
+#
+# The dealer check above this runs on every source regardless of any of that.
+
+def _verify(r: dict, index) -> tuple[bool, str, str, str]:
+    """(accepted, score, reason, why_dropped) for one candidate row."""
+    source = (r["source"] or "")
+    raw = r.get("raw_data") or ""
+
+    if source.startswith("google_places"):
+        if r["product"] != "SME":
+            return False, "", "", f"a Places listing marked {r['product']}, not SME"
+        if not (r.get("offering") or r.get("seller_name") or r.get("location")):
+            return False, "", "", "a Places listing with nothing left to identify it"
+        return True, r["score"], r["reason"], ""
+
+    if not raw:
+        return False, "", "", f"no advert text kept for {source} - cannot be re-read"
+
+    verdict, score, reason = classify(parse_fields(raw), index)
+    if verdict != r["product"] or score == "Cold":
+        return (False, "", "",
+                f"re-read says {verdict}/{score}, row said {r['product']}/{r['score']}")
+    return True, score, reason, ""
+
+
 def candidates(log=print) -> dict[str, list[dict]]:
     """Verified, deduplicated leads per product, ready to send."""
     index = build_seller_index(log)
@@ -74,9 +116,9 @@ def candidates(log=print) -> dict[str, list[dict]]:
                 "       c.location, c.price_text, c.reason, c.source_url, "
                 "       c.date_obtained, c.source, c.offering, r.raw_data "
                 "  FROM aism_clean_leads c "
-                "  JOIN aism_raw_listings r ON r.source_url = c.source_url "
+                "  LEFT JOIN aism_raw_listings r ON r.source_url = c.source_url "
                 " WHERE c.phone_norm <> '' AND c.score IN ('Hot','Warm') "
-                "   AND c.product IN ('LBF','SME') AND r.raw_data <> ''")
+                "   AND c.product IN ('LBF','SME')")
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
     finally:
@@ -90,12 +132,9 @@ def candidates(log=print) -> dict[str, list[dict]]:
         if index.is_vehicle_dealer(phone):
             dropped[f"dealer stock ({index.vehicle_count(phone)} vehicles from the number)"] += 1
             continue
-        if not (r["source"] or "").startswith("kupatana"):
-            dropped["cannot be re-read — no parser for this source"] += 1
-            continue
-        verdict, score, reason = classify(parse_fields(r["raw_data"]), index)
-        if verdict != r["product"] or score == "Cold":
-            dropped[f"re-read says {verdict}/{score}, row said {r['product']}/{r['score']}"] += 1
+        ok, score, reason, why = _verify(r, index)
+        if not ok:
+            dropped[why] += 1
             continue
         r["score"], r["reason"] = score, reason
         verified.append(r)

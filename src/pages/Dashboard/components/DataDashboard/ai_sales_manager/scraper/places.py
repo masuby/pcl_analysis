@@ -276,8 +276,12 @@ def to_lead(place: dict, category: str, town: str) -> dict | None:
         "sector": category, "offering": ", ".join(t.replace("_", " ") for t in (place.get("types") or [])[:4]),
         "has_shopfront": "yes", "location": town.split(",")[0].strip(),
         "price_text": (place.get("formattedAddress") or "")[:200],
-        "score": min(100, 40 + int(n_rev)), "reason": reason,
-        "date_obtained": date.today().isoformat(), "flag": flag,
+        # `score` carries the temperature word and `flag` says whether the lead
+        # is new - the same way round as every other source, and the way the
+        # upload gate reads them. Having these two swapped meant no Places lead
+        # could ever pass `score IN ('Hot','Warm')`.
+        "score": flag, "reason": reason,
+        "date_obtained": date.today().isoformat(), "flag": "NEW DATA",
         # the rest of _CLEAN_COLS are vehicle fields — blank for a business
         "car_make": "", "car_model": "", "car_year": "", "mileage": "",
         "body_type": "", "fuel_type": "", "condition": "",
