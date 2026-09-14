@@ -45,6 +45,20 @@ from .qualify import classify
 PRODUCTS = ("LBF", "SME")
 RANK = {"Hot": 0, "Warm": 1, "Cold": 2}
 
+# Where the call centre wants the most leads. Everything else follows in
+# alphabetical order, so a list is still worked one town at a time rather than
+# jumping around the country. The Dar municipalities are named individually
+# because that is how a Places location arrives - "Ilala", not "Dar es Salaam".
+PRIORITY_AREAS = ("Arusha", "Dar es Salaam", "Ilala", "Kinondoni", "Temeke",
+                  "Ubungo", "Kigamboni")
+
+
+def _area_key(lead: dict) -> tuple[int, str]:
+    """Priority towns first, then the rest alphabetically."""
+    where = (lead.get("location") or "").strip()
+    first = 0 if any(where.lower() == a.lower() for a in PRIORITY_AREAS) else 1
+    return (first, where.lower())
+
 
 def phones_on_sheet(product: str, log=print) -> set[str]:
     """Every phone already on any tab of a product's workbook."""
@@ -90,8 +104,11 @@ def _verify(r: dict, index) -> tuple[bool, str, str, str]:
     if source.startswith("google_places"):
         if r["product"] != "SME":
             return False, "", "", f"a Places listing marked {r['product']}, not SME"
-        if not (r.get("offering") or r.get("seller_name") or r.get("location")):
+        if not (r.get("business_name") or r.get("offering") or r.get("location")):
             return False, "", "", "a Places listing with nothing left to identify it"
+        # So an agent opening the sheet can see where the row came from without
+        # having to follow the link.
+        r["comments"] = r["reason"]
         return True, r["score"], r["reason"], ""
 
     if not raw:
@@ -113,12 +130,13 @@ def candidates(log=print) -> dict[str, list[dict]]:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT c.product, c.score, c.phone, c.phone_norm, c.seller_name, "
+                "       c.business_name, c.business_type, "
                 "       c.location, c.price_text, c.reason, c.source_url, "
                 "       c.date_obtained, c.source, c.offering, r.raw_data "
                 "  FROM aism_clean_leads c "
                 "  LEFT JOIN aism_raw_listings r ON r.source_url = c.source_url "
-                " WHERE c.phone_norm <> '' AND c.score IN ('Hot','Warm') "
-                "   AND c.product IN ('LBF','SME')")
+                " WHERE c.phone_norm <> '' AND c.product IN ('LBF','SME') "
+                "   AND (c.score IN ('Hot','Warm') OR c.source = 'google_places')")
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
     finally:
@@ -160,7 +178,8 @@ def candidates(log=print) -> dict[str, list[dict]]:
     for product in PRODUCTS:
         keep = []
         already = 0
-        for r in sorted(out.get(product, []), key=lambda x: RANK[x["score"]]):
+        for r in sorted(out.get(product, []),
+                        key=lambda x: (_area_key(x), RANK[x["score"]])):
             if r["phone_norm"] in held[product]:
                 already += 1
                 continue
@@ -178,9 +197,21 @@ def main() -> None:
     ap.add_argument("--confirm", action="store_true", help="actually write")
     ap.add_argument("--product", default="", help="LBF | SME (default: both)")
     ap.add_argument("--label", default="", help="text for the divider band")
+    ap.add_argument("--source", default="",
+                    help="only leads whose source starts with this, e.g. google_places")
+    ap.add_argument("--score", default="",
+                    help="only these temperatures, e.g. Hot,Warm - so a batch of "
+                         "reviewed listings can go in under a different divider "
+                         "from the ones nobody has reviewed")
     a = ap.parse_args()
 
     ready = candidates()
+    if a.source:
+        ready = {p: [l for l in v if (l.get("source") or "").startswith(a.source)]
+                 for p, v in ready.items()}
+    if a.score:
+        want = {w.strip().title() for w in a.score.split(",") if w.strip()}
+        ready = {p: [l for l in v if l["score"] in want] for p, v in ready.items()}
     label = a.label or f"AI agent — {date.today():%d %b %Y}"
     for product in PRODUCTS:
         if a.product and product != a.product:

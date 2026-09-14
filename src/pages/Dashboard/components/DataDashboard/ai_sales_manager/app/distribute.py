@@ -63,7 +63,7 @@ COLUMNS = [
     ("Feedback", ""),
     ("is_converted?", ""),
     ("Loan Amount", ""),
-    ("Comments", ""),
+    ("Comments", "comments"),
 ]
 
 # The call centre's existing feedback vocabulary (12 options).
