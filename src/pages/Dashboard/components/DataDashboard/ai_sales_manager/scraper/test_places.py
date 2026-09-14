@@ -112,3 +112,31 @@ def test_every_known_403_reason_names_a_fix():
     them cost a session, so each one carries the exact thing to change."""
     for reason, (problem, fix) in _KEY_FAULTS.items():
         assert problem and fix, reason
+
+
+# ── who is not a prospect ────────────────────────────────────────────────────
+
+def test_a_bank_is_not_a_lead():
+    assert to_lead(place(primaryType="bank"), "wholesale shop", "Temeke") is None
+
+
+@pytest.mark.parametrize("name", [
+    "Sai Office Supplis - Head Office",
+    "Spanish Tiles & Sanitary Ware Head Office",
+    "Meela General supply-Arusha Head office",
+    "Sachques Cosmetic headquarters",
+])
+def test_a_tanzanian_trader_calling_their_shop_a_head_office_is_still_a_lead(name):
+    """A rule that refused these read as sensible and was wrong: it deleted four
+    good SMEs out of the six listings it caught. A trader names their own shop
+    a head office; exclusion goes by Google's type, never by a word in a name."""
+    assert to_lead(place(displayName={"text": name}), "hardware shop", "Temeke") is not None
+
+
+@pytest.mark.parametrize("name", [
+    "Tigo Pesa Wakala Sky Beauty Salon", "Wakala Wa Tigo Pesa",
+    "Airtel Shop Mlimani City", "SUNBANK MABATI ARUSHA",
+])
+def test_an_outlet_or_agent_is_still_a_lead(name):
+    """A mobile money agent is precisely PCL's customer."""
+    assert to_lead(place(displayName={"text": name}), "mobile money agent", "Ilala") is not None

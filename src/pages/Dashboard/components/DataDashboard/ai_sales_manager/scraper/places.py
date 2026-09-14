@@ -251,6 +251,22 @@ def estimate(queries: int, max_requests: int = 0) -> dict:
             "max_places": ceiling * PAGE_SIZE}
 
 
+# A listed business that PCL cannot lend working capital to. This is the TYPE
+# Google assigns, never a word in the name, and the distinction was paid for:
+# a rule that also refused anything called "head office" or "headquarters" read
+# as sensible and deleted four good SMEs out of the six it caught - "Sai Office
+# Supplies - Head Office" and "Spanish Tiles & Sanitary Ware Head Office" are
+# exactly the businesses this source exists to find. A Tanzanian trader calls
+# their own shop a head office; only a bank is a bank.
+#
+# The grid already does nearly all of this work: 3,781 Dar and Arusha listings
+# contained one bank and nothing else that did not belong.
+_NOT_A_TRADE = {"bank", "atm", "hospital", "school", "university", "primary_school",
+                "secondary_school", "local_government_office", "embassy",
+                "police", "airport", "church", "mosque", "courthouse",
+                "fire_station", "post_office"}
+
+
 def to_lead(place: dict, category: str, town: str) -> dict | None:
     phone = place.get("nationalPhoneNumber") or place.get("internationalPhoneNumber") or ""
     norm = db.normalize_phone(phone)
@@ -259,6 +275,8 @@ def to_lead(place: dict, category: str, town: str) -> dict | None:
     if place.get("businessStatus") not in (None, "OPERATIONAL"):
         return None
     name = (place.get("displayName") or {}).get("text", "").strip()
+    if (place.get("primaryType") or "") in _NOT_A_TRADE:
+        return None
     rating = place.get("rating")
     n_rev = place.get("userRatingCount") or 0
     ptype = (place.get("primaryType") or "").replace("_", " ")
