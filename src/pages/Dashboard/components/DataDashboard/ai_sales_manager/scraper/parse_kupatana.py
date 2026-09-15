@@ -48,7 +48,16 @@ from app.db import normalize_phone
 
 from .qualify import SellerIndex, classify, is_vehicle, name_is_business
 
-SOURCE_PREFIX = "kupatana"
+# The parser reads OUR OWN extract format, not a particular website: every
+# source's extract() emits the same labelled blob (Title:/Price:/Seller:/Phone:/
+# Attributes:/About). Restricting it to "kupatana" was true when Kupatana was
+# the only template, and it silently stranded 151 jiji car listings that carried
+# a phone - they were crawled, stored, and then never cleaned by anything.
+#
+# jiji blobs carry no `posted` date, so the staleness check simply does not fire
+# for them; everything else parses the same.
+SOURCE_PREFIXES = ("kupatana", "jiji", "cartanzania")
+SOURCE_PREFIX = SOURCE_PREFIXES[0]   # kept: other modules import this name
 
 # ── page furniture: lines that are chrome, never content ──────────────────────
 _CHROME = {
@@ -161,6 +170,25 @@ def parse_fields(raw: str) -> dict:
 
 # ── assembling a clean lead ──────────────────────────────────────────────────
 
+# A jiji regional page carries no location in the advert body, but the page it
+# came from is the location: jiji_morogoro_cars is Morogoro. Without this, 14 of
+# the first 22 car leads reached the call centre with a blank Location column,
+# which is the column a supervisor hands work out by.
+_REGION_FROM_SOURCE = {
+    "pwani": "Pwani", "dar": "Dar es Salaam", "zanzibar": "Zanzibar",
+}
+
+
+def location_from_source(source: str) -> str:
+    """The town a regional source is for, or "" if the key names no region."""
+    m = re.match(r"jiji_(.+)_cars$", source or "")
+    if not m:
+        return ""
+    slug = m.group(1)
+    return _REGION_FROM_SOURCE.get(slug, slug.replace("_", " ").title())
+
+
+
 def to_lead(row: dict, index: SellerIndex | None = None) -> dict | None:
     """Turn one raw row into the clean_leads shape, or None if unusable.
 
@@ -193,7 +221,7 @@ def to_lead(row: dict, index: SellerIndex | None = None) -> dict | None:
         "seller_name": f.get("seller_name", ""),
         "phone": phone,
         "phone_norm": norm,
-        "location": f.get("location", ""),
+        "location": f.get("location") or location_from_source(row.get("source", "")),
         "price_text": price_text,
         "est_value_tzs": str(price) if price else "",
         # The loan is ~60% of the asset, the rule the LLM prompt also used.
@@ -281,14 +309,14 @@ def build_seller_index(log=print) -> SellerIndex:
 
 def clean(product: str = "", source: str = "", limit: int = 0,
           dry_run: bool = False, log=print) -> dict:
-    """Parse every un-cleaned Kupatana row into aism_clean_leads."""
+    """Parse every un-cleaned row in the standard format into aism_clean_leads."""
     todo = [r for r in db.raw_uncleaned(product=product, source=source)
-            if (r.get("source") or "").startswith(SOURCE_PREFIX)]
+            if (r.get("source") or "").startswith(SOURCE_PREFIXES)]
     if limit and limit > 0:
         todo = todo[:limit]
     index = build_seller_index(log)
     seen = db.seen_phone_norms()
-    log(f"{len(todo)} un-cleaned Kupatana listings")
+    log(f"{len(todo)} un-cleaned listing(s) in the standard format")
 
     out: list[dict] = []
     counts = {"new": 0, "exist": 0, "nophone": 0, "skipped": 0,
@@ -347,11 +375,13 @@ def rescore(dry_run: bool = False, log=print) -> dict:
                 "       r.raw_data, r.product, r.source, r.date_obtained "
                 "  FROM aism_clean_leads c JOIN aism_raw_listings r "
                 "    ON r.source_url = c.source_url "
-                " WHERE r.source LIKE %s AND r.raw_data <> ''", (SOURCE_PREFIX + "%",))
+                " WHERE r.raw_data <> '' AND ("
+                + " OR ".join(["r.source LIKE %s"] * len(SOURCE_PREFIXES)) + ")",
+                tuple(p + "%" for p in SOURCE_PREFIXES))
             rows = cur.fetchall()
     finally:
         conn.close()
-    log(f"{len(rows)} Kupatana leads to re-judge")
+    log(f"{len(rows)} lead(s) to re-judge")
 
     updates, changed = [], {"score": 0, "product": 0}
     for (lead_id, url, old_product, old_score, _old_reason,

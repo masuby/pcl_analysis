@@ -374,3 +374,35 @@ def test_a_car_still_gets_through():
         title="Toyota Harrier 2010", price_tzs=22_000_000,
         description="gari langu mwenyewe, full documents"), lone_seller())
     assert verdict == "LBF"
+
+
+# ── a yard touting in the title ──────────────────────────────────────────────
+
+@pytest.mark.parametrize("title", [
+    "Xhwary motorz@0792 405060",
+    "Photidas 0753931379",
+])
+def test_a_title_that_is_a_name_and_a_number_is_a_tout(title):
+    # The description has to read as a car, or is_vehicle never lets the advert
+    # into the LBF branch and this rule is not the one that turns it away - the
+    # first draft of this test passed for the wrong reason.
+    verdict, _s, reason = classify(
+        advert(title=title, description="Gari kali", price_tzs=9_000_000,
+               attributes={"Make": "Toyota", "Model": "Vts old manual",
+                           "Year": "2002", "Transmission": "Manual"}),
+        lone_seller())
+    assert verdict == "NEITHER" and "touting" in reason
+
+
+@pytest.mark.parametrize("title", [
+    "Subaru Legacy 2.5GT Limited 2010 Black",
+    "Toyota RAV4 Limited 2008 Black",
+    "Subaru Forester Limited AWD 2020 White",
+])
+def test_limited_is_a_trim_level_not_a_company(title):
+    """The wider rule — any trading word in the title — was measured first and
+    rejected. It caught these six private owners to catch one dealer."""
+    verdict, _s, _r = classify(
+        advert(title=title, description="gari langu mwenyewe, full documents",
+               price_tzs=20_000_000), lone_seller())
+    assert verdict == "LBF"

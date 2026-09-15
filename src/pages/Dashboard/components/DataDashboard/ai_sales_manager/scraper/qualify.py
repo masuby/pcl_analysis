@@ -419,6 +419,16 @@ _BIKE = re.compile(
     r"bicycle|electric\s?bike)\b|\btvs\d", re.I)
 
 
+# A title that is a name and a phone number is a yard touting, not somebody
+# describing their car: "Xhwary motorz@0792 405060", "Photidas 0753931379".
+# Measured across 1,834 LBF Hot/Warm adverts: it fires on 2, and both are touts.
+# The obvious wider rule - a trading word anywhere in the title - was tried
+# first and rejected, because it caught six Subaru Legacy and Toyota RAV4
+# owners ("Limited" is a TRIM LEVEL) to catch the one dealer.
+_PHONE_IN_TITLE = re.compile(
+    r"(?<!\d)(?:\+?255[\s.-]?|0)[67]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)")
+
+
 def vehicle_kind(title: str, description: str = "", attributes: dict | None = None) -> str:
     """What sort of vehicle this is. Reads the description and the attributes as
     well as the title, because the title often just says "Boxer 2021" while the
@@ -509,6 +519,9 @@ def classify(f: dict, index: SellerIndex, crawl_product: str = "") -> tuple[str,
             n = index.vehicle_count(phone)
             return "NEITHER", "Cold", \
                 f"{n} vehicles from this number — a dealer, not the owner"
+        if _PHONE_IN_TITLE.search(title):
+            return "NEITHER", "Cold", \
+                "the title is a name and a phone number - a yard touting, not an owner"
         if business_name:
             return "NEITHER", "Cold", f"seller {name!r} is a trading name, not an owner"
         if repeat >= SellerIndex.TRADER_ADVERTS:
