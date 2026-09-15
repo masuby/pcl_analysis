@@ -75,19 +75,35 @@ def test_a_vehicle_dealers_other_goods_are_not_sme_either():
 
 # ── LBF: an individual who owns a whole vehicle ──────────────────────────────
 
-def test_bodaboda_motorcycle_is_a_core_lbf_lead():
-    """A TZS 1.75M motorcycle is the core book, not a small asset."""
-    verdict, score, _ = classify(advert(
+def test_a_motorcycle_is_never_an_lbf_lead():
+    """This test used to assert the opposite - that a TZS 1.75M motorcycle was
+    the core LBF book. The user overruled it on 2026-09-15, after 1,157
+    motorcycle owners had reached the LBF call-centre sheet: LBF is secured on
+    a car, and "they should NEVER EVER put data for people with motorcycle at
+    all in LBF". The advert below is otherwise perfect - priced, documented,
+    a private seller - so it is exactly the case the rule has to refuse."""
+    verdict, _score, reason = classify(advert(
         title="TVS CC 125 MPYA KABISA KARIBU", price_tzs=1_750_000,
         description="pkpk haina shida full documents"), lone_seller())
-    assert verdict == "LBF" and score == "Hot"
+    assert verdict == "NEITHER"
+    assert "car only" in reason
 
 
 def test_owners_own_words_make_it_hot():
+    """The owner's own words are still what makes a car Hot - the signal did not
+    change, only the collateral. (This read "Bajaj Pulsar 180" until LBF became
+    car-only; a bajaji is refused now however well the advert reads.)"""
     verdict, score, reason = classify(advert(
-        title="Bajaj Pulsar 180", price_tzs=3_200_000,
+        title="Toyota Premio 2007", price_tzs=13_200_000,
         description="ni yakwangu mm mwenyewe, nmeitunza sana"), lone_seller())
     assert verdict == "LBF" and score == "Hot"
+
+
+def test_a_bajaji_is_never_an_lbf_lead():
+    verdict, _s, reason = classify(advert(
+        title="Bajaj Pulsar 180", price_tzs=3_200_000,
+        description="ni yakwangu mm mwenyewe, nmeitunza sana"), lone_seller())
+    assert verdict == "NEITHER" and "car only" in reason
 
 
 def test_a_bicycle_is_not_a_vehicle():
@@ -286,8 +302,8 @@ def test_a_recent_advert_survives():
     from datetime import date, timedelta
     recent = (date.today() - timedelta(days=30)).strftime("%d.%m.%Y")
     verdict, _, _ = classify(advert(
-        title="Boxer 150", price_tzs=1_500_000, posted=recent,
-        description="pkpk full documents"), lone_seller())
+        title="Toyota IST 2006", price_tzs=13_500_000, posted=recent,
+        description="gari langu mwenyewe, full documents"), lone_seller())
     assert verdict == "LBF"
 
 
@@ -315,3 +331,46 @@ def test_two_signals_make_it_hot_one_makes_it_warm(signals_desc, expected):
         title="Vifaa vya ujenzi", seller_name="Ajstore",
         description=signals_desc, price_tzs=200_000), lone_seller())
     assert verdict == "SME" and score == expected
+
+
+# ── LBF is a car and nothing else ────────────────────────────────────────────
+#
+# Set on 2026-09-15. Ambiguity resolves AWAY from "car": a listing that mentions
+# a motorcycle anywhere must not be handed to the call centre as one.
+
+@pytest.mark.parametrize("title,desc", [
+    ("Boxer 150", "pkpk full documents"),
+    ("TVS King", "bajaji nzuri"),
+    ("Pikipiki BMW 1200cc", "big bike"),
+    ("Haojue scooter", "skuta safi"),
+    ("Mitsubishi Canter 4d33", "lori zuri"),
+    ("Sanlg three wheeler", "tuk tuk"),
+])
+def test_nothing_but_a_car_reaches_lbf(title, desc):
+    verdict, _s, reason = classify(
+        advert(title=title, description=desc, price_tzs=2_000_000), lone_seller())
+    assert verdict != "LBF", reason
+
+
+def test_a_motorcycle_named_only_in_the_description_is_still_refused():
+    """The title often says nothing useful. Reading only it is how a Caterpillar
+    once passed as a private car."""
+    verdict, _s, _r = classify(advert(
+        title="Nauza kwa bei nzuri 2021", price_tzs=1_800_000,
+        description="pikipiki boxer mpya, mwenyewe"), lone_seller())
+    assert verdict != "LBF"
+
+
+def test_a_motorcycle_named_only_in_an_attribute_is_still_refused():
+    verdict, _s, _r = classify(advert(
+        title="Nauza 2021 nzuri sana", price_tzs=1_800_000,
+        description="mwenyewe, haina shida",
+        attributes={"Make": "Boxer", "Condition": "Used"}), lone_seller())
+    assert verdict != "LBF"
+
+
+def test_a_car_still_gets_through():
+    verdict, _s, _r = classify(advert(
+        title="Toyota Harrier 2010", price_tzs=22_000_000,
+        description="gari langu mwenyewe, full documents"), lone_seller())
+    assert verdict == "LBF"

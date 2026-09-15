@@ -297,6 +297,34 @@ look vibe coded. The recipient is a manager who wants the numbers.
 - **AI-agent distribution sheets — batch dividers.** A divider is a row with text in A and NOTHING in B–K. Two things silently un-navy them: (1) `_format` repaints the tab, so the navy must be re-applied by `_restyle_dividers` (it is, inside `_format`); (2) the even-row banding is a *conditional format*, which displays over the cell colour, so the rule excludes rows with nothing in B–K — never write an empty string `""` into a divider row's cells (Sheets' `COUNTA` counts it and the banding wins). Clear, don't write. Fixed 2026-09-08 after all nine dividers had gone grey.
 - **CRM distribution packs** (`backend/internal/handlers/crm_pack*.go`, `CRM/CRMPack.jsx`) mirror the MAMBU run: assigned CRM leads → FULL / By_Branch / By_Cluster / By_Zone workbooks, zipped under `crm/packs/`, emailed by the shared `DistributeModal`. Cluster and zone are taken from the roster's **map tab by branch first**; the Team Leader's own row is only the fallback, because people tabs spell zones loosely ("Highland Region" vs "Highland Zone") and the zone managers are listed under the map tab's names. Branches missing from the map (person-named CS sub-branches such as "Mwanza - Amidiana") land in an Unknown cluster/zone and can only be sent by branch — fix that on the sheet, not in code. Both MAMBU and CRM sends accept an operator Cc list; test mode drops it.
 - **AI-agent cleaning no longer needs an LLM.** `scraper/parse_kupatana.py` reads the advert (every Kupatana page is one template, so extraction is just reading labelled fields) and `scraper/qualify.py` decides what it is worth. The rules in qualify.py were derived by having 300 real adverts read and scored, and are pinned in `scraper/test_qualify.py` — that reading is not repeatable on demand, so **a rule change that breaks a test is undoing a decision, not refining one**. `--rescore` re-judges rows the old LLM pass scored. What matters most: the same phone number posts hundreds of adverts (one carries 530), so counting adverts per phone across the whole corpus is what separates a dealer from an owner; Kupatana's own category is noise and must never be branched on; `tunauza` (we sell) is a business and `nauza` (I sell) is a person.
+- **LBF IS A CAR. SME IS A BUSINESS. NEVER ANYTHING ELSE.** Set by the user on
+  2026-09-15, in these words: *"the data should only be Cars ... they should
+  NEVER EVER put data for people with motorcycle at all in LBF, and in SME we
+  only put business there"*. LBF is a loan secured on the car, so a motorcycle,
+  a bajaji or three-wheeler, a big bike, a bicycle or a lorry is not collateral
+  this product takes — however good the advert is. `classify` refuses anything
+  where `vehicle_kind() != "car"`, and `vehicle_kind` reads the description and
+  the attributes as well as the title, because the title often says only
+  "Boxer 2021".
+  - **Ambiguity resolves AWAY from car.** A listing that mentions a motorcycle
+    anywhere must not be handed over as one.
+  - Spelling is the trap. 1,157 motorcycle owners had already reached the LBF
+    sheet, and a second pass found more hiding as `BOEXR NEW`, `Boxar 125 DES`,
+    `Tvs125`, `Pikpiki`, `Kliki` — each read as *not a vehicle at all*, so
+    nothing ever tested whether it was a bike. The loose spellings in `_BIKE`
+    and `_VEHICLE_NOUN` are load-bearing; never "tidy" them.
+  - This reverses an earlier decision. `test_qualify.py` used to assert that a
+    TZS 1.75M motorcycle was *the core LBF book*. That test now asserts the
+    opposite and says why. The general rule that a broken qualify test is an
+    undone decision still holds — this one was undone deliberately, by the user.
+  - Cleaning up after it: 1,113 rows were removed from the LBF August and
+    September AI tabs (825 motorcycles, then 288 more that were not cars —
+    bicycles, phones, rims, trucks). They are kept in the workbook's
+    `Removed — motorcycles (not LBF)` and `Removed — not a car (not LBF)` tabs
+    **with the call-centre feedback that had been typed against them**, because
+    789 had already been worked. Only rows the AI agent put there were touched;
+    the 1,792 leads from the call centre's own sources (USSD, website, RAW
+    BACKUP) were left alone.
 - **Never trust a stored score at the point of upload.** Re-derive the verdict from the advert text for every lead about to be sent. Leads cleaned in an earlier pass keep that pass's judgement, which is how a tractor sat in the LBF pile marked "individual seller". Audit a sample of any batch before it reaches the call centre — doing so on 80 leads found six separate defects, including four-year-old adverts and a butchery listed at TZS 4,500,000,000 because the price regex used `\s` and ran past the end of its line.
 - **Google Places is billed by its most expensive field.** A Text Search is
   charged at the highest SKU any field in the mask belongs to, and

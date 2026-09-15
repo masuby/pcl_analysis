@@ -204,10 +204,11 @@ def name_is_business(name: str) -> bool:
 # ── 3. what the advert is selling ────────────────────────────────────────────
 
 _VEHICLE_NOUN = re.compile(
-    r"\b(pikipiki|pikipik|pkpk|pikpk|piki|boda\s?boda|boda|bajaji|bajaj|"
+    r"\b(pikipiki|pikipik|pkpk|pikpk|pikpiki|piki|boda\s?boda|boda|bajaji|bajaj|"
     r"motor\s?bike|motorbike|motorcycle|motobike|scooter|skuta|gari|magari|"
     r"lori|canter|tipper|truck|toyota|nissan|mitsubishi|suzuki|subaru|isuzu|"
-    r"mercedes|benz|land\s?rover|defender|boxer|boxre|tvs|honda|fekon|sanlg|"
+    r"mercedes|benz|land\s?rover|defender|boxer|boxre|boxar|boexr|boxa|"
+    r"tvs\d*|honda|fekon|sanlg|baiskeli|bicycle|kliki|"
     r"san\s?lg|haojue|sky\s?go|jincheng|hino|fuso|dyna|vario|pulsar|\bbmw\b|"
     r"harrier|prado|hilux|coaster|crown|\bist\b|wish|noah|ractis|kluger|passo|"
     r"vitz|alphard|forester|dualis|spacio|funcargo|patrol|click|guta|wanhoo)\b",
@@ -408,14 +409,27 @@ def advert_age_days(f: dict) -> int | None:
 _BIG_BIKE = re.compile(r"\b([6-9]\d{2}|1\d{3})\s?cc\b", re.I)
 _BAJAJI = re.compile(r"\b(bajaji|bajaj|three\s?wheel|tuk\s?tuk|\bking\b)\b", re.I)
 _TRUCK = re.compile(r"\b(canter|lori|truck|tipper|fuso|hino|dyna|coaster|bus)\b", re.I)
+# Anything on two or three wheels. Spelt loosely on purpose: these are the
+# forms real sellers type, and under a car-only LBF a missed spelling is a
+# motorcycle owner reaching the call centre.
 _BIKE = re.compile(
-    r"\b(pikipiki|pikipik|pkpk|pikpk|piki|boda|motor\s?bike|motorbike|motorcycle|"
-    r"motobike|scooter|skuta|boxer|boxre|tvs|haojue|fekon|sanlg|jincheng|"
-    r"sky\s?go|vario|pulsar|click|guta)\b", re.I)
+    r"\b(pikipiki|pikipik|pkpk|pikpk|pikpiki|piki|boda|motor\s?bike|motorbike|motorcycle|"
+    r"motobike|scooter|skuta|boxer|boxre|boxar|boexr|boxa|tvs|haojue|fekon|"
+    r"sanlg|jincheng|sky\s?go|vario|pulsar|click|kliki|guta|baiskeli|"
+    r"bicycle|electric\s?bike)\b|\btvs\d", re.I)
 
 
-def vehicle_kind(title: str) -> str:
-    t = title or ""
+def vehicle_kind(title: str, description: str = "", attributes: dict | None = None) -> str:
+    """What sort of vehicle this is. Reads the description and the attributes as
+    well as the title, because the title often just says "Boxer 2021" while the
+    make sits in an attribute - the same hole that let a Caterpillar through
+    is_vehicle when that only read the title.
+
+    Ambiguity resolves AWAY from "car": LBF is secured on a car, so a listing
+    that mentions a motorcycle anywhere must not be handed over as one.
+    """
+    t = " ".join([title or "", description or "",
+                  " ".join(str(v) for v in (attributes or {}).values())])
     if _TRUCK.search(t):
         return "truck"
     if _BAJAJI.search(t):
@@ -474,7 +488,16 @@ def classify(f: dict, index: SellerIndex, crawl_product: str = "") -> tuple[str,
 
     # ---- LBF: an individual who owns a whole, road-going vehicle ----
     if is_vehicle(title, desc, f.get("attributes")):
-        kind = vehicle_kind(title)
+        kind = vehicle_kind(title, desc, f.get("attributes"))
+
+        # LBF is a loan secured on a CAR. A motorcycle, a bajaji, a big bike or
+        # a lorry is not collateral this product takes, whatever else the advert
+        # has going for it. Confirmed by the user on 2026-09-15 after 1,157
+        # motorcycle owners reached the LBF call-centre sheet: "they should
+        # NEVER EVER put data for people with motorcycle at all in LBF".
+        if kind != "car":
+            return "NEITHER", "Cold",                 f"a {kind.replace('_', ' ')} - LBF is secured on a car only"
+
         floor = FLOORS[kind]
 
         # The lead IS this vehicle; once it is sold there is nothing to secure.
