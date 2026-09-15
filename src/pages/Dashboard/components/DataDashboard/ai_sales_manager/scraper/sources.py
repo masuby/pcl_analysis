@@ -194,6 +194,10 @@ JIJI_SME_CATEGORIES = [
     "agriculture-and-foodstuff",
 ]
 
+_NOT_A_CAR_NOTE = ("DISABLED 2026-09-15: LBF is secured on a car only, so every "
+                   "advert from this category is refused at the gate. Nothing is "
+                   "wrong with the source.")
+
 _ROBOTS_JIJI = ("robots.txt checked 2026-08-10: User-agent * disallows only "
                 "/test/, /admin/, /crm/, /auth/facebook — listing paths permitted")
 _ROBOTS_CARTANZANIA = ("DISABLED 2026-08-21: the site now answers every page with a "
@@ -238,19 +242,23 @@ SOURCES: dict[str, Source] = {
         listing_re=re.compile(
             r"/[a-z0-9-]+/motorcycles-and-scooters/[a-zA-Z0-9-]+\.html", re.I),
         extract=jiji_extract,
-        robots_note=_ROBOTS_JIJI,
+        robots_note=("DISABLED 2026-09-15: LBF is secured on a car only. Kept "
+                     "because the source works; the product no longer takes what "
+                     "it sells."),
+        enabled=False,
         categories=["motorcycles-and-scooters"],
     ),
 }
 
-# The rest of the vehicle tree. LBF lends against the logbook, so anything that
-# HAS one qualifies — buses, lorries and plant, not just cars and motorcycles.
-# Car parts are deliberately excluded: an exhaust has no logbook, and the seller
-# is a parts trader (an SME lead at best, never an LBF one).
+# The rest of the vehicle tree, DISABLED 2026-09-15. The reasoning below was
+# sound while LBF lent against any logbook; it does not survive the product
+# being narrowed to cars. A lorry has a logbook and is still not a car.
 #
-# These also skew towards owner-operators rather than dealers, which is what
-# actually matters: a car page can be twenty adverts from one showroom against a
-# single phone number, whereas a man selling his own lorry is one new person.
+#   "LBF lends against the logbook, so anything that HAS one qualifies - buses,
+#    lorries and plant... a man selling his own lorry is one new person."
+#
+# Car parts stay excluded for the original reason: an exhaust has no logbook and
+# the seller is a parts trader, an SME lead at best.
 JIJI_VEHICLE_CATEGORIES = {
     "buses": "buses",
     "trucks-commercial-agricultiral": "trucks & commercial vehicles",
@@ -267,7 +275,8 @@ for _cat, _label in JIJI_VEHICLE_CATEGORIES.items():
         listing_re=re.compile(
             rf"/[a-z0-9-]+/{re.escape(_cat)}/[a-zA-Z0-9-]+\.html", re.I),
         extract=jiji_extract,
-        robots_note=_ROBOTS_JIJI,
+        robots_note=_NOT_A_CAR_NOTE,
+        enabled=False,
         categories=[_cat],
     )
 
@@ -388,15 +397,26 @@ _ROBOTS_KUPATANA = ("robots.txt checked 2026-08-10: User-agent * disallows only 
 #     vehicles       13.2                        (dealers re-posting stock)
 # The owner-operator categories are therefore worth far more per page crawled
 # than the car categories, even though the car categories look bigger.
+# LBF is secured on a CAR (see CLAUDE.md, set 2026-09-15), so these are the only
+# Kupatana categories that can still produce an LBF lead.
 KUPATANA_LBF_CATEGORIES = [
+    "saloons-mpv-s-4wd-s-pickups",
+    "vehicles",
+]
+
+# Kept, disabled, rather than deleted: the categories themselves are fine and
+# the crawler works on them — it is the PRODUCT that no longer accepts what they
+# sell. Crawling them now costs an hour and yields nothing but refusals, because
+# every advert is judged again at the gate and a motorcycle is turned away.
+# Re-enable only if LBF ever lends against something other than a car.
+KUPATANA_NOT_A_CAR_CATEGORIES = [
     "three-wheelers",
     "motorbikes",
     "motorcycles",
     "pikipiki",
-    "saloons-mpv-s-4wd-s-pickups",
     "trucks-trailers-buses",
-    "vehicles",
 ]
+
 
 # Categories whose sellers are running a business rather than clearing a shelf:
 # commercial supplies, trade equipment, wholesale stock, plant and machinery.
@@ -428,7 +448,8 @@ KUPATANA_SME_CATEGORIES = [
     "tractors-excavators-graders-etc",
 ]
 
-for _cat in KUPATANA_LBF_CATEGORIES:
+for _cat in KUPATANA_LBF_CATEGORIES + KUPATANA_NOT_A_CAR_CATEGORIES:
+    _car = _cat in KUPATANA_LBF_CATEGORIES
     SOURCES[f"kupatana_{_cat.replace('-', '_')}"] = Source(
         key=f"kupatana_{_cat.replace('-', '_')}",
         label=f"Kupatana — {_cat.replace('-', ' ')}",
@@ -437,7 +458,8 @@ for _cat in KUPATANA_LBF_CATEGORIES:
         index_url=_kupatana_index(_cat),
         listing_re=KUPATANA_LISTING_RE,
         extract=kupatana_extract,
-        robots_note=_ROBOTS_KUPATANA,
+        robots_note=_ROBOTS_KUPATANA if _car else _NOT_A_CAR_NOTE,
+        enabled=_car,
         categories=[_cat],
     )
 
