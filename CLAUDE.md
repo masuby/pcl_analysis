@@ -325,6 +325,16 @@ look vibe coded. The recipient is a manager who wants the numbers.
     789 had already been worked. Only rows the AI agent put there were touched;
     the 1,792 leads from the call centre's own sources (USSD, website, RAW
     BACKUP) were left alone.
+- **The SME block sitting in the LBF September sheet is deliberate.** On
+  2026-09-15 the user moved 3,000 Google Maps business leads out of the SME tab
+  into the LBF one, under the band *"Google Maps business listings (SME) — for
+  LBF call centre"*, so the LBF call centre could work them first. Their
+  **Product column says SME on purpose** — that is the label that tells an agent
+  what they are looking at. This is an operational loan of the data, not a
+  reclassification, and it is the one sanctioned exception to the car-only rule
+  above. **Do not "clean" these rows out of LBF as a rule violation** — check
+  with the user first. They were removed from the SME tab in the same move, so
+  they exist in one place only; 778 Google leads stayed behind on SME.
 - **Never trust a stored score at the point of upload.** Re-derive the verdict from the advert text for every lead about to be sent. Leads cleaned in an earlier pass keep that pass's judgement, which is how a tractor sat in the LBF pile marked "individual seller". Audit a sample of any batch before it reaches the call centre — doing so on 80 leads found six separate defects, including four-year-old adverts and a butchery listed at TZS 4,500,000,000 because the price regex used `\s` and ran past the end of its line.
 - **Google Places is billed by its most expensive field.** A Text Search is
   charged at the highest SKU any field in the mask belongs to, and
