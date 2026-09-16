@@ -204,6 +204,26 @@ The root `.gitignore` MUST exclude:
 - **Local dev DB**: container `pcl-postgres`, db `pcl_analysis`, user `pcl_user`, password in `backend/.env`.
 - **Migrations**: applied manually via `docker exec pcl-postgres psql -U pcl_user -d pcl_analysis -f /tmp/NNN.sql`. There is no automatic migration runner. Always copy the file into the container first with `docker cp`.
 - **Google Sheets credentials**: `backend/credentials/sheets-service-account.json` — the service account is `sales-reps-status@…`. It has read/write access to two workbooks: the LBF/SME call-centre sheet (id `1n2U_Tt-7fC3hRRIfFHrcyTT9HkN408C_YN4jUbPFeZE`) and the CS sheet (id `14bZuq-NLlIp7HToHCrhn7HA3eQQtjRsKt0z1Nbzy1bI`). Both have a `MAY 2026 SHEET` tab as the canonical analyst view.
+- **Rotating the Gmail app password.** `daniel@platinumcredit.co.tz` is used by
+  9 local `.env` files and 7 on the server, often under several alias keys in
+  the same file (`EMAIL_PASSWORD`, `EMAIL_APP_PASSWORD`, `APP_PASSWORD`), so
+  changing one key in one file is never enough — the symptom is
+  `535 5.7.8 Username and Password not accepted`. Find them by fingerprint, not
+  by eye: hash each value and group. Server paths are
+  `~/pcl_analysis/.env` plus `~/pcl_analysis/automation/{CALL_CENTER,CRM,
+  Management,MTD,MTD/EMAIL_MTD,REPS_MONTHLY_STATUS}/.env`.
+  - **`pcl-automation` needs no restart** — compose bind-mounts `./automation`
+    to `/app`, so it reads the host's files live. **`pcl-api` does**, because
+    compose passes `EMAIL_APP_PASSWORD` through `environment:`; the running
+    container keeps the old value until it is recreated
+    (`docker compose up -d --no-build api`).
+  - **`reporting@platinumcredit.co.tz` is a SEPARATE account** with its own app
+    password in `Management/.env` as `MANAGEMENT_EMAIL_PASSWORD`. It is not part
+    of the rotation — overwriting it with daniel's password breaks the
+    management report.
+  - Never put the secret in a command line (it shows in `ps` and in the
+    transcript): write the search pattern to a file and `grep -f`, and edit
+    files over SFTP rather than with `sed -i 's/old/new/'`.
 - **xlsx-js-style freeze panes**: must use `ws['!views'] = [{ pane: { state: 'frozen', xSplit, ySplit, topLeftCell, activePane: 'bottomRight' }, ... }]`. Setting `ws['!freeze']` alone is silently dropped on write.
 - **Frontend shared spinner**: `src/components/Common/Loading/LoadingSpinner.jsx`. Pass `fullScreen` for the PayPal-style cloud overlay. Used everywhere; do not introduce other spinner styles.
 - **ReportShell**: `src/pages/Dashboard/components/DepartmentalDashboard/components/ReportShell/`. Wraps any auto-loading DepartmentalDashboard section so it only mounts after the user clicks Generate Report. Reuses LoadingSpinner.
