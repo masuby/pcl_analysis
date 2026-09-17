@@ -9,10 +9,12 @@ package handlers
 // added as 07… must still be caught when a loan export writes it as 255….
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pcl/pcl-api/internal/database"
@@ -83,8 +85,8 @@ func AddDoNotContact(c *gin.Context) {
 	}
 
 	if _, err := database.DB.Exec(
-		`INSERT INTO mambu_do_not_contact (phone, raw_input, reason, added_by)
-		 VALUES ($1, $2, NULLIF(btrim($3), ''), $4)
+		`INSERT INTO mambu_do_not_contact (phone, raw_input, reason, added_by, source)
+		 VALUES ($1, $2, NULLIF(btrim($3), ''), $4, 'Web')
 		 ON CONFLICT (phone) DO UPDATE
 		    SET reason = COALESCE(NULLIF(btrim($3), ''), mambu_do_not_contact.reason)`,
 		phone, strings.TrimSpace(req.Phone), req.Reason, addedBy,
@@ -92,6 +94,11 @@ func AddDoNotContact(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
 		return
 	}
+
+	// The tab is a mirror of this table, so it is rewritten after every change.
+	// In the background: the number is already saved, and a slow or unreachable
+	// Sheets must not hold up the person taking the complaint.
+	syncDNCQuietly("add")
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -102,7 +109,12 @@ func AddDoNotContact(c *gin.Context) {
 }
 
 // ListDoNotContact — GET /api/mambu/do-not-contact
+//
+// Pulls the DO_NOT_CONTACT tab in first, so a number somebody typed into the
+// spreadsheet appears in the app without anyone having to re-enter it.
 func ListDoNotContact(c *gin.Context) {
+	syncDNCIfStale(c.Request.Context())
+
 	rows, err := database.DB.Query(
 		`SELECT phone, COALESCE(raw_input,''), COALESCE(reason,''), created_at
 		   FROM mambu_do_not_contact ORDER BY created_at DESC`)
@@ -147,11 +159,23 @@ func DeleteDoNotContact(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "That number is not on the list"})
 		return
 	}
+	// Rewrite the tab without it. Removal only ever travels app -> sheet; a row
+	// vanishing from the spreadsheet is not treated as a removal.
+	syncDNCQuietly("delete")
+
 	c.JSON(http.StatusOK, gin.H{"success": true, "phone": phone, "removed": n})
 }
 
 // doNotContactSet loads the list for use while building lead files.
+//
+// The sheet is read first: somebody who typed a number into the DO_NOT_CONTACT
+// tab this morning expects it gone from this afternoon's file, and expecting
+// them to also enter it in the app is how a complaint turns into a second call.
 func doNotContactSet() (map[string]bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	syncDNCIfStale(ctx)
+
 	rows, err := database.DB.Query(`SELECT phone FROM mambu_do_not_contact`)
 	if err != nil {
 		return nil, err

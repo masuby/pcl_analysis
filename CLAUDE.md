@@ -315,6 +315,24 @@ look vibe coded. The recipient is a manager who wants the numbers.
 - EA Trip Excel report: Qualified / Not Qualified sheets show MANAGERS ONLY (LBF Branch Managers + CS/SME Regional Managers). Sales agents go in `All Agents` sheet only.
 - Always use `Title` from the Users file (not `Role`) for the agent identifier — confirmed by user on 2026-05-23.
 - **AI-agent distribution sheets — batch dividers.** A divider is a row with text in A and NOTHING in B–K. Two things silently un-navy them: (1) `_format` repaints the tab, so the navy must be re-applied by `_restyle_dividers` (it is, inside `_format`); (2) the even-row banding is a *conditional format*, which displays over the cell colour, so the rule excludes rows with nothing in B–K — never write an empty string `""` into a divider row's cells (Sheets' `COUNTA` counts it and the banding wins). Clear, don't write. Fixed 2026-09-08 after all nine dividers had gone grey.
+- **Do-not-contact is mirrored to the Zone and Clusters sheet.** The list lives
+  in `mambu_do_not_contact` and in the workbook's `DO_NOT_CONTACT` tab, and a
+  number can be added from either side: the app rewrites the tab after every add
+  and delete, and `syncDNCIfStale` pulls the tab in before the list is shown or a
+  lead file is built. `backend/internal/handlers/mambu_dnc_sheet.go`.
+  - **The sheet can ADD but never REMOVE.** A row deleted from a spreadsheet
+    looks exactly like a row nobody has typed yet, so mirroring deletions would
+    let a cleared tab silently empty the list that stops people being called.
+    Removal is app-only, and the tab is then rewritten without the number.
+  - **Never infer where a number came from by checking whether it is on the
+    tab** — the tab is a full mirror, so after the first sync everything is on
+    it and the answer is always "Sheet". That is what the `source` column
+    (migration 030) is for; it is stamped on the way in.
+  - A row whose phone cannot be read is **put back on the tab** flagged
+    "NOT SAVED", never dropped. Silently deleting what somebody typed is worse
+    than a messy tab, and they would have no way to know it never took.
+  - Sheets being unreachable never fails an add or a distribution run: the
+    database decides, the tab is only a mirror.
 - **CRM distribution packs** (`backend/internal/handlers/crm_pack*.go`, `CRM/CRMPack.jsx`) mirror the MAMBU run: assigned CRM leads → FULL / By_Branch / By_Cluster / By_Zone workbooks, zipped under `crm/packs/`, emailed by the shared `DistributeModal`. Cluster and zone are taken from the roster's **map tab by branch first**; the Team Leader's own row is only the fallback, because people tabs spell zones loosely ("Highland Region" vs "Highland Zone") and the zone managers are listed under the map tab's names. Branches missing from the map (person-named CS sub-branches such as "Mwanza - Amidiana") land in an Unknown cluster/zone and can only be sent by branch — fix that on the sheet, not in code. Both MAMBU and CRM sends accept an operator Cc list; test mode drops it.
 - **AI-agent cleaning no longer needs an LLM.** `scraper/parse_kupatana.py` reads the advert (every Kupatana page is one template, so extraction is just reading labelled fields) and `scraper/qualify.py` decides what it is worth. The rules in qualify.py were derived by having 300 real adverts read and scored, and are pinned in `scraper/test_qualify.py` — that reading is not repeatable on demand, so **a rule change that breaks a test is undoing a decision, not refining one**. `--rescore` re-judges rows the old LLM pass scored. What matters most: the same phone number posts hundreds of adverts (one carries 530), so counting adverts per phone across the whole corpus is what separates a dealer from an owner; Kupatana's own category is noise and must never be branched on; `tunauza` (we sell) is a business and `nauza` (I sell) is a person.
 - **LBF IS A CAR. SME IS A BUSINESS. NEVER ANYTHING ELSE.** Set by the user on

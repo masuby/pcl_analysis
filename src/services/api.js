@@ -888,6 +888,14 @@ export const mambuAPI = {
     });
   },
 
+  // Reconcile with the DO_NOT_CONTACT tab of the Zone and Clusters workbook:
+  // numbers typed into the sheet are pulled in, then the tab is rewritten from
+  // the list. Runs on its own after every add and delete, so this is only for
+  // when somebody wants it done now.
+  async syncDoNotContact() {
+    return apiRequest('/api/mambu/do-not-contact/sync', { method: 'POST' });
+  },
+
   // --- Source files (Loan / Clients exports) ---
   // Uploaded once and reused by every product, so LBF, SME and Agrifinance all
   // read the same data. Replaced only by an explicit upload.

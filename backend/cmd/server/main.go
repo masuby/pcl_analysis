@@ -137,6 +137,7 @@ func main() {
 				mambu.GET("/do-not-contact", handlers.ListDoNotContact)
 				mambu.POST("/do-not-contact", handlers.AddDoNotContact)
 				mambu.DELETE("/do-not-contact/:phone", handlers.DeleteDoNotContact)
+				mambu.POST("/do-not-contact/sync", handlers.SyncDoNotContactHandler)
 
 				// The Loan / Clients exports the refinance and reactivation
 				// runs read. Uploaded once, shared by LBF, SME and Agrifinance,

@@ -36,6 +36,7 @@ const DoNotContactModal = ({ onClose }) => {
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(null);
   const [filter, setFilter] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +50,27 @@ const DoNotContactModal = ({ onClose }) => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Opening the list already pulls the sheet in on the server; this is the
+  // button for when somebody has just typed a number into the tab and wants it
+  // reflected without waiting.
+  const syncSheet = async () => {
+    setSyncing(true);
+    setNotice(null);
+    try {
+      const res = await mambuAPI.syncDoNotContact();
+      if (res?.success) {
+        setNotice({ kind: 'ok', text: res.message });
+        await load();
+      } else {
+        setNotice({ kind: 'bad', text: res?.error || 'The sheet could not be reached.' });
+      }
+    } catch (e) {
+      setNotice({ kind: 'bad', text: e.message || String(e) });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Esc closes, so the list does not trap somebody mid-task.
   useEffect(() => {
@@ -105,6 +127,12 @@ const DoNotContactModal = ({ onClose }) => {
               distributed. Type the number however you have it — it is stored in
               one standard form so it is matched wherever it appears.
             </p>
+            <p className="dnc-sub">
+              The list is mirrored to the <strong>DO_NOT_CONTACT</strong> tab of
+              the Zone and Clusters sheet. Adding a number there works too — it
+              is picked up the next time this list is opened or a file is built.
+              Removing one is done here, not in the sheet.
+            </p>
           </div>
           <button className="dnc-x" onClick={onClose} aria-label="Close">×</button>
         </div>
@@ -135,6 +163,15 @@ const DoNotContactModal = ({ onClose }) => {
           </div>
           <button className="dnc-btn" type="submit" disabled={!phone.trim() || saving}>
             {saving ? 'Saving…' : 'Add to list'}
+          </button>
+          <button
+            className="dnc-link"
+            type="button"
+            onClick={syncSheet}
+            disabled={syncing}
+            title="Pull in anything typed into the sheet and rewrite the tab"
+          >
+            {syncing ? 'Syncing…' : 'Sync with the sheet'}
           </button>
         </form>
 
