@@ -20,10 +20,12 @@ const BranchAnalysis = ({ data, selectedMonth }) => {
     };
 
     const branches = [
-      { name: 'CS', data: data.csData, color: '#3b82f6' },
+      // Zanzibar sits in this same chart, so the CS bar is named for the half
+      // it actually holds.
+      { name: 'CS Mainland', data: data.csData, color: '#3b82f6' },
       { name: 'LBF', data: data.lbfData, color: '#8b5cf6' },
       { name: 'SME', data: data.smeData, color: '#22c55e' },
-      { name: 'Zanzibar', data: data.zanzibarData, color: '#f59e0b' }
+      { name: 'CS Zanzibar', data: data.zanzibarData, color: '#f59e0b' }
     ];
 
     return branches.map(branch => ({

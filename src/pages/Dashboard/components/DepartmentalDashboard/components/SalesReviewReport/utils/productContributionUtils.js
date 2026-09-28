@@ -4,9 +4,14 @@
  */
 import { formatBillions } from '../../../../ManagementDashboard/utils/summaryUtils';
 
-// Product keys in display order (matches ManagementDashboard transform: CS, LBF branches, SME, ZANZIBAR, AgriFinance)
+/* Product keys in display order, as the management report names its rows.
+ *
+ * 'CS - MAINLAND' and 'CS - ZANZIBAR' are what the report calls the two halves
+ * of CS since they were split. The old names were 'CS' and 'ZANZIBAR', and
+ * while this file still asked for 'CS' the contribution chart showed CS at
+ * zero — csBranches['CS'] has been an empty bucket ever since the rename. */
 const PRODUCT_KEYS = [
-  'CS',
+  'CS - MAINLAND',
   'Cs Asset Finance',
   'LBF',
   'IPF',
@@ -16,9 +21,16 @@ const PRODUCT_KEYS = [
   'LBF QUICKCASH',
   'LBF-FLEX',
   'SME',
-  'ZANZIBAR',
+  'CS - ZANZIBAR',
   'AgriFinance'
 ];
+
+// What a reader should see; the keys above are the report's own spelling.
+const PRODUCT_LABELS = {
+  'CS - MAINLAND': 'CS Mainland',
+  'CS - ZANZIBAR': 'CS Zanzibar',
+};
+const labelFor = (key) => PRODUCT_LABELS[key] || key;
 
 // Distinct colors for pie and list (one per product)
 const PRODUCT_COLORS = [
@@ -34,6 +46,21 @@ const PRODUCT_COLORS = [
   '#84cc16',
   '#f97316'
 ];
+
+/* Disbursement for one product key.
+ *
+ * Kept in one place because the whole-report and per-section builders below
+ * both need it, and when they each carried their own copy of the chain only
+ * one of them learnt about Zanzibar. */
+function valueForKey(report, key, getVal) {
+  if (key === 'CS - ZANZIBAR' || key === 'ZANZIBAR') return getVal(report.zanzibar);
+  if (key === 'SME') return getVal(report.sme);
+  if (key === 'AgriFinance') return getVal(report.agrifinance);
+  if (['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'].includes(key)) {
+    return getVal(report.lbfBranches?.[key]);
+  }
+  return getVal(report.csBranches?.[key]);
+}
 
 function getDisbursementFromBranch(branchData) {
   if (!branchData || typeof branchData !== 'object') return 0;
@@ -81,20 +108,9 @@ function extractProductsFromReport(report) {
   const getVal = (branchObj) => getDisbursementFromBranch(branchObj);
 
   PRODUCT_KEYS.forEach((key, i) => {
-    let value = 0;
-    if (report.csBranches && (key === 'CS' || key === 'Cs Asset Finance')) {
-      value = getVal(report.csBranches[key]);
-    } else if (report.lbfBranches && ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'].includes(key)) {
-      value = getVal(report.lbfBranches[key]);
-    } else if (key === 'SME' && report.sme) {
-      value = getVal(report.sme);
-    } else if (key === 'ZANZIBAR' && report.zanzibar) {
-      value = getVal(report.zanzibar);
-    } else if (key === 'AgriFinance' && report.agrifinance) {
-      value = getVal(report.agrifinance);
-    }
+    const value = valueForKey(report, key, getVal);
     products.push({
-      name: key,
+      name: labelFor(key),
       value,
       percentage: 0,
       color: PRODUCT_COLORS[i % PRODUCT_COLORS.length],
@@ -168,7 +184,7 @@ export function getProductContributionForSection(parsedReports, selectedMonth, s
     return {
       monthLabel,
       products: keys.map((name, i) => ({
-        name,
+        name: labelFor(name),
         value: 0,
         percentage: '0.00',
         color: PRODUCT_COLORS[i % PRODUCT_COLORS.length],
@@ -181,14 +197,9 @@ export function getProductContributionForSection(parsedReports, selectedMonth, s
 
   const getVal = (branchObj) => getDisbursementFromBranch(branchObj);
   const products = keys.map((key, i) => {
-    let value = 0;
-    if (report.csBranches && (key === 'CS' || key === 'Cs Asset Finance')) {
-      value = getVal(report.csBranches[key]);
-    } else if (report.lbfBranches && ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'].includes(key)) {
-      value = getVal(report.lbfBranches[key]);
-    }
+    const value = valueForKey(report, key, getVal);
     return {
-      name: key,
+      name: labelFor(key),
       value,
       percentage: '0',
       color: PRODUCT_COLORS[i % PRODUCT_COLORS.length],

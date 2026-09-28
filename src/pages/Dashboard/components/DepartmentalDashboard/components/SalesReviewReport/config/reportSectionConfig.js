@@ -22,7 +22,7 @@ export const REPORT_SECTIONS = [
       (reports || [])
         .filter((r) => r.cs && Object.keys(r.cs).length > 0)
         .map((r) => ({ fileName: r.fileName, date: r.date ? (r.date instanceof Date ? r.date : new Date(r.date)) : new Date(), ...r.cs })),
-    productKeys: ['CS', 'Cs Asset Finance']
+    productKeys: ['CS - MAINLAND', 'Cs Asset Finance']
   },
   {
     id: 'cs-zanzibar',
@@ -33,7 +33,7 @@ export const REPORT_SECTIONS = [
       (reports || [])
         .filter((r) => r.zanzibar && Object.keys(r.zanzibar).length > 0)
         .map((r) => rowFromReport(r, r.zanzibar)),
-    productKeys: ['ZANZIBAR']
+    productKeys: ['CS - ZANZIBAR']
   },
   {
     id: 'lbf',
