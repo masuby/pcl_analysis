@@ -4,6 +4,7 @@ import './ManagementSummary.css';
 import { useManagementData } from '../../../../../ManagementDashboard/hooks/useManagementData';
 import { useMTDData } from '../../../../../MTDdashboard/hooks/useMTDData';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
+import { isZanzibarRow } from '../../../../../../../../utils/csZone';
 import { getReportsByDepartmentAndType, getReportFileUrl } from '../../../../../../../../services/reports';
 
 /* CS is reported as two products — Mainland and Zanzibar.
@@ -99,7 +100,12 @@ const extractCRMAgentCount = (wb) => {
   return 0;
 };
 
-const extractMTDActiveReps = (wb) => {
+/* Distinct sales reps with a Term on the SALES LISTING sheet.
+ *
+ * `excludeZanzibar` drops the rows whose Supervision is Zanzibar, so the CS
+ * figure counts Mainland reps only. The CS MTD file covers the whole product,
+ * Zanzibar supervision included — see the note on getMTDTotals below. */
+const extractMTDActiveReps = (wb, { excludeZanzibar = false } = {}) => {
   if (!wb?.SheetNames?.length) return 0;
   let listingSheet = wb.SheetNames.find((n) => {
     const u = String(n || '').toUpperCase();
@@ -121,26 +127,47 @@ const extractMTDActiveReps = (wb) => {
   const headers = raw[headerIdx] || [];
   const repIdx = headers.findIndex((h) => ['SALES REP', 'SALES REP. NAME'].includes(String(h || '').toUpperCase().trim()));
   const termIdx = headers.findIndex((h) => String(h || '').toUpperCase().trim() === 'TERM');
+  const supIdx = headers.findIndex((h) => String(h || '').toUpperCase().trim() === 'SUPERVISION');
   if (repIdx < 0 || termIdx < 0) return 0;
+  // Without a Supervision column there is no way to tell the halves apart, so
+  // the whole product is counted rather than a silently short number.
+  const canScope = excludeZanzibar && supIdx >= 0;
   const reps = new Set();
   for (let i = headerIdx + 1; i < raw.length; i++) {
     const row = raw[i] || [];
     const rep = String(row[repIdx] || '').trim();
     const term = String(row[termIdx] || '').trim();
+    if (canScope && isZanzibarRow({ supervision: row[supIdx] })) continue;
     if (rep && term) reps.add(rep.toUpperCase());
   }
   return reps.size;
 };
 
-const getMTDTotals = (parsedData) => {
+/* Disbursement, loan count and active reps from a parsed MTD file.
+ *
+ * `excludeZanzibar` is for CS. The CS MTD workbook covers the whole product —
+ * ZANZIBAR is one of its supervisions, worth 351,254,774.02 of the
+ * 845,536,269.55 grand total on 26-09-2026 — so the unscoped figure double
+ * counted with the CS Zanzibar row beside it, and the company total counted
+ * Zanzibar twice.
+ *
+ * Mainland is taken as the sum of the supervisions that are not Zanzibar
+ * rather than by subtracting from the grand total. Checked against
+ * CS_MTD_AS_OF_26th_SEPT_2026: the supervision rows add up to the grand total
+ * exactly (845,536,269.55 / 547 loans / 224 reps), so the two are equivalent,
+ * and summing fails visibly if a supervision ever stops being counted. */
+const getMTDTotals = (parsedData, { excludeZanzibar = false } = {}) => {
   if (!parsedData) return null;
   const cm = parsedData.columnMap || {};
   const headers = Object.keys((parsedData.listingData || [])[0] || {});
   const termCol = cm.term || headers.find((h) => String(h).toUpperCase() === 'TERM');
   const salesRepCol = cm.salesRep || headers.find((h) => ['SALES REP', 'SALES REP. NAME'].includes(String(h).toUpperCase()));
   const gd = parsedData.groupedData || {};
+  const sups = Object.values(gd).filter(
+    (sup) => !excludeZanzibar || !isZanzibarRow({ supervision: sup.supervision })
+  );
   let allReps = [];
-  Object.values(gd).forEach((sup) => sup.teamLeaders?.forEach((tl) => { allReps.push(...(tl.salesReps || [])); }));
+  sups.forEach((sup) => sup.teamLeaders?.forEach((tl) => { allReps.push(...(tl.salesReps || [])); }));
   const activeReps = !salesRepCol ? 0 : new Set(
     allReps
       .filter((rep) => {
@@ -150,13 +177,39 @@ const getMTDTotals = (parsedData) => {
       .map((rep) => String(rep[salesRepCol] ?? rep['SALES REP'] ?? rep['SALES REP. NAME'] ?? '').trim())
       .filter(Boolean)
   ).size;
-  const gt = parsedData.grandTotalRow || {};
-  return {
-    disbursement: num(gt.VALUE ?? gt.Value),
-    noLoans: num(gt['NO. OF LOANS'] ?? gt['No. of Loans'] ?? gt['No. Of Loans']),
-    activeReps
-  };
+  const monthTargetOf = (r) => num(r['MONTH TARGET'] ?? r['Month Target']);
+  if (!excludeZanzibar) {
+    const gt = parsedData.grandTotalRow || {};
+    return {
+      disbursement: num(gt.VALUE ?? gt.Value),
+      noLoans: num(gt['NO. OF LOANS'] ?? gt['No. of Loans'] ?? gt['No. Of Loans']),
+      monthTarget: monthTargetOf(gt),
+      activeReps
+    };
+  }
+  let disbursement = 0;
+  let noLoans = 0;
+  let monthTarget = 0;
+  sups.forEach((sup) => {
+    const r = sup.supervisionData || {};
+    disbursement += num(r.VALUE ?? r.Value);
+    noLoans += num(r['NO. OF LOANS'] ?? r['No. of Loans'] ?? r['No. Of Loans']);
+    monthTarget += monthTargetOf(r);
+  });
+  return { disbursement, noLoans, monthTarget, activeReps };
 };
+
+/* No product's monthly target is a four-figure sum, so anything below this is a
+ * placeholder rather than a target.
+ *
+ * On 26-09-2026 the management report carried no Target row for CS at all —
+ * only 'Cs Asset Finance' with a placeholder 1 — and since the CS figure sums
+ * those two branches, the score card printed a target of 1 and % Achieved of
+ * 84,553,626,955%. Where the row's figures come from MTD, that file's own
+ * MONTH TARGET is used instead, so target and achievement are read from the
+ * same document. Put a real CS Target in the management report and this stops
+ * firing on its own. */
+const MIN_PLAUSIBLE_TARGET = 1_000_000;
 
 const ManagementSummary = forwardRef((_, ref) => {
   const { parsedReports: managementReports } = useManagementData();
@@ -222,7 +275,7 @@ const ManagementSummary = forwardRef((_, ref) => {
             const rf = await fetch(url);
             if (!rf.ok) continue;
             const wb = XLSX.read(await rf.arrayBuffer(), { type: 'array', raw: false });
-            out[dept][mk] = extractMTDActiveReps(wb);
+            out[dept][mk] = extractMTDActiveReps(wb, { excludeZanzibar: dept === 'CS' });
           } catch {
             out[dept][mk] = 0;
           }
@@ -313,13 +366,14 @@ const ManagementSummary = forwardRef((_, ref) => {
     const rd = dOf(report);
     const mk = rd ? mKey(rd) : '';
     const mtdByDept = {
-      CS: getMTDTotals(mtdCS.parsedData),
+      // CS here is CS Mainland; Zanzibar has its own row below.
+      CS: getMTDTotals(mtdCS.parsedData, { excludeZanzibar: true }),
       LBF: getMTDTotals(mtdLBF.parsedData),
       SME: getMTDTotals(mtdSME.parsedData)
     };
     return PRODUCTS.map((p) => {
       const d = getProductData(report, p);
-      const target = num(d?.target);
+      const mgmtTarget = num(d?.target);
       const mgmtDisb = num(d?.disbursement);
       const managementOnly = p === 'Agrifinance' || p === 'SME' || p === 'CS Zanzibar';
       const mtdT = managementOnly ? null : mtdByDept[p];
@@ -342,6 +396,9 @@ const ManagementSummary = forwardRef((_, ref) => {
         activeReps = num(mtdT?.activeReps);
       }
       const actual = p === 'Agrifinance' ? activeReps : num(crmByMonth[p]?.[mk]);
+      const target = mgmtTarget >= MIN_PLAUSIBLE_TARGET
+        ? mgmtTarget
+        : (num(mtdT?.monthTarget) > 0 ? num(mtdT.monthTarget) : mgmtTarget);
       return {
         Product: p,
         Source: source,
@@ -356,7 +413,7 @@ const ManagementSummary = forwardRef((_, ref) => {
   }, [latest, mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData, crmByMonth]);
 
   const mtdByProduct = useMemo(() => ({
-    CS: { totals: getMTDTotals(mtdCS.parsedData), key: mtdCS.parsedData?.reportDate ? mKey(new Date(mtdCS.parsedData.reportDate)) : '' },
+    CS: { totals: getMTDTotals(mtdCS.parsedData, { excludeZanzibar: true }), key: mtdCS.parsedData?.reportDate ? mKey(new Date(mtdCS.parsedData.reportDate)) : '' },
     LBF: { totals: getMTDTotals(mtdLBF.parsedData), key: mtdLBF.parsedData?.reportDate ? mKey(new Date(mtdLBF.parsedData.reportDate)) : '' },
     SME: { totals: getMTDTotals(mtdSME.parsedData), key: mtdSME.parsedData?.reportDate ? mKey(new Date(mtdSME.parsedData.reportDate)) : '' }
   }), [mtdCS.parsedData, mtdLBF.parsedData, mtdSME.parsedData]);
