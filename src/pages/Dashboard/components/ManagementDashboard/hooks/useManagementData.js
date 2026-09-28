@@ -206,14 +206,32 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
   const transformBackendData = (report, data) => {
     const countrywiseData = {};
     const csData = {};
-    const csBranches = { 'CS': {}, 'Cs Asset Finance': {} };
+    const csBranches = { 'CS - MAINLAND': {}, 'CS': {}, 'Cs Asset Finance': {} };
     const lbfData = {};
     const lbfBranches = { 'LBF': {}, 'IPF': {}, 'MIF': {}, 'MIF Customs': {}, 'Lbf Yard Finance': {}, 'LBF QUICKCASH': {}, 'LBF-FLEX': {} };
     const smeData = {};
     const zanzibarData = {};
     let agrifinanceData = {};
 
-    const csBranchNames = ['CS', 'Cs Asset Finance'];
+    /* The management report renamed its CS rows when CS was split into two
+       reporting units: the 'CS' row became 'CS - MAINLAND' and 'ZANZIBAR'
+       became 'CS - ZANZIBAR'. Both spellings are listed so that reports filed
+       before the rename still parse.
+
+       Until this was noticed, nothing matched 'CS - MAINLAND', so CS had no
+       Target row of its own and its target came out as 1 — the placeholder on
+       'Cs Asset Finance' — which the score card printed as 84,553,626,955%
+       achieved. */
+    const csBranchNames = ['CS - MAINLAND', 'CS', 'Cs Asset Finance'];
+    const zanzibarBranchNames = ['CS - ZANZIBAR', 'ZANZIBAR'];
+
+    /* Sub-products with no target of their own carry a placeholder 1 (and a
+       0.05 daily target): Cs Asset Finance, Cs Buyoff, IPF, LBF-FLEX,
+       LBF QUICKCASH, CNG Loan, SALARY ADVANCE. Summing those placeholders is
+       what made LBF's target read 5,105,000,003 rather than 5,105,000,000.
+       One shilling is not a target. */
+    const isPlaceholderTarget = (metric, v) =>
+      (metric === 'Target' && v === 1) || (metric === 'Daily Target' && v > 0 && v < 1);
     const lbfBranchNames = ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'];
     // Only the row named "Agrifinance" (or "AgriFinance") in the management report - no summing with other branches
     const agriFinanceBranchNames = ['AgriFinance', 'Agrifinance'];
@@ -245,7 +263,7 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
         lbfBranches[branch][metric] = numVal; // Last value wins
       } else if (branch === 'SME') {
         smeData[metric] = numVal;
-      } else if (branch === 'ZANZIBAR') {
+      } else if (zanzibarBranchNames.includes(branch)) {
         zanzibarData[metric] = numVal;
       } else if (agriFinanceBranchNames.includes(branch)) {
         if (!agrifinanceData) agrifinanceData = {};
@@ -262,11 +280,15 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
     lbfBranchNames.forEach((branch) => {
       Object.keys(lbfBranches[branch] || {}).forEach((m) => lbfMetrics.add(m));
     });
+    const sumBranches = (names, store, metric) => names.reduce((sum, branch) => {
+      const v = store[branch]?.[metric] || 0;
+      return sum + (isPlaceholderTarget(metric, v) ? 0 : v);
+    }, 0);
     csMetrics.forEach((metric) => {
-      csData[metric] = csBranchNames.reduce((sum, branch) => sum + (csBranches[branch]?.[metric] || 0), 0);
+      csData[metric] = sumBranches(csBranchNames, csBranches, metric);
     });
     lbfMetrics.forEach((metric) => {
-      lbfData[metric] = lbfBranchNames.reduce((sum, branch) => sum + (lbfBranches[branch]?.[metric] || 0), 0);
+      lbfData[metric] = sumBranches(lbfBranchNames, lbfBranches, metric);
     });
 
     // Average Loan Size (total) = Disbursement this month / Number of Loans (not sum of sub-product averages)

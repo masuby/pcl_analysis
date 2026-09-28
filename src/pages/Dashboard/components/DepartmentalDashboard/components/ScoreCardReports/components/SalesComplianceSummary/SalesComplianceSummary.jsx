@@ -19,7 +19,8 @@ const HOD_NAMES = {
 
 // Sub-products definitions based on management data structure
 const SUB_PRODUCTS = {
-  CS: ['CS', 'Cs Asset Finance'],
+  // 'CS - MAINLAND' is what the management report calls the CS row now.
+  CS: ['CS - MAINLAND', 'Cs Asset Finance'],
   // The management report's ZANZIBAR branch row, which the CS figure above has
   // never included (csBranchNames sums only CS and Cs Asset Finance).
   'CS Zanzibar': ['ZANZIBAR'],

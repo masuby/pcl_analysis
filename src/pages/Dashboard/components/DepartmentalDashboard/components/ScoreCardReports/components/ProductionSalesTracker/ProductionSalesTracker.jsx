@@ -6,7 +6,8 @@ import LoadingSpinner from '../../../../../../../../components/Common/Loading/Lo
 
 // Sub-products definitions
 const SUB_PRODUCTS = {
-  CS: ['CS', 'Cs Asset Finance'],
+  // 'CS - MAINLAND' is what the management report calls the CS row now.
+  CS: ['CS - MAINLAND', 'Cs Asset Finance'],
   // CS Zanzibar is the management report's ZANZIBAR branch row. It has never
   // been part of the CS figure above — csBranchNames sums only CS and Cs Asset
   // Finance — so this row adds it rather than splitting it out of anything.
