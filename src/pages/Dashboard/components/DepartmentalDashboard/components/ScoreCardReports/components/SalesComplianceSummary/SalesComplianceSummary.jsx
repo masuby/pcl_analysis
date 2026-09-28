@@ -20,6 +20,9 @@ const HOD_NAMES = {
 // Sub-products definitions based on management data structure
 const SUB_PRODUCTS = {
   CS: ['CS', 'Cs Asset Finance'],
+  // The management report's ZANZIBAR branch row, which the CS figure above has
+  // never included (csBranchNames sums only CS and Cs Asset Finance).
+  'CS Zanzibar': ['ZANZIBAR'],
   LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'],
   SME: ['SME'],
   AgriFinance: ['AgriFinance'] // Will be added when available
@@ -166,6 +169,9 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
       } else {
         data = report.lbfBranches?.[subProduct] || {};
       }
+    } else if (product === 'CS Zanzibar') {
+      // One branch, so the total and the sub-product are the same figures.
+      data = report.zanzibar || {};
     } else if (product === 'SME') {
       data = report.sme || {};
     } else if (product === 'AgriFinance') {
@@ -277,7 +283,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
   // Build summary data for Weekly mode: 6 days (Mon–Sat) per sub-product, then Total/Average/Movement per product at end
   const buildWeeklySummaryData = useMemo(() => {
     const { weekData, latestData } = getLatestWeekData(managementReports);
-    const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
+    const products = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'AgriFinance'];
     const rows = [];
 
     products.forEach(product => {
@@ -524,7 +530,7 @@ const SalesComplianceSummary = forwardRef(({ mode, userData }, ref) => {
 
   // Build summary data for Monthly mode (simplified - only latest values)
   const buildMonthlySummaryData = useMemo(() => {
-    const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
+    const products = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'AgriFinance'];
     const rows = [];
     
     // Get latest report

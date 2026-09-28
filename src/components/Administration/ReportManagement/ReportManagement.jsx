@@ -60,12 +60,12 @@ const ReportManagement = () => {
     && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
-  // CS_ZANZIBAR is a department in its own right, not a zone inside CS — see
+  // 'CS ZANZIBAR' is a department in its own right, not a zone inside CS — see
   // crm_reports.py. The code is what the API stores; the label is what the
   // operator picking a destination reads.
   const departments = [
     { code: 'CS', label: 'CS Mainland' },
-    { code: 'CS_ZANZIBAR', label: 'CS Zanzibar' },
+    { code: 'CS ZANZIBAR', label: 'CS Zanzibar' },
     { code: 'SME', label: 'SME' },
     { code: 'LBF', label: 'LBF' },
     { code: 'AGRI', label: 'AGRI' },

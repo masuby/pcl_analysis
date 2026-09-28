@@ -19,7 +19,7 @@ const PRODUCTS = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'Agrifinance'];
  * the product row; the value is the department the reports are filed under. */
 const CRM_DEPT_BY_PRODUCT = {
   CS: 'CS',
-  'CS Zanzibar': 'CS_ZANZIBAR',
+  'CS Zanzibar': 'CS ZANZIBAR',
   LBF: 'LBF',
   SME: 'SME',
 };

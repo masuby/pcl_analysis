@@ -18,6 +18,9 @@ const formatDayDate = (d) => {
 const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
   const { parsedReports: managementReports } = useManagementData();
   const crmCS = useCRMData('CS');
+  // 'CS ZANZIBAR' is the department string the reports are filed under — with a
+  // space, matching the rows already in the database.
+  const crmZAN = useCRMData('CS ZANZIBAR');
   const crmLBF = useCRMData('LBF');
   const crmSME = useCRMData('SME');
 
@@ -76,9 +79,16 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
   const crmSME_3 = useCRMData('SME', weekDates[3]);
   const crmSME_4 = useCRMData('SME', weekDates[4]);
   const crmSME_5 = useCRMData('SME', weekDates[5]);
+  const crmZAN_0 = useCRMData('CS ZANZIBAR', weekDates[0]);
+  const crmZAN_1 = useCRMData('CS ZANZIBAR', weekDates[1]);
+  const crmZAN_2 = useCRMData('CS ZANZIBAR', weekDates[2]);
+  const crmZAN_3 = useCRMData('CS ZANZIBAR', weekDates[3]);
+  const crmZAN_4 = useCRMData('CS ZANZIBAR', weekDates[4]);
+  const crmZAN_5 = useCRMData('CS ZANZIBAR', weekDates[5]);
 
   const crmByProductDay = {
     CS: [crmCS_0, crmCS_1, crmCS_2, crmCS_3, crmCS_4, crmCS_5],
+    'CS Zanzibar': [crmZAN_0, crmZAN_1, crmZAN_2, crmZAN_3, crmZAN_4, crmZAN_5],
     LBF: [crmLBF_0, crmLBF_1, crmLBF_2, crmLBF_3, crmLBF_4, crmLBF_5],
     SME: [crmSME_0, crmSME_1, crmSME_2, crmSME_3, crmSME_4, crmSME_5]
   };
@@ -123,9 +133,9 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
   };
 
   const trackerData = useMemo(() => {
-    const departments = ['CS', 'LBF', 'SME'];
+    const departments = ['CS', 'CS Zanzibar', 'LBF', 'SME'];
     if (mode === 'MONTHLY') {
-      const hooks = { CS: crmCS, LBF: crmLBF, SME: crmSME };
+      const hooks = { CS: crmCS, 'CS Zanzibar': crmZAN, LBF: crmLBF, SME: crmSME };
       return departments.map(dept => {
         const hook = hooks[dept];
         const m = getMetricsFromParsed(hook?.parsedData);
@@ -210,12 +220,13 @@ const LeadsMarketingTracker = forwardRef(({ mode, userData }, ref) => {
       });
     });
     return rows;
-  }, [mode, crmCS.parsedData, crmLBF.parsedData, crmSME.parsedData, weekDates,
+  }, [mode, crmCS.parsedData, crmZAN.parsedData, crmLBF.parsedData, crmSME.parsedData, weekDates,
     crmCS_0.parsedData, crmCS_1.parsedData, crmCS_2.parsedData, crmCS_3.parsedData, crmCS_4.parsedData, crmCS_5.parsedData,
+    crmZAN_0.parsedData, crmZAN_1.parsedData, crmZAN_2.parsedData, crmZAN_3.parsedData, crmZAN_4.parsedData, crmZAN_5.parsedData,
     crmLBF_0.parsedData, crmLBF_1.parsedData, crmLBF_2.parsedData, crmLBF_3.parsedData, crmLBF_4.parsedData, crmLBF_5.parsedData,
     crmSME_0.parsedData, crmSME_1.parsedData, crmSME_2.parsedData, crmSME_3.parsedData, crmSME_4.parsedData, crmSME_5.parsedData]);
 
-  const isLoading = crmCS.loading || crmLBF.loading || crmSME.loading;
+  const isLoading = crmCS.loading || crmZAN.loading || crmLBF.loading || crmSME.loading;
 
   const toExportVal = (v) => {
     if (v === '-' || v == null || v === undefined) return '';

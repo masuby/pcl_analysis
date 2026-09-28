@@ -28,8 +28,10 @@ func InitReportHandlers(cfg *config.StorageConfig) {
 
 	// Create upload directories
 	// CS is two departments: CS holds Mainland (CS_CRM, as it always has) and
-	// CS_ZANZIBAR holds Zanzibar. Same split as crm_reports.py.
-	departments := []string{"CS", "CS_ZANZIBAR", "LBF", "SME", "AGRI", "MANAGEMENT", "ALL", "CHALLENGE"}
+	// "CS ZANZIBAR" holds Zanzibar. Same split as crm_reports.py. The name is
+	// spelled with a space because that is what the 7 rows already in the
+	// reports table say, and the files already sit in /var/reports/CS ZANZIBAR.
+	departments := []string{"CS", "CS ZANZIBAR", "LBF", "SME", "AGRI", "MANAGEMENT", "ALL", "CHALLENGE"}
 	for _, dept := range departments {
 		dir := filepath.Join(uploadPath, dept)
 		if err := os.MkdirAll(dir, 0755); err != nil {

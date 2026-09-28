@@ -302,7 +302,12 @@ export const getReportsByDepartmentAndType = async (department, reportType) => {
       return { success: true, data: cached.data.data || [], _cached: true };
     }
     
-    const response = await apiRequest(`/api/reports/department/${department}/type/${reportType}`);
+    // Both carry spaces — 'CS ZANZIBAR', 'CALL CENTER' — so they are encoded
+    // rather than left to whatever the fetch implementation does with a raw
+    // space in a path segment.
+    const response = await apiRequest(
+      `/api/reports/department/${encodeURIComponent(department)}/type/${encodeURIComponent(reportType)}`
+    );
     
     if (response.success) {
       // Cache the result

@@ -7,6 +7,10 @@ import LoadingSpinner from '../../../../../../../../components/Common/Loading/Lo
 // Sub-products definitions
 const SUB_PRODUCTS = {
   CS: ['CS', 'Cs Asset Finance'],
+  // CS Zanzibar is the management report's ZANZIBAR branch row. It has never
+  // been part of the CS figure above — csBranchNames sums only CS and Cs Asset
+  // Finance — so this row adds it rather than splitting it out of anything.
+  'CS Zanzibar': ['ZANZIBAR'],
   LBF: ['LBF', 'IPF', 'MIF', 'MIF Customs', 'Lbf Yard Finance', 'LBF QUICKCASH', 'LBF-FLEX'],
   SME: ['SME'],
   AgriFinance: ['AgriFinance']
@@ -27,6 +31,9 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
       } else {
         data = report.csBranches?.[subProduct] || {};
       }
+    } else if (product === 'CS Zanzibar') {
+      // One branch, so the total and the sub-product are the same figures.
+      data = report.zanzibar || {};
     } else if (product === 'LBF') {
       if (subProduct === 'Total') {
         data = report.lbf || {};
@@ -67,7 +74,7 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
     });
     const latestReport = sorted[0];
     
-    const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
+    const products = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'AgriFinance'];
     const rows = [];
     
     products.forEach(product => {
@@ -130,7 +137,7 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
       })[0]
       : null;
     
-    const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
+    const products = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'AgriFinance'];
     const rows = [];
     
     products.forEach(product => {
@@ -197,7 +204,7 @@ const ProductionSalesTracker = forwardRef(({ mode, userData }, ref) => {
       })[0]
       : null;
     
-    const products = ['CS', 'LBF', 'SME', 'AgriFinance'];
+    const products = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'AgriFinance'];
     const rows = [];
     
     products.forEach(product => {

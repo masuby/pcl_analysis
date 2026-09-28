@@ -2,7 +2,7 @@ import CSReports from '../CSReports/CSReports';
 
 /* CS Zanzibar reports.
  *
- * Same page as CS Mainland, pointed at the CS_ZANZIBAR department. The split
+ * Same page as CS Mainland, pointed at the 'CS ZANZIBAR' department. The split
  * follows crm_reports.py, where CS is generated as two departments off one
  * master: CS_CRM (Mainland) and CS_ZANZIBAR_CRM (Zanzibar).
  *
@@ -11,7 +11,7 @@ import CSReports from '../CSReports/CSReports';
  * there is Zanzibar data missing rather than that it does not exist yet.
  */
 const CSZanzibarReports = () => (
-  <CSReports department="CS_ZANZIBAR" reportTypes={['CRM']} />
+  <CSReports department="CS ZANZIBAR" reportTypes={['CRM']} />
 );
 
 export default CSZanzibarReports;

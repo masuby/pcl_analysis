@@ -339,9 +339,18 @@ const SalesReviewReport = ({ userData }) => {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     };
     const loadCrmActualsForMonth = async () => {
-      for (const dept of ['CS', 'LBF', 'SME']) {
+      // 'CS ZANZIBAR' is the department the Zanzibar CRM reports are filed
+      // under, and CS_ZANZIBAR_CRM is their file-name stem. It is matched
+      // before 'CS' so the plain CS_CRM test cannot claim a Zanzibar file.
+      const CRM_FILE_PATTERN = {
+        'CS ZANZIBAR': 'CS_ZANZIBAR_CRM',
+        CS: 'CS_CRM',
+        LBF: 'LBF_CRM',
+        SME: 'SME_CRM',
+      };
+      for (const dept of ['CS', 'CS ZANZIBAR', 'LBF', 'SME']) {
         if (cancelled) return;
-        const pattern = dept === 'CS' ? 'CS_CRM' : dept === 'LBF' ? 'LBF_CRM' : 'SME_CRM';
+        const pattern = CRM_FILE_PATTERN[dept];
         const res = await getReportsByDepartmentAndType(dept, 'CRM');
         if (!res?.success) continue;
         // Latest report that falls inside the selected month.
@@ -718,9 +727,13 @@ const SalesReviewReport = ({ userData }) => {
       let sectionComparisonData = getComparisonData(sectionData, selectedMonth);
       const isLBF = section.id === 'lbf';
       const isCSMainland = section.id === 'cs-mainland';
+      const isCSZanzibar = section.id === 'cs-zanzibar';
       const isSME = section.id === 'sme';
       const mtdActiveForSection = isLBF ? lbfMTDTotalActiveReps : isCSMainland ? csMTDTotalActiveReps : isSME ? smeMTDTotalActiveReps : null;
-      const crmDept = isLBF ? 'LBF' : isCSMainland ? 'CS' : isSME ? 'SME' : null;
+      // Zanzibar has a CRM report but no MTD file, so it gets the CRM actual
+      // agent count and leaves the MTD-derived Active Reps line empty rather
+      // than borrowing Mainland's.
+      const crmDept = isLBF ? 'LBF' : isCSMainland ? 'CS' : isCSZanzibar ? 'CS ZANZIBAR' : isSME ? 'SME' : null;
       const crmActualForSection = crmDept ? getCrmEmailAgentTotalForDept(crmActualRepsByMonth, crmDept, selectedMonth) : null;
       const crmActualDateForSection = crmDept ? (crmActualDateByMonth?.[crmDept]?.[selectedMonth] || null) : null;
       // LBF section: use MTD total Active Reps and Active/Actual summary lines
