@@ -7,7 +7,13 @@ import Toast from '../../components/Common/Toast/Toast';
 import { useCSReports } from './hooks/useCSReports';
 import './CSReports.css';
 
-const CSReports = () => {
+/* Parameterised by department so CS Mainland and CS Zanzibar share one page.
+   The defaults are the Mainland values, so `<CSReports />` behaves exactly as
+   it did before the split. */
+const CSReports = ({
+  department = 'CS',
+  reportTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL'],
+}) => {
   const { userData } = useAuth();
 
   const {
@@ -31,12 +37,10 @@ const CSReports = () => {
     clearFilters,
     setShowAnalysis,
     setSelectedReport
-  } = useCSReports('CS');
+  } = useCSReports(department);
 
   const [toast, setToast] = useState(null);
-  const [activeButton, setActiveButton] = useState('MANAGEMENT');
-
-  const reportTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'DEPARTMENTAL'];
+  const [activeButton, setActiveButton] = useState(reportTypes[0]);
 
   const handleReportButtonClick = (type) => {
     setActiveButton(type);
@@ -67,8 +71,8 @@ const CSReports = () => {
   // Set MANAGEMENT as default on mount
   useEffect(() => {
     if (!selectedReportType) {
-      handleReportTypeSelect('MANAGEMENT');
-      setActiveButton('MANAGEMENT');
+      handleReportTypeSelect(reportTypes[0]);
+      setActiveButton(reportTypes[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount

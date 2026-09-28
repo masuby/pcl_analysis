@@ -206,6 +206,9 @@ const GapAnalysis = () => {
   const branchData = ytdData.branchData || [];
   const rsmData = ytdData.rsmData || [];
   const grandTotalRows = ytdData.grandTotalRows || [];
+  // CS only: [{ key, label, branches, totalRows }] for Mainland and Zanzibar.
+  // null for LBF/SME, and for a CS month where one half has no branches.
+  const csSections = ytdData.csSections || null;
 
   const branchSearchLower = (branchSearchQuery || '').trim().toLowerCase();
   const filteredBranchData = useMemo(() => {
@@ -307,88 +310,94 @@ const GapAnalysis = () => {
     const emptyIdent = () => ({ Zone: '', Branch: '' });
 
     const branchRows = [];
-    let lastSup = null;
-    branchData.forEach((item) => {
-      if (lastSup !== null && lastSup !== item.supervision) {
-        const rsmItem = rsmData.find((d) => d.supervision === lastSup);
-        if (rsmItem) {
-          rsmItem.rows.forEach((r, idx) => {
-            const row = {
-              Zone: idx === 0 ? lastSup : '',
-              Branch: idx === 0 ? 'Total (' + lastSup + ')' : '',
-              Metric: r.rowLabel,
-              __supervisionTotalRow: true,
-            };
-            monthColumns.forEach((m) => {
-              const mm = r.__monthlyMetrics?.[m] || {};
-              monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
-            });
-            row[separatorCol] = '';
-            monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-            branchRows.push(row);
-          });
-          branchRows.push(sepRow());
-        }
-      }
-      lastSup = item.supervision;
-      const branchName = item.teamLeaderName;
-      branchRows.push({
-        Zone: item.supervision,
-        Branch: branchName,
-        Metric: '',
-        ...Object.fromEntries(dataCols.map((c) => [c, ''])),
-      });
-      item.rows.forEach((r, rIdx) => {
-        const row = {
-          ...emptyIdent(),
-          Metric: r.rowLabel,
-        };
-        monthColumns.forEach((m) => {
-          const mm = r.__monthlyMetrics?.[m] || {};
-          monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
-        });
-        row[separatorCol] = '';
-        monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-        branchRows.push(row);
-      });
-      branchRows.push(sepRow());
-    });
-    if (lastSup) {
-      const rsmItem = rsmData.find((d) => d.supervision === lastSup);
-      if (rsmItem) {
-        rsmItem.rows.forEach((r, idx) => {
-          const row = {
-            Zone: idx === 0 ? lastSup : '',
-            Branch: idx === 0 ? 'Total (' + lastSup + ')' : '',
-            Metric: r.rowLabel,
-            __supervisionTotalRow: true,
-          };
-          monthColumns.forEach((m) => {
-            const mm = r.__monthlyMetrics?.[m] || {};
-            monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
-          });
-          row[separatorCol] = '';
-          monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-          branchRows.push(row);
-        });
-        branchRows.push(sepRow());
-      }
-    }
-    grandTotalRows.forEach((r, idx) => {
-      const row = {
-        Zone: idx === 0 ? 'TOTAL' : '',
-        Branch: idx === 0 ? 'All Supervisions' : '',
-        Metric: r.rowLabel,
-        __totalRow: true,
-      };
+
+    /* Fill the month and cumulative cells of one metric row. Every block below
+       — branch, supervision total, section subtotal, grand total — lays its
+       figures out identically; only the two identifier cells differ. */
+    const fillMetrics = (row, r) => {
       monthColumns.forEach((m) => {
         const mm = r.__monthlyMetrics?.[m] || {};
         monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
       });
       row[separatorCol] = '';
-      monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-      branchRows.push(row);
-    });
+      monthSubCols.forEach((s) => {
+        row[`Cumulative ${s}`] = s === 'Grade'
+          ? getGradeFromPctArchived(r['% Achived'])
+          : s === 'Comment'
+            ? getCommentFromPctArchived(r['% Achived'])
+            : (r[s] ?? '');
+      });
+      return row;
+    };
+
+    /** A block of total rows: supervision total, section subtotal or grand total. */
+    const pushTotalBlock = (rows, zoneLabel, branchLabel, flags) => {
+      rows.forEach((r, idx) => {
+        branchRows.push(fillMetrics({
+          Zone: idx === 0 ? zoneLabel : '',
+          Branch: idx === 0 ? branchLabel : '',
+          Metric: r.rowLabel,
+          ...flags,
+        }, r));
+      });
+      branchRows.push(sepRow());
+    };
+
+    /** Emit a list of branches, closing each supervision with its total. */
+    const pushBranches = (branches) => {
+      let lastSup = null;
+      const closeSupervision = () => {
+        if (lastSup === null) return;
+        const rsmItem = rsmData.find((d) => d.supervision === lastSup);
+        if (rsmItem) {
+          pushTotalBlock(rsmItem.rows, lastSup, `Total (${lastSup})`,
+            { __supervisionTotalRow: true });
+        }
+      };
+      branches.forEach((item) => {
+        if (lastSup !== null && lastSup !== item.supervision) closeSupervision();
+        lastSup = item.supervision;
+        branchRows.push({
+          Zone: item.supervision,
+          Branch: item.teamLeaderName,
+          Metric: '',
+          ...Object.fromEntries(dataCols.map((c) => [c, ''])),
+        });
+        item.rows.forEach((r) => {
+          branchRows.push(fillMetrics({ ...emptyIdent(), Metric: r.rowLabel }, r));
+        });
+        branchRows.push(sepRow());
+      });
+      closeSupervision();
+    };
+
+    if (csSections) {
+      // CS reads as two blocks — Mainland then Zanzibar — each closing with its
+      // own subtotal, with one combined total underneath.
+      csSections.forEach((sec) => {
+        branchRows.push({
+          Zone: sec.label.toUpperCase(),
+          Branch: '',
+          Metric: '',
+          __sectionHeaderRow: true,
+          ...Object.fromEntries(dataCols.map((c) => [c, ''])),
+        });
+        pushBranches(sec.branches);
+        pushTotalBlock(sec.totalRows, sec.label.toUpperCase(),
+          `Subtotal (${sec.label})`, { __sectionTotalRow: true });
+      });
+    } else {
+      pushBranches(branchData);
+    }
+
+    pushTotalBlock(
+      grandTotalRows,
+      csSections ? 'TOTAL CS' : 'TOTAL',
+      csSections ? 'Mainland + Zanzibar' : 'All Supervisions',
+      { __totalRow: true },
+    );
+    branchRows.pop();   // pushTotalBlock ends with a separator; nothing follows the grand total
+
 
     const branchTable = {
       data: branchRows.length ? branchRows : [{ Zone: '', Branch: '', Metric: 'No data', ...Object.fromEntries(dataCols.map((c) => [c, ''])) }],
@@ -412,8 +421,10 @@ const GapAnalysis = () => {
       dataCols.forEach((c) => (r[c] = ''));
       return r;
     };
-    rsmData.forEach((item, i) => {
-      if (i > 0) rsmRows.push(sepRowRsm());
+
+    /** Emit one supervision's block on the RSM sheet. */
+    const pushRsm = (item, isFirst) => {
+      if (!isFirst) rsmRows.push(sepRowRsm());
       const rsmName = (rsmRecipients[item.supervision]?.name || '').trim() || item.supervision;
       rsmRows.push({
         Zone: item.supervision,
@@ -423,38 +434,57 @@ const GapAnalysis = () => {
         ...Object.fromEntries(dataCols.map((c) => [c, ''])),
       });
       item.rows.forEach((r, rIdx) => {
-        const row = {
+        rsmRows.push(fillMetrics({
           Zone: rIdx === 0 ? item.supervision : '',
           Branch: rIdx === 0 ? item.supervision : '',
           'Regional Sales Manager Name': rIdx === 0 ? rsmName : '',
           Metric: r.rowLabel,
-        };
-        monthColumns.forEach((m) => {
-          const mm = r.__monthlyMetrics?.[m] || {};
-          monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
+        }, r));
+      });
+    };
+
+    /** A total block on the RSM sheet — subtotal or grand total. */
+    const pushRsmTotal = (rows, zoneLabel, branchLabel, flags) => {
+      rsmRows.push(sepRowRsm());
+      rows.forEach((r, idx) => {
+        rsmRows.push(fillMetrics({
+          Zone: idx === 0 ? zoneLabel : '',
+          Branch: idx === 0 ? branchLabel : '',
+          'Regional Sales Manager Name': '',
+          Metric: r.rowLabel,
+          ...flags,
+        }, r));
+      });
+    };
+
+    if (csSections) {
+      // The RSM sheet carries the same two blocks as the Branch sheet, so a
+      // reader moving between the tabs sees the same subtotals in both.
+      csSections.forEach((sec) => {
+        const sups = new Set(sec.branches.map((b) => b.supervision));
+        const secRsm = rsmData.filter((d) => sups.has(d.supervision));
+        rsmRows.push({
+          Zone: sec.label.toUpperCase(),
+          Branch: '',
+          'Regional Sales Manager Name': '',
+          Metric: '',
+          __sectionHeaderRow: true,
+          ...Object.fromEntries(dataCols.map((c) => [c, ''])),
         });
-        row[separatorCol] = '';
-        monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-        rsmRows.push(row);
+        secRsm.forEach((item, i) => pushRsm(item, i === 0));
+        pushRsmTotal(sec.totalRows, sec.label.toUpperCase(),
+          `Subtotal (${sec.label})`, { __sectionTotalRow: true });
       });
-    });
-    rsmRows.push(sepRowRsm());
-    grandTotalRows.forEach((r, idx) => {
-      const row = {
-        Zone: idx === 0 ? 'TOTAL' : '',
-        Branch: idx === 0 ? 'All Supervisions' : '',
-        'Regional Sales Manager Name': idx === 0 ? '' : '',
-        Metric: r.rowLabel,
-        __totalRow: true,
-      };
-      monthColumns.forEach((m) => {
-        const mm = r.__monthlyMetrics?.[m] || {};
-        monthSubCols.forEach((s) => { row[`${m} ${s}`] = mm[s] ?? ''; });
-      });
-      row[separatorCol] = '';
-      monthSubCols.forEach((s) => { row[`Cumulative ${s}`] = s === 'Grade' ? getGradeFromPctArchived(r['% Achived']) : s === 'Comment' ? getCommentFromPctArchived(r['% Achived']) : (r[s] ?? ''); });
-      rsmRows.push(row);
-    });
+    } else {
+      rsmData.forEach((item, i) => pushRsm(item, i === 0));
+    }
+
+    pushRsmTotal(
+      grandTotalRows,
+      csSections ? 'TOTAL CS' : 'TOTAL',
+      csSections ? 'Mainland + Zanzibar' : 'All Supervisions',
+      { __totalRow: true },
+    );
 
     const rsmTable = {
       data: rsmRows.length ? rsmRows : [{ Zone: '', Branch: '', 'Regional Sales Manager Name': '', Metric: 'No data', ...Object.fromEntries(dataCols.map((c) => [c, ''])) }],

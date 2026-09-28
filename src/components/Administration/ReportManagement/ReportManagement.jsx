@@ -60,7 +60,16 @@ const ReportManagement = () => {
     && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const procedureTypes = ['MANAGEMENT', 'CRM', 'CALL CENTER', 'MTD', 'GAP ANALYSIS', 'COMMISSION'];
-  const departments = ['CS', 'SME', 'LBF', 'AGRI'];
+  // CS_ZANZIBAR is a department in its own right, not a zone inside CS — see
+  // crm_reports.py. The code is what the API stores; the label is what the
+  // operator picking a destination reads.
+  const departments = [
+    { code: 'CS', label: 'CS Mainland' },
+    { code: 'CS_ZANZIBAR', label: 'CS Zanzibar' },
+    { code: 'SME', label: 'SME' },
+    { code: 'LBF', label: 'LBF' },
+    { code: 'AGRI', label: 'AGRI' },
+  ];
 
   // Fetch reports
   useEffect(() => {
@@ -543,11 +552,11 @@ const ReportManagement = () => {
                 <div className="department-options">
                   {departments.map(dept => (
                     <button
-                      key={dept}
-                      className={`department-option ${selectedProcedureDepartment === dept && selectedProcedureType === hoveredProcedureButton ? 'selected' : ''}`}
-                      onClick={() => handleProcedureDepartmentSelect(dept)}
+                      key={dept.code}
+                      className={`department-option ${selectedProcedureDepartment === dept.code && selectedProcedureType === hoveredProcedureButton ? 'selected' : ''}`}
+                      onClick={() => handleProcedureDepartmentSelect(dept.code)}
                     >
-                      <span className="department-name">{dept}</span>
+                      <span className="department-name">{dept.label}</span>
                     </button>
                   ))}
                 </div>

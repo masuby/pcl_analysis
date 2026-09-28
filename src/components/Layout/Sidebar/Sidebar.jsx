@@ -23,12 +23,22 @@ const Sidebar = ({ isCollapsed, onToggle, isMobileMenuOpen, onMobileMenuToggle }
       roles: ['admin', 'CS', 'LBF', 'SME', 'ALL'],
       description: 'System Overview'
     },
-    { 
-      path: '/cs-reports', 
-      label: 'CS REPORTS', 
-      icon: '🏛️', 
+    // CS is reported as two departments — Mainland and Zanzibar — the same way
+    // crm_reports.py splits them. CS_CRM has always meant Mainland; the tab is
+    // named for it so nobody has to remember that.
+    {
+      path: '/cs-reports',
+      label: 'CS MAINLAND REPORTS',
+      icon: '🏛️',
       roles: ['admin', 'CS', 'ALL'],
-      description: 'Civil Servant Reports'
+      description: 'Civil Servant — Mainland'
+    },
+    {
+      path: '/cs-zanzibar-reports',
+      label: 'CS ZANZIBAR REPORTS',
+      icon: '🏝️',
+      roles: ['admin', 'CS', 'ALL'],
+      description: 'Civil Servant — Zanzibar'
     },
     { 
       path: '/lbf-reports', 

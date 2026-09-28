@@ -7,6 +7,8 @@
  * SME uses the same column map and gap row structure as LBF (buildLBFGapRows, ROW_ORDER_LBF).
  */
 
+import { splitCsRows } from '../../../../../../../utils/csZone';
+
 const num = (v) => {
   if (v == null || v === '') return 0;
   const n = Number(v);
@@ -505,21 +507,29 @@ export const buildYTDGapData = (monthlyParsedData = [], product, actualRepsOverr
   const grandBase = latest.grandTotalRow
     ? (product === 'CS' ? buildCSGapRows(latest.grandTotalRow, colMap, '') : buildLBFGapRows(latest.grandTotalRow, colMap, undefined))
     : [];
-  const grandByLabel = new Map((grandBase || []).map((r) => [r.rowLabel, { ...r }]));
-  branchData.forEach((b) => {
-    b.rows.forEach((r) => {
-      const g = grandByLabel.get(r.rowLabel);
-      if (!g) return;
-      if (!g.__monthTarget) g.__monthTarget = {};
-      if (!g.__monthAchieved) g.__monthAchieved = {};
-      monthColumns.forEach((m) => {
-        const mm = r.__monthlyMetrics?.[m] || {};
-        g.__monthTarget[m] = (Number(g.__monthTarget[m] || 0) || 0) + Number(mm.Target || 0);
-        g.__monthAchieved[m] = (Number(g.__monthAchieved[m] || 0) || 0) + Number(mm.Achieved || 0);
+
+  /* Roll a set of branches up into total rows.
+   *
+   * Pulled out of the grand-total block below so the CS Mainland and Zanzibar
+   * subtotals are computed by the very same arithmetic as the grand total.
+   * Two separate implementations of "add up the months" is how a subtotal
+   * ends up not summing to the total it sits under. */
+  const aggregateBranches = (branches) => {
+    const byLabel = new Map((grandBase || []).map((r) => [r.rowLabel, { ...r }]));
+    branches.forEach((b) => {
+      b.rows.forEach((r) => {
+        const g = byLabel.get(r.rowLabel);
+        if (!g) return;
+        if (!g.__monthTarget) g.__monthTarget = {};
+        if (!g.__monthAchieved) g.__monthAchieved = {};
+        monthColumns.forEach((m) => {
+          const mm = r.__monthlyMetrics?.[m] || {};
+          g.__monthTarget[m] = (Number(g.__monthTarget[m] || 0) || 0) + Number(mm.Target || 0);
+          g.__monthAchieved[m] = (Number(g.__monthAchieved[m] || 0) || 0) + Number(mm.Achieved || 0);
+        });
       });
     });
-  });
-  const grandTotalRows = Array.from(grandByLabel.values()).map((g) => {
+    return Array.from(byLabel.values()).map((g) => {
     const isMovement = isMovementRowLabel(product, g.rowLabel);
     const monthlyMetrics = {};
     monthColumns.forEach((m) => {
@@ -544,11 +554,35 @@ export const buildYTDGapData = (monthlyParsedData = [], product, actualRepsOverr
     const monthTargetVals = monthColumns.map((m) => Number(g.__monthTarget?.[m] || 0));
     const cumulativeAch = isMovement ? Math.round(monthAchVals[monthAchVals.length - 1]) : monthAchVals.reduce((a, b) => a + b, 0);
     const cumulativeTarget = isMovement ? Math.round(monthTargetVals[monthTargetVals.length - 1]) : monthTargetVals.reduce((a, b) => a + b, 0);
-    const recomputed = recomputeRow(g, cumulativeTarget, cumulativeAch);
-    return { ...recomputed, __monthlyMetrics: monthlyMetrics, Cumulative: cumulativeAch };
-  });
+      const recomputed = recomputeRow(g, cumulativeTarget, cumulativeAch);
+      return { ...recomputed, __monthlyMetrics: monthlyMetrics, Cumulative: cumulativeAch };
+    });
+  };
 
-  return { monthColumns, branchData, rsmData, grandTotalRows };
+  const grandTotalRows = aggregateBranches(branchData);
+
+  /* CS is reported in two blocks - Mainland and Zanzibar - each with its own
+   * subtotal, under one combined total. Only CS: LBF and SME have no such
+   * split, and csSections stays null for them so their report is untouched.
+   * The split rule is csZone.js, a port of crm_reports.py. */
+  let csSections = null;
+  if (product === 'CS') {
+    const { mainland, zanzibar } = splitCsRows(branchData, {
+      zoneFields: ['supervision'],
+      fallbackFields: ['supervision', 'teamLeaderName'],
+    });
+    // Only worth splitting when both halves actually have branches. A month
+    // with no Zanzibar data should read as an ordinary CS report, not as a
+    // report with an empty Zanzibar block implying the figures went missing.
+    if (mainland.length && zanzibar.length) {
+      csSections = [
+        { key: 'mainland', label: 'Mainland', branches: mainland, totalRows: aggregateBranches(mainland) },
+        { key: 'zanzibar', label: 'Zanzibar', branches: zanzibar, totalRows: aggregateBranches(zanzibar) },
+      ];
+    }
+  }
+
+  return { monthColumns, branchData, rsmData, grandTotalRows, csSections };
 };
 
 /**

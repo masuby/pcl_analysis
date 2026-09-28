@@ -18,7 +18,9 @@ const buildSheet = (sheet) => {
   const table = sheet?.tables?.[0];
   const rows = table?.data || [];
   if (!rows.length) return null;
-  const headers = Object.keys(rows[0]).filter((h) => h !== '__separator' && h !== '__totalRow');
+  // Internal row flags, never columns. Anything starting __ is a marker the
+  // row builder set for styling; leaking one prints a TRUE column.
+  const headers = Object.keys(rows[0]).filter((h) => !h.startsWith('__'));
   const ws = {};
 
   const monthColumns = table?.monthColumns || [];
@@ -113,9 +115,17 @@ const buildSheet = (sheet) => {
       }
       if (useNum && isPctCol(h)) ws[ref].s.numFmt = '0.00%';
       else if (useNum) ws[ref].s.numFmt = peopleRow ? '#,##0' : '#,##0.00';
-      if (row.__totalRow || row.__supervisionTotalRow) {
-        ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: 'FF1A237E' } };
+      if (row.__totalRow || row.__supervisionTotalRow || row.__sectionTotalRow) {
+        // The combined total and the two CS subtotals share the navy band; the
+        // subtotals sit a shade lighter so the eye can tell a part from a whole.
+        const band = row.__sectionTotalRow ? 'FF303F9F' : 'FF1A237E';
+        ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: band } };
         ws[ref].s.font = { name: 'Calibri', sz: 8, bold: true, color: { rgb: 'FFFFFFFF' } };
+      }
+      if (row.__sectionHeaderRow) {
+        // MAINLAND / ZANZIBAR: a quiet rule across the sheet, not a total.
+        ws[ref].s.fill = { patternType: 'solid', fgColor: { rgb: 'FFD9D9D9' } };
+        ws[ref].s.font = { name: 'Calibri', sz: 9, bold: true, color: { rgb: 'FF1A237E' } };
       }
     });
   });

@@ -27,7 +27,9 @@ func InitReportHandlers(cfg *config.StorageConfig) {
 	maxFileSize = cfg.MaxFileSize
 
 	// Create upload directories
-	departments := []string{"CS", "LBF", "SME", "AGRI", "MANAGEMENT", "ALL", "CHALLENGE"}
+	// CS is two departments: CS holds Mainland (CS_CRM, as it always has) and
+	// CS_ZANZIBAR holds Zanzibar. Same split as crm_reports.py.
+	departments := []string{"CS", "CS_ZANZIBAR", "LBF", "SME", "AGRI", "MANAGEMENT", "ALL", "CHALLENGE"}
 	for _, dept := range departments {
 		dir := filepath.Join(uploadPath, dept)
 		if err := os.MkdirAll(dir, 0755); err != nil {

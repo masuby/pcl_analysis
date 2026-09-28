@@ -6,8 +6,24 @@ import { useMTDData } from '../../../../../MTDdashboard/hooks/useMTDData';
 import { exportSingleSectionWithStyles } from '../../../../utils/excelExportStyled';
 import { getReportsByDepartmentAndType, getReportFileUrl } from '../../../../../../../../services/reports';
 
-const PRODUCTS = ['CS', 'LBF', 'SME', 'Agrifinance'];
-const CRM_PRODUCTS = ['CS', 'LBF', 'SME'];
+/* CS is reported as two products — Mainland and Zanzibar.
+ *
+ * The management report already keeps them apart: `csBranchNames` in
+ * useManagementData sums only the 'CS' and 'Cs Asset Finance' branch rows, and
+ * the 'ZANZIBAR' branch row is bucketed separately as report.zanzibar. So the
+ * CS figure here has always been Mainland — Zanzibar simply had no row and was
+ * missing from the company totals. Giving it one both separates CS and puts
+ * those disbursements back into the total. */
+const PRODUCTS = ['CS', 'CS Zanzibar', 'LBF', 'SME', 'Agrifinance'];
+/* Departments with a CRM report to count agents from. The label on the left is
+ * the product row; the value is the department the reports are filed under. */
+const CRM_DEPT_BY_PRODUCT = {
+  CS: 'CS',
+  'CS Zanzibar': 'CS_ZANZIBAR',
+  LBF: 'LBF',
+  SME: 'SME',
+};
+const CRM_PRODUCTS = Object.keys(CRM_DEPT_BY_PRODUCT);
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const num = (v) => {
@@ -147,15 +163,16 @@ const ManagementSummary = forwardRef((_, ref) => {
   const mtdCS = useMTDData('CS');
   const mtdLBF = useMTDData('LBF');
   const mtdSME = useMTDData('SME');
-  const [crmByMonth, setCrmByMonth] = useState({ CS: {}, LBF: {}, SME: {} });
-  const [mtdActiveByMonth, setMtdActiveByMonth] = useState({ CS: {}, LBF: {}, SME: {} });
+  const emptyByProduct = () => Object.fromEntries(CRM_PRODUCTS.map((p) => [p, {}]));
+  const [crmByMonth, setCrmByMonth] = useState(emptyByProduct);
+  const [mtdActiveByMonth, setMtdActiveByMonth] = useState(emptyByProduct);
 
   useEffect(() => {
     let stop = false;
     const load = async () => {
-      const out = { CS: {}, LBF: {}, SME: {} };
+      const out = emptyByProduct();
       for (const dept of CRM_PRODUCTS) {
-        const res = await getReportsByDepartmentAndType(dept, 'CRM');
+        const res = await getReportsByDepartmentAndType(CRM_DEPT_BY_PRODUCT[dept], 'CRM');
         if (!res?.success) continue;
         const sorted = (res.data || []).map((r) => ({ ...r, _d: dOf(r) })).filter((r) => r._d).sort((a, b) => b._d - a._d);
         const latestPerMonth = {};
@@ -185,9 +202,9 @@ const ManagementSummary = forwardRef((_, ref) => {
   useEffect(() => {
     let stop = false;
     const load = async () => {
-      const out = { CS: {}, LBF: {}, SME: {} };
+      const out = emptyByProduct();
       for (const dept of CRM_PRODUCTS) {
-        const res = await getReportsByDepartmentAndType(dept, 'MTD');
+        const res = await getReportsByDepartmentAndType(CRM_DEPT_BY_PRODUCT[dept], 'MTD');
         if (!res?.success) continue;
         const sorted = (res.data || [])
           .map((r) => ({ ...r, _d: dOf(r) }))
@@ -236,7 +253,11 @@ const ManagementSummary = forwardRef((_, ref) => {
 
   const getProductData = (report, p) => {
     if (!report) return null;
-    const data = p === 'CS' ? report.cs : p === 'LBF' ? report.lbf : p === 'SME' ? report.sme : (report.agrifinance || report.AgriFinance || {});
+    const data = p === 'CS' ? report.cs
+      : p === 'CS Zanzibar' ? report.zanzibar
+      : p === 'LBF' ? report.lbf
+      : p === 'SME' ? report.sme
+      : (report.agrifinance || report.AgriFinance || {});
     if (!data || Object.keys(data).length === 0) return null;
     const active = num(data['Active clients'] ?? data['Active Clients']);
     const inactive = num(data['Inactive clients'] ?? data['Inactive Clients']);
@@ -300,10 +321,13 @@ const ManagementSummary = forwardRef((_, ref) => {
       const d = getProductData(report, p);
       const target = num(d?.target);
       const mgmtDisb = num(d?.disbursement);
-      const mtdT = p === 'Agrifinance' || p === 'SME' ? null : mtdByDept[p];
+      const managementOnly = p === 'Agrifinance' || p === 'SME' || p === 'CS Zanzibar';
+      const mtdT = managementOnly ? null : mtdByDept[p];
       const mtdDisb = mtdT ? num(mtdT.disbursement) : 0;
-      // SME and Agrifinance: always Management. CS/LBF: pick whichever has higher disbursement.
-      const useManagement = p === 'Agrifinance' || p === 'SME' ? true : mgmtDisb > mtdDisb;
+      // SME, Agrifinance and CS Zanzibar have no MTD file of their own, so they
+      // always read Management. CS Mainland and LBF take whichever disbursement
+      // is higher.
+      const useManagement = managementOnly ? true : mgmtDisb > mtdDisb;
       const source = useManagement ? 'Management' : 'MTD';
       let disb;
       let noLoans;
@@ -340,7 +364,7 @@ const ManagementSummary = forwardRef((_, ref) => {
   const activeRepsForMonth = (product, monthIndex, report) => {
     if (currentYear == null) return num(getProductData(report, product)?.activeReps);
     const mk = `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}`;
-    if (product === 'SME') {
+    if (product === 'SME' || product === 'CS Zanzibar') {
       return num(getProductData(report, product)?.activeReps);
     }
     if (product === 'CS' || product === 'LBF') {

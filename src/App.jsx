@@ -7,6 +7,7 @@ import Login from './components/Auth/Login/Login';
 import MainLayout from './components/Layout/MainLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import CSReports from './pages/CSReports/CSReports';
+import CSZanzibarReports from './pages/CSZanzibarReports/CSZanzibarReports';
 import LBFReports from './pages/LBFReports/LBFReports';
 import SMEReports from './pages/SMEReports/SMEReports';
 import AllReports from './pages/AllReports/AllReports';
@@ -32,6 +33,7 @@ function App() {
                   <Route element={<MainLayout />}>
                     <Route path="dashboard" element={<Dashboard />} />
                     <Route path="cs-reports" element={<CSReports />} />
+                    <Route path="cs-zanzibar-reports" element={<CSZanzibarReports />} />
                     <Route path="lbf-reports" element={<LBFReports />} />
                     <Route path="sme-reports" element={<SMEReports />} />
                     <Route path="all-reports" element={<AllReports />} />
