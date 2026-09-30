@@ -31,6 +31,7 @@ import { getReportsByDepartmentAndType } from '../../../../../services/reports';
 import { getReportFileUrl } from '../../../../../services/supabase';
 import { localTripAPI, lbfCallCenterAPI, reportsAPI } from '../../../../../services/api';
 import { injectFreezePanes } from '../../DepartmentalDashboard/utils/excelFreezePanes';
+import { belongsToDepartment } from '../../../../../utils/reportFiles';
 
 const DEPARTMENTS = ['CS', 'LBF', 'SME', 'AGRI'];
 
@@ -198,8 +199,9 @@ async function loadDeptReports(dept) {
   const out = [];
   for (const report of res.data || []) {
     const fileName = report.fileName || report.file_name || report.title || '';
-    if (!up(fileName).includes('MTD')) continue;
-    if (!up(fileName).includes(dept.toUpperCase())) continue;
+    // Same rule as the MTD dashboard: the database filed it, the name only
+    // has to not name a different department. See utils/reportFiles.js.
+    if (!belongsToDepartment(fileName, dept)) continue;
 
     // The report id is what matters: the file is fetched through the
     // authenticated download endpoint, not a static path. Keep any fileUrl the

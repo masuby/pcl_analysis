@@ -4,6 +4,7 @@ import { getReportFileUrl } from '../../../../../services/supabase';
 import { cacheInvalidate } from '../../../../../services/cache';
 import { useReportRefresh } from '../../../../../contexts/ReportRefreshContext';
 import * as XLSX from 'xlsx';
+import { belongsToDepartment } from '../../../../../utils/reportFiles';
 
 // In-memory cache for parsed MTD data
 const mtdParsedCache = new Map();
@@ -437,11 +438,10 @@ export const useMTDData = (department, selectedDate = null) => {
       for (const report of result.data || []) {
         const fileName = report.fileName || report.file_name || report.title || 'Unknown';
         
-        const mtdPattern = department.toUpperCase();
-        const hasMTD = fileName.toUpperCase().includes('MTD');
-        const hasDept = fileName.toUpperCase().includes(mtdPattern);
-        
-        if (hasMTD && hasDept) {
+        // The API was asked for this department and type, so the filing is
+        // already settled; the name only has to not belong to someone else.
+        // Requiring 'MTD' in it dropped CS_MTSD_AS_OF_29th_SEPT_2026.xlsx.
+        if (belongsToDepartment(fileName, department)) {
           let fileUrl = report.fileUrl || report.file_url;
           
           if (!fileUrl && (report.filePath || report.file_path)) {
