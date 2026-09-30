@@ -217,6 +217,20 @@ The root `.gitignore` MUST exclude:
     compose passes `EMAIL_APP_PASSWORD` through `environment:`; the running
     container keeps the old value until it is recreated
     (`docker compose up -d --no-build api`).
+  - **The dev machine has its own `pcl-api` container and it is the one that
+    usually bites.** `backend/docker-compose.yml` passes the same variable the
+    same way, so a container created before the last edit to `backend/.env`
+    serves `535 5.7.8 Username and Password not accepted` from the web app
+    while every `.env` on disk — local and server — holds a password Gmail
+    accepts. That happened on 2026-09-30: the local container was built on
+    9 Sep and `backend/.env` last written on 16 Sep. Recreate it with
+    `docker compose up -d --no-build --force-recreate api` from `backend/`.
+  - **Diagnose by fingerprint, and check the RUNNING process, not just the
+    files.** Hash each value (never print it) and compare: the files agreeing
+    with each other proves nothing when the failure is a process holding an
+    older copy. `docker exec <container> sh -c 'printf %s "$EMAIL_APP_PASSWORD"'`
+    shows what a container actually has. To test a credential without sending
+    anything, open SMTP, `starttls`, `login`, then quit.
   - **`reporting@platinumcredit.co.tz` is a SEPARATE account** with its own app
     password in `Management/.env` as `MANAGEMENT_EMAIL_PASSWORD`. It is not part
     of the rotation — overwriting it with daniel's password breaks the
