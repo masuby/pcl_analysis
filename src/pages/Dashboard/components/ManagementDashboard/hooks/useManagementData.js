@@ -291,10 +291,65 @@ export const useManagementData = (selectedDepartment, fromDate = null, toDate = 
       lbfData[metric] = sumBranches(lbfBranchNames, lbfBranches, metric);
     });
 
+    /* Make the CS history mean the same thing as the present.
+     *
+     * Before CS was split, the report carried ONE 'CS' row covering the whole
+     * product and a separate 'ZANZIBAR' row that was part of it, not a sibling.
+     * Checked on 31-08-2026: the management CS row — 1,045,944,930.11 over 679
+     * loans — is the CS MTD grand total to the shilling, and that grand total
+     * contains Zanzibar's 326,730,729.54.
+     *
+     * So a month-on-month comparison put this month's Mainland against last
+     * month's Mainland-plus-Zanzibar and read it as a 40% collapse, when
+     * Mainland against Mainland is about 13%. Where a report predates the
+     * rename, Zanzibar is taken back out so both sides of every comparison,
+     * trend and total mean Mainland.
+     *
+     * It also removes a double count: the score card lists CS and CS Zanzibar
+     * as separate products, so for those months the company total counted
+     * Zanzibar twice.
+     *
+     * Ratios are not additive and are left alone; average loan size is
+     * recomputed from the corrected figures just below. */
+    const usesOldCombinedCS =
+      Object.keys(csBranches['CS - MAINLAND'] || {}).length === 0 &&
+      Object.keys(csBranches['CS'] || {}).length > 0 &&
+      Object.keys(zanzibarData).length > 0;
+
+    const csCorrected = new Set();
+    if (usesOldCombinedCS) {
+      const nonAdditive = (m) => m.includes('%') || /^PAR/i.test(m) || /average/i.test(m);
+      Object.keys(csData).forEach((metric) => {
+        if (nonAdditive(metric)) return;
+        const whole = csData[metric];
+        const part = zanzibarData[metric] || 0;
+        // A Zanzibar value of 0 against a non-zero CS one is a hole in the
+        // report, not a real zero: on 31-08-2026 the Zanzibar row carried
+        // 326,730,729.54 of disbursement but 0 loans, where the MTD counted
+        // 199. Those metrics are left uncorrected, and anything derived from
+        // them is left alone too — see the average below.
+        if (typeof whole !== 'number' || typeof part !== 'number' || part === 0) return;
+        const rest = whole - part;
+        // A negative result would mean Zanzibar was never inside this row after
+        // all. Leave the figure alone rather than invent one.
+        if (rest >= 0) {
+          csData[metric] = rest;
+          csCorrected.add(metric);
+        }
+      });
+    }
+
     // Average Loan Size (total) = Disbursement this month / Number of Loans (not sum of sub-product averages)
     const csDisb = csData['Disbursements This Month'] ?? csData['Disbursement this Month'] ?? csData['Disbursement This Month'] ?? 0;
     const csLoans = csData['Number of loans'] ?? csData['Number of Loans'] ?? 0;
-    if (csLoans > 0 && typeof csDisb === 'number' && typeof csLoans === 'number') {
+    /* Recompute only when both halves of the fraction mean the same thing.
+       Where Zanzibar was taken out of the disbursement but its loan count was
+       missing, dividing one by the other invents an average far below either
+       figure — 1.06m against a real 1.5m on August's numbers. The report's own
+       average is closer to the truth than that, so it is left as filed. */
+    const avgIsConsistent = !usesOldCombinedCS
+      || (csCorrected.has('Disbursements This Month') === csCorrected.has('Number of loans'));
+    if (avgIsConsistent && csLoans > 0 && typeof csDisb === 'number' && typeof csLoans === 'number') {
       csData['Average loan size'] = csDisb / csLoans;
     }
     const lbfDisb = lbfData['Disbursements This Month'] ?? lbfData['Disbursement this Month'] ?? lbfData['Disbursement This Month'] ?? 0;
