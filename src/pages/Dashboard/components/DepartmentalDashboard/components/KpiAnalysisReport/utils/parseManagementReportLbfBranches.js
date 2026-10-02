@@ -2,6 +2,31 @@ import * as XLSX from 'xlsx';
 
 const SKIP_SHEETS = new Set(['country', 'kpi', 'summary', 'cover', 'contents']);
 
+/* Column A says "Team Leader" on three different kinds of row, and only one of
+   them is a team leader.
+
+   On LBFCityMall, for instance:
+
+     Team Leader | Thobias uchungu     45,000,000   <- a team leader
+     Team Leader | LBF City Mall      620,000,000   <- the BRANCH's own total
+     Team Leader | CS Call center      75,000,000   <- belongs to CS, not LBF
+
+   Adding all three gave a branch target of 1,080,000,000 against a real
+   620,000,000: the branch counted once as itself and again as the sum of its
+   parts, plus 75m of someone else's product. Across the 23 LBF sheets that
+   inflated the LBF target from 4,735,000,000 to 9,156,000,002, and it halved
+   every branch's achievement - City Mall read 41.7% where the MTD said 72.6%.
+
+   The branch's own row carries the branch target, and it is the only candidate
+   that agrees with the MTD (6 of the 14 branches the MTD names individually;
+   summing the team leaders agrees with none of them). */
+const normKey = (v) => String(v ?? '').toLowerCase().replace(/[^a-z]/g, '');
+
+// Names a different product and does not name this one.
+const OTHER_PRODUCT = /\b(cs|sme)\b/i;
+const isForeignRow = (name) =>
+  OTHER_PRODUCT.test(String(name ?? '')) && !/lbf/i.test(String(name ?? ''));
+
 function toNum(v) {
   if (v == null || v === '') return 0;
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
@@ -61,6 +86,8 @@ export async function parseManagementReportLbfBranches(fileUrl) {
       const pct = target > 0 ? (disbursement / target) * 100 : 0;
       tlRows.push({
         branch: s,
+        isBranchTotal: normKey(tlName) === normKey(s),
+        isForeign: isForeignRow(tlName),
         teamLeader: tlName,
         target,
         newBusiness,
@@ -76,13 +103,30 @@ export async function parseManagementReportLbfBranches(fileUrl) {
 
     if (tlRows.length === 0) continue;
 
-    const branchAgg = tlRows.reduce((acc, tl) => {
-      acc.target += tl.target;
+    const ownRows = tlRows.filter((tl) => !tl.isForeign);
+    const realTls = ownRows.filter((tl) => !tl.isBranchTotal);
+
+    /* Disbursement still sums every row of this branch, including its own
+       total row - checked against the 30-09-2026 MTD, where that sum equals
+       the branch's VALUE for 12 of the 14 branches the MTD names. Only the
+       TARGET was being double counted. */
+    const branchAgg = ownRows.reduce((acc, tl) => {
       acc.disbursement += tl.disbursement;
       acc.loans += tl.loans;
       acc.activeAgentApprox += tl.activeAgents;
       return acc;
     }, { target: 0, disbursement: 0, loans: 0, activeAgentApprox: 0 });
+
+    // The branch's own row is the target. A few sheets have no such row
+    // (LBFKigomaBranch), so the team leaders are the fallback rather than zero,
+    // which would make the percentage meaningless.
+    const ownTarget = ownRows
+      .filter((tl) => tl.isBranchTotal)
+      .reduce((n, tl) => n + tl.target, 0);
+    branchAgg.target = ownTarget > 0
+      ? ownTarget
+      : realTls.reduce((n, tl) => n + tl.target, 0);
+
     const pct = branchAgg.target > 0 ? (branchAgg.disbursement / branchAgg.target) * 100 : 0;
 
     branches.push({
@@ -93,7 +137,7 @@ export async function parseManagementReportLbfBranches(fileUrl) {
       activeAgentApprox: branchAgg.activeAgentApprox,
       pct
     });
-    teamLeaders.push(...tlRows);
+    teamLeaders.push(...realTls);
 
     totalTarget += branchAgg.target;
     totalDisbursement += branchAgg.disbursement;
